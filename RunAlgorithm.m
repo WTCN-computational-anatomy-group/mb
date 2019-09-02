@@ -1,12 +1,14 @@
 clear;
 
+addpath(genpath(fullfile(fileparts(mfilename('fullpath')),'code')));
+
 %------------------
 % Input data parameters
 %------------------
 
 dir_data = fullfile(fileparts(mfilename('fullpath')),'data-ixi-t1-32'); % Directory with MRIs
 num_subj = 16;                                                          % Max number of subjects
-samp     = 2;                                                           % Sample distance (> 1 does subsampling)
+samp     = 0;                                                           % Sample distance (> 1 does subsampling)
 do_2d    = 2;                                                           % 0 = 3D, 1 - 3 = different axes in 2D
 
 %------------------
