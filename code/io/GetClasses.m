@@ -1,5 +1,13 @@
 function [P,datn] = GetClasses(datn,mu1,~)
-% Could be extended to include GMM stuff
+if ~isfield(datn,mog)
+    P        = GetData(datn.f);
+else
+    [P,datn] = GetClassesGMM(datn,mu1,~)
+end
+end
+
+function [P,datn] = GetClassesGMM(datn,mu1,~)
+% Extended to include GMM stuff
 f      = GetData(datn.f);
 d      = [size(f) 1];
 d      = d(1:3);
