@@ -121,12 +121,20 @@ end
 % Speak()
 function Speak(nam,varargin)
 switch nam
+    case 'Init'
+        nit = varargin{1}; 
+        
+        fprintf('Optimising parameters at largest zoom level (nit = %i)\n',nit)
+    case 'Iter'
+        nzm = varargin{1}; 
+        
+        fprintf('Optimising parameters at decreasing zoom levels (nzm = %i)\n',nzm)        
     case {'Register','Groupwise'}
         N = varargin{1};
         K = varargin{2};
         
         fprintf('------------------------------------\n')
-        fprintf(' Begin %s (N=%i, K=%i) \n',nam,N,K)
+        fprintf(' Begin %s (N = %i, K = %i)\n',nam,N,K)
         fprintf('------------------------------------\n\n')
     otherwise
         error('Unknown input!')

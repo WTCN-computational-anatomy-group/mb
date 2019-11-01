@@ -15,12 +15,20 @@ spm_multireg_util('SetPath');
 spm_multireg_util('SetBoundCond');
 
 % Do population- or subject-level
-if nargin==1 && isa(varargin{1},'cell')
-    [varargout{1:nargout}] = Groupwise(varargin{:});
-elseif nargin==2
-    [varargout{1:nargout}] = Register(varargin{:});
-else
-    error('Incorrect usage.');
+if nargin == 0
+    help spm_multireg
+    error('Not enough argument. Type ''help spm_multireg'' for help.');
+end
+id = varargin{1};
+varargin = varargin(2:end);
+switch id
+    case 'Groupwise'
+        [varargout{1:nargout}] = Groupwise(varargin{:});   
+    case 'Register'
+        [varargout{1:nargout}] = Register(varargin{:});           
+    otherwise
+        help spm_multireg
+        error('Unknown function %s. Type ''help spm_multireg'' for help.', id)
 end
 end
 %==========================================================================
@@ -39,19 +47,27 @@ N        = numel(F); % Number of subjects
 sett                 = spm_multireg_par('Settings',sett,is3d);
 sett.model.groupwise = true;
 
-dat       = spm_multireg_init('InitDat',F,sett);
+%------------------
+% Init dat (f, M, q, v, psi, E, mog, Mat)
+%------------------
+
+dat = spm_multireg_init('InitDat',F,sett);
 clear F
 
-%[~,M]     = spm_multireg_io('GetSize',dat(1).f);
-M         = numel(dat(1).mog.mu) - 1;
-[Mmu, d]  = spm_multireg_util('SpecifyMean',dat,sett.model.vx);
-nz        = max(ceil(log2(min(d(d~=1)))-log2(8)),1);
-sz        = spm_multireg_par('ZoomSettings',d,Mmu,sett.var.v_settings,sett.var.mu_settings,nz);
-sett.var  = spm_multireg_io('CopyFields',sz(end), sett.var);
-dat       = spm_multireg_init('InitDef',dat,sett);
-%mu        = randn([sett.var.d M],'single')*10000;
-mu        = zeros([sett.var.d M],'single');
-%mu    = spm_multireg_util('ShrinkTemplate',mu,Mmu,sett);
+%------------------
+% Get template size and orientation
+%------------------
+
+[Mmu, d] = spm_multireg_util('SpecifyMean',dat,sett.model.vx);
+
+%------------------
+% Get zoom (multi-scale) settings
+%------------------
+
+nz       = max(ceil(log2(min(d(d~=1))) - log2(8)),1);
+sz       = spm_multireg_par('ZoomSettings',d,Mmu,sett.var.v_settings,sett.var.mu_settings,nz);
+sett.var = spm_multireg_io('CopyFields',sz(end), sett.var);
+dat      = spm_multireg_init('InitDef',dat,sett);
 
 %------------------
 % Start algorithm
@@ -62,7 +78,11 @@ spm_multireg_show('Speak','Groupwise',N,sett.model.K);
 Objective = [];
 E         = Inf;
 prevt     = Inf;
+K         = numel(dat(1).mog.mu) - 1;
+mu        = zeros([sett.var.d K],'single'); % Initial template (uniform)
 te        = spm_multireg_energ('TemplateEnergy',mu,sett);
+
+spm_multireg_show('Speak','Init',sett.nit.init);
 for iter=1:sett.nit.init
 
     %------------------
@@ -70,26 +90,33 @@ for iter=1:sett.nit.init
     %------------------
     
     for subit=1:sett.nit.init_mu
+        % Update template (mean)
         Eold     = E; tic;
         [mu,dat] = spm_multireg_updt('UpdateMean',dat, mu, sett);
-        E        = sum(sum(cat(2,dat.E),2),1)+te; % Cost function after rigid update
+        E        = sum(sum(cat(2,dat.E),2),1) + te; % Cost function after rigid update
         te       = spm_multireg_energ('TemplateEnergy',mu,sett);
         t        = toc;
-        fprintf('%d 0 \t%g\t%g\t%g\n', iter, E, t, (Eold-E)/prevt);
-        prevt    = t;
+        
+        % Print stuff
+        fprintf('it=%i mu \t%g\t%g\t%g\n', iter, E, t, (Eold-E)/prevt);
+        prevt     = t;
         Objective = [Objective; E];
     end
    %if (Eold-E)/(numel(dat)*100^3)<1e-4, break; end
 
-    Eold   = E; tic;
-    dat    = spm_multireg_updt('UpdateSimpleAffines',dat,mu,sett);
-    E      = sum(sum(cat(2,dat.E),2),1)+te;   % Cost function after mean update
-    t      = toc;
-    fprintf('%d 1 \t%g\t%g\t%g\n', iter, E, t, (Eold-E)/prevt);
+    % Update affine
+    Eold = E; tic;
+    dat  = spm_multireg_updt('UpdateSimpleAffines',dat,mu,sett);
+    E    = sum(sum(cat(2,dat.E),2),1)+te;   % Cost function after mean update
+    t    = toc;
+    
+    % Print stuff
+    fprintf('it=%i q  \t%g\t%g\t%g\n', iter, E, t, (Eold-E)/prevt);
     prevt = t;
-
-    spm_multireg_show('ShowSubjects',dat,mu,sett);
     Objective = [Objective; E];
+
+    % Show stuff
+    spm_multireg_show('ShowSubjects',dat,mu,sett);    
     spm_multireg_show('ShowModel',mu,Objective,sett,N);        
 end
 
@@ -97,15 +124,18 @@ end
 % Iteratively decrease the template resolution
 %------------------
 
+spm_multireg_show('Speak','Iter',numel(sz));
 tic
-for zm=numel(sz):-1:1
+for zm=numel(sz):-1:1 % loop over zoom levels
+    
    %if zm~=numel(sz), [mu,dat] = spm_multireg_updt('UpdateSimpleMean',dat, mu, sett); end
-    if zm~=numel(sz),
+    if zm~=numel(sz)
         for i=1:4
+            % Update mean
             [mu,dat] = spm_multireg_updt('UpdateMean',dat, mu, sett);
         end
     end
-    te       = spm_multireg_energ('TemplateEnergy',mu,sett);
+    te = spm_multireg_energ('TemplateEnergy',mu,sett);
 
     niter = sett.nit.zm;
     niter = niter + (zm-1);
@@ -114,22 +144,26 @@ for zm=numel(sz):-1:1
    %done  = false;
     for iter=1:niter
 
+        % Update mean
         % Might be an idea to run this multiple times
         [mu,dat] = spm_multireg_updt('UpdateMean',dat, mu, sett);
         E1       = sum(sum(cat(2,dat.E),2),1)+te; % Cost function after diffeo update
         te       = spm_multireg_energ('TemplateEnergy',mu,sett);
 
-        % Might be an idea to run this less often (currently slow)
+        % Update affine
+        % (Might be an idea to run this less often - currently slow)
         dat      = spm_multireg_updt('UpdateAffines',dat,mu,sett);
         E2       = sum(sum(cat(2,dat.E),2),1)+te; % Cost function after mean update
 
-        % Might be an idea to run this multiple times
-        [mu,dat] = spm_multireg_updt('UpdateMean',dat, mu, sett);     % An extra mean iteration
+        % Update mean
+        % (Might be an idea to run this multiple times)
+        [mu,dat] = spm_multireg_updt('UpdateMean',dat, mu, sett); % An extra mean iteration
         te       = spm_multireg_energ('TemplateEnergy',mu,sett);
         [mu,dat] = spm_multireg_updt('UpdateMean',dat, mu, sett);
         E3       = sum(sum(cat(2,dat.E),2),1)+te; % Cost function after rigid update
         te       = spm_multireg_energ('TemplateEnergy',mu,sett);
 
+        % Update velocities
         dat      = spm_multireg_energ('VelocityEnergy',dat,sett);
         dat      = spm_multireg_updt('UpdateVelocities',dat,mu,sett);
         E4old    = E4;
@@ -139,27 +173,35 @@ for zm=numel(sz):-1:1
 %       if (E4old-E4)/E4 < 3.5e-4, done = true; end
        %if (iter==niter || done) && zm>1
         if (iter==niter) && zm>1
-            oMmu      = sett.var.Mmu;
-            sett.var  = spm_multireg_io('CopyFields',sz(zm-1), sett.var);
-            [dat,mu]  = spm_multireg_util('ZoomVolumes',dat,mu,sett,oMmu);
+            oMmu     = sett.var.Mmu;
+            sett.var = spm_multireg_io('CopyFields',sz(zm-1), sett.var);
+            [dat,mu] = spm_multireg_util('ZoomVolumes',dat,mu,sett,oMmu);
         end
 
-        dat      = spm_multireg_updt('UpdateWarps',dat,sett);
+        % Update deformations
+        dat = spm_multireg_updt('UpdateWarps',dat,sett);
 
-        fprintf('%d\t%g\t%g\t%g\t%g\n', iter, E1, E2, E3, E4);
+        % Print stuff
+        fprintf('zm=%i it=%i\t%g\t%g\t%g\t%g\n', zm, iter, E1, E2, E3, E4);
+        
+        % Save stuff
         save(fullfile(sett.write.dir_res,'results_Groupwise.mat'),'dat','mu','sett')
         
+        % Show stuff
         spm_multireg_show('ShowSubjects',dat,mu,sett);
         Objective = [Objective; E4];        
         spm_multireg_show('ShowModel',mu,Objective,sett,N);        
 
        %if done, break; end
     end
+    
     fprintf('%g seconds\n\n', toc); tic;
-
 end
+
+% Final mean update
 [mu,dat] = spm_multireg_updt('UpdateMean',dat, mu, sett);
 
+% Save stuff
 dat = spm_multireg_io('SaveImages',dat,mu,sett);
 end
 %==========================================================================
@@ -192,7 +234,7 @@ sett.model.K = size(mu0,4);
 %------------------
 
 d        = [size(mu0,1) size(mu0,2) size(mu0,3)];
-nz       = max(ceil(log2(min(d))-log2(8)),1);
+nz       = max(ceil(log2(min(d(d ~= 1))) - log2(8)),1);
 sz       = spm_multireg_par('ZoomSettings',d,Mmu,sett.var.v_settings,sett.var.mu_settings,nz);
 sett.var = spm_multireg_io('CopyFields',sz(end), sett.var);
 
@@ -220,6 +262,8 @@ Objective = [];
 E         = Inf;
 prevt     = Inf;
 d         = spm_multireg_io('GetSize',dat(1).f); % dim of one input image
+
+spm_multireg_show('Speak','Init',sett.nit.init);
 for iter=1:sett.nit.init
     
     %------------------
@@ -227,12 +271,13 @@ for iter=1:sett.nit.init
     %------------------
 
     Eold      = E; tic;
-    dat       = spm_multireg_updt('UpdateSimpleAffines',dat,mu,sett); % GMM parameters are updated in here (GetClasses())
-    E         = sum(sum(cat(2,dat.E),2),1); % Cost function after affine update
+    dat       = spm_multireg_updt('UpdateSimpleAffines',dat,mu,sett); % GMM parameters are updated in here
+    E         = sum(sum(cat(2,dat.E),2),1);                           % Cost function after affine update
     t         = toc;
     Objective = [Objective; E];
     
-    fprintf('%d 1 \t%g\t%g\t%g\n', iter, E, t, (Eold-E)/prevt);        
+    % Print stuff
+    fprintf('it=%i q \t%g\t%g\t%g\n', iter, E, t, (Eold-E)/prevt);        
     prevt = t;
     
     % Finished?
@@ -247,49 +292,61 @@ end
 % Iteratively decrease the template resolution
 %------------------
 
-for zm=numel(sz):-1:1
+spm_multireg_show('Speak','Iter',numel(sz));
+tic
+for zm=numel(sz):-1:1 % loop over zoom levels
     
     %------------------    
     % Updates affine, velocity and GMM parameters
     %------------------
     
-    mu    = spm_multireg_util('ShrinkTemplate',mu0,Mmu,sett);
-    niter = sett.nit.zm;
-    niter = niter + (zm-1);
-    done  = false;
-    dat   = spm_multireg_energ('VelocityEnergy',dat,sett); % Update velocity energy
+    done = false;
     
+    % Resize template
+    mu = spm_multireg_util('ShrinkTemplate',mu0,Mmu,sett);
+     
+    % Update velocity energy
+    dat = spm_multireg_energ('VelocityEnergy',dat,sett); 
+    
+    niter = sett.nit.zm;
+    niter = niter + (zm-1);  
     for iter=1:niter
 
-        if iter==2 %iter<niter && zm~=numel(sz) && iter~=1
+        if iter == 2 %iter<niter && zm~=numel(sz) && iter~=1
+            % Update affine parameters            
             Eold   = E; tic;
             dat    = spm_multireg_updt('UpdateAffines',dat,mu,sett);
-            E      = sum(sum(cat(2,dat.E),2),1); % Cost function after diffeo update
+            E      = sum(sum(cat(2,dat.E),2),1); % Cost function after affine update
             t      = toc;
             
-            fprintf('%d 1 \t%g\t%g\t%g\n', iter, E, t, (Eold-E)/prevt);
+            % Print stuff
+            fprintf('zm=%i it=%i q \t%g\t%g\t%g\n', zm, iter, E, t, (Eold-E)/prevt);
             prevt = t;
             
             Objective = [Objective; E];
         end
         
-        Eold    = E; tic;
-        dat     = spm_multireg_energ('VelocityEnergy',dat,sett);
-        dat     = spm_multireg_updt('UpdateVelocities',dat,mu,sett);
-        E       = sum(sum(cat(2,dat.E),2),1); % Cost function after rigid update
-
-        if (iter == niter || done) && zm>1
+        Eold = E; 
+        tic;
+        
+        % Update velocities
+        dat  = spm_multireg_energ('VelocityEnergy',dat,sett);
+        dat  = spm_multireg_updt('UpdateVelocities',dat,mu,sett);
+        E    = sum(sum(cat(2,dat.E),2),1); % Cost function after rigid update
+        if (iter == niter || done) && zm > 1
             oMmu      = sett.var.Mmu;
             sett.var  = spm_multireg_io('CopyFields',sz(zm-1), sett.var);
             [dat,mu]  = spm_multireg_util('ZoomVolumes',dat,mu,sett,oMmu);
-        end
-        
+        end        
         dat = spm_multireg_energ('VelocityEnergy',dat,sett);
+        
+        % Update deformations
         dat = spm_multireg_updt('UpdateWarps',dat,sett);
         t   = toc;
         
-        fprintf('%d 2 \t%g\t%g\t%g\n', iter, E, t, (Eold-E)/prevt);
-        prevt     = t;
+        % Print stuff
+        fprintf('zm=%i it=%i v \t%g\t%g\t%g\n', zm, iter, E, t, (Eold-E)/prevt);
+        prevt = t;
         
         Objective = [Objective; E];
 
@@ -303,6 +360,8 @@ for zm=numel(sz):-1:1
         % Finished?
         if done, break; end
     end
+    
+    fprintf('%g seconds\n\n', toc); tic;
 end
 end
 %==========================================================================

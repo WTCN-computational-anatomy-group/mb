@@ -124,7 +124,7 @@ if ~isfield(sett.gen,'is3d')
     sett.gen.is3d = is3d;
 end
 if ~isfield(sett.gen,'threads')
-    sett.gen.threads = 0;
+    sett.gen.threads = Inf;
 end
 
 %------------------
@@ -154,6 +154,9 @@ end
 
 if ~isfield(sett,'nit')
     sett.nit = struct;
+end
+if ~isfield(sett.nit,'gmm')   
+    sett.nit.gmm = 60;
 end
 if ~isfield(sett.nit,'init')
     % The number of iterations, at largest zoom level.
