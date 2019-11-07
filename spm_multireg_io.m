@@ -61,7 +61,29 @@ end
 % GetClasses()
 function [P,datn] = GetClasses(datn,mu,sett)
 if ~isfield(datn,'mog')
-    P        = GetData(datn.f,sett);
+    P = GetData(datn.f,sett);
+    
+    if 0
+        % Show segmentation
+        d  = size(mu);
+        K  = d(4);        
+        nr = floor(sqrt(K));
+        nc = ceil(K/nr);  
+        for k=1:K    
+            figure(664); subplot(nr,nc,k); imagesc(P(:,:,ceil(d(3).*0.55),k)'); 
+            title('Seg')
+            axis image xy off; drawnow
+        end
+    end
+
+    % Mask
+    msk = sum(P,4) > 0; % Removes voxels that sums to zero across classes..
+    msk = msk & sum(~isfinite(P),4) == 0; % ..and voxels that are not finite in segmentation..
+    msk = msk & sum(~isfinite(mu),4) == 0; % ..and voxels that are not finite in template
+    
+    % Compute categorical cross-entropy loss between segmentation and template         
+    tmp       = sum(P.*spm_multireg_util('lse',mu),4);    
+    datn.E(1) = sum(tmp(msk));
 else
     [P,datn] = GetClassesFromGMM(datn,mu,sett);
 end
@@ -73,7 +95,8 @@ end
 function [fout,is3d] = GetData(fin,sett)
 if isnumeric(fin)
     fout = single(fin);
-    is3d = size(fout,3) > 1;
+%     fout(~isfinite(fout)) = 0;
+    is3d = size(fout,3) > 1;    
     return
 end
 if isa(fin,'char')
@@ -94,6 +117,7 @@ if isa(fin,'nifti')
             fout = reshape(fout,[d(1:3) d(5)]);
         end
     end
+%     fout(~isfinite(fout)) = 0;
     is3d = size(fout,3) > 1;
     return
 end
@@ -222,7 +246,17 @@ fn = GetData(datn.f);
 d  = [size(fn) 1];
 d  = d(1:3);
 K  = size(mu,4);
-% figure(665); for k=1:K, subplot(3,2,k); imagesc(mu(:,:,1,k)'); axis image xy off; end; drawnow
+
+if 0
+    % Show template
+    nr = floor(sqrt(K));
+    nc = ceil(K/nr);  
+    for k=1:K    
+        figure(665); subplot(nr,nc,k); imagesc(mu(:,:,ceil(d(3).*0.55),k)'); 
+        title('mu');
+        axis image xy off; drawnow
+    end
+end
 
 % Mask
 msk = find(fn~=0 & isfinite(fn) & isfinite(mu(:,:,:,1)));
@@ -249,8 +283,19 @@ for k=1:K
     Pk         = P(:,:,:,k);
     Pk(msk)    = R(:,k);
     P(:,:,:,k) = Pk;
-%     figure(666); subplot(3,2,k); imagesc(Pk(:,:,1)'); axis image xy off; drawnow
 end
+
+if 0
+    % Show responsibilities
+    nr = floor(sqrt(K));
+    nc = ceil(K/nr);  
+    for k=1:K    
+        figure(666); subplot(nr,nc,k); imagesc(P(:,:,ceil(d(3).*0.55),k)'); 
+        title('Resp')
+        axis image xy off; drawnow
+    end
+end
+
 end
 %==========================================================================
 
@@ -299,7 +344,7 @@ if isempty(adjust)
     maxmu  = max(max(mu,[],2),0);
     adjust = sum(log(sum(exp(mu-maxmu),2) + exp(-maxmu))+maxmu);
 end
-datn.E(1) = -sum(log(sR)+pmx,1) + adjust; % doesn't account for priors (so can increase)
+datn.E(1) = -sum(log(sR) + pmx,1) + adjust; % doesn't account for priors (so can increase)
 %fprintf(' %g\n', datn.E(1));
 
 R   = R./sR;

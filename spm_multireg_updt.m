@@ -79,16 +79,21 @@ end
 function datn = UpdateGMM(datn,Fn,mu,adjust,sett)
 K   = size(mu,2);
 mog = datn.mog; % Get GMM parameters
-p   = zeros([numel(Fn),K + 1],'single');
+
 if isempty(adjust)
     maxmu  = max(max(mu,[],2),0);
     adjust = sum(log(sum(exp(mu-maxmu),2) + exp(-maxmu))+maxmu);
 end
+
+p = zeros([numel(Fn),K + 1],'single');
 for it=1:sett.nit.gmm
     
     for k=1:(K+1)
         p(:,k) = -((Fn-mog.mu(k)).^2)/(2*mog.sig2(k)+eps) - 0.5*log(2*pi*mog.sig2(k)+eps);
-        if k<=K, p(:,k) = p(:,k) + mu(:,k); end
+        
+        if k<=K
+            p(:,k) = p(:,k) + mu(:,k); 
+        end
     end
     
     pmx = max(p,[],2);
@@ -210,6 +215,10 @@ function dat = UpdateVelocities(dat,mu,sett)
 spm_multireg_util('SetBoundCond');
 G  = spm_diffeo('grad',mu);
 H0 = spm_multireg_der('VelocityHessian',mu,G,sett.gen.accel);
+if size(G,3) == 1
+    % Data is 2D
+    H0(:,:,:,3) = H0(:,:,:,3) + mean(reshape(H0(:,:,:,[1 2]),[],1));
+end
 if sett.gen.threads>1 && numel(dat)>1
     % Memory = loads
     parfor(n=1:numel(dat),sett.gen.threads) % PARFOR
@@ -311,20 +320,20 @@ end
 %==========================================================================
 % UpdateMeanSub()
 function [g,H,datn] = UpdateMeanSub(datn,mu,H0,sett)
-d    = spm_multireg_io('GetSize',datn.f);
-q    = double(datn.q);
-Mn   = datn.Mat;
-psi  = spm_multireg_util('Compose',spm_multireg_io('GetData',datn.psi), spm_multireg_util('Affine',d, sett.var.Mmu\spm_dexpm(q,sett.registr.B)*Mn));
-mu1  = spm_multireg_util('Pull1',mu,psi);
-[f,datn] = spm_multireg_io('GetClasses',datn,mu1,sett);
+d   = spm_multireg_io('GetSize',datn.f);
+q   = double(datn.q);
+Mn  = datn.Mat;
+psi = spm_multireg_util('Compose',spm_multireg_io('GetData',datn.psi), spm_multireg_util('Affine',d, sett.var.Mmu\spm_dexpm(q,sett.registr.B)*Mn));
+mu  = spm_multireg_util('Pull1',mu,psi);
+[f,datn] = spm_multireg_io('GetClasses',datn,mu,sett);
 if isempty(H0)
-    g     = spm_multireg_util('Push1',spm_multireg_util('softmax',mu1) - f,psi,sett.var.d);
-    H     = spm_multireg_util('Push1',spm_multireg_der('AppearanceHessian',mu1,sett.gen.accel),psi,sett.var.d);
+    g     = spm_multireg_util('Push1',spm_multireg_util('softmax',mu) - f,psi,sett.var.d);
+    H     = spm_multireg_util('Push1',spm_multireg_der('AppearanceHessian',mu,sett.gen.accel),psi,sett.var.d);
 else
     % Faster approximation - but might be unstable
     % If there are problems, then revert to the slow
     % way.
-    [g,w] = spm_multireg_util('Push1',spm_multireg_util('softmax',mu1)-f,psi,sett.var.d);
+    [g,w] = spm_multireg_util('Push1',spm_multireg_util('softmax',mu) - f,psi,sett.var.d);
     H     = w.*H0;
 end
 end
@@ -385,9 +394,9 @@ mu1       = spm_multireg_util('Pull1',mu,psi);
 [a,w]     = spm_multireg_util('Push1',f - spm_multireg_util('softmax',mu1),psi,sett.var.d);
 g         = reshape(sum(a.*G,4),[sett.var.d 3]);
 H         = w.*H0;
-u0        = spm_diffeo('vel2mom', v, sett.var.v_settings);                                  % Initial momentum
-datn.E(2) = 0.5*sum(u0(:).*v(:));                                                       % Prior term
-v         = v - sett.optim.scal*spm_diffeo('fmg',H, g+u0, [sett.var.v_settings sett.shoot.s_settings]); % Gauss-Newton update
+u0        = spm_diffeo('vel2mom', v, sett.var.v_settings);                                                % Initial momentum
+datn.E(2) = 0.5*sum(u0(:).*v(:));                                                                         % Prior term
+v         = v - sett.optim.scal*spm_diffeo('fmg',H, g + u0, [sett.var.v_settings sett.shoot.s_settings]); % Gauss-Newton update
 
 if sett.var.d(3)==1, v(:,:,:,3) = 0; end % If 2D
 if sett.var.v_settings(1)==0             % Mean displacement should be 0

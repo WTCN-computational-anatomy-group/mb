@@ -90,9 +90,9 @@ end
 %==========================================================================
 % lse()
 function l = lse(mu)
-d   = 4;
+d   = numel(size(mu));
 mx  = max(mu,[],d);
-l   = log(exp(-mx)+sum(exp(mu-mx),d))+mx;
+l   = log(exp(-mx) + sum(exp(mu - mx),d)) + mx;
 end
 %==========================================================================
 
@@ -408,7 +408,7 @@ end
 %==========================================================================
 % softmax()
 function P = softmax(mu)
-d   = 4;
+d   = numel(size(mu));
 mx  = max(mu,[],d);
 E   = exp(mu-mx);
 den = sum(E,d)+exp(-mx);

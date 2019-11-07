@@ -4,6 +4,7 @@ function varargout = spm_multireg_show(varargin)
 % Visualisation functions for spm_multireg.
 %
 % FORMAT spm_multireg_show('ShowModel',mu,Objective,sett,N)
+% FORMAT spm_multireg_show('ShowParameters',dat,sett)
 % FORMAT spm_multireg_show('ShowSubjects',dat,mu,sett)
 % FORMAT spm_multireg_show('Speak',nam,varargin)
 %
@@ -19,6 +20,8 @@ varargin = varargin(2:end);
 switch id
     case 'ShowModel'
         [varargout{1:nargout}] = ShowModel(varargin{:});
+    case 'ShowParameters'
+        [varargout{1:nargout}] = ShowParameters(varargin{:});            
     case 'ShowSubjects'
         [varargout{1:nargout}] = ShowSubjects(varargin{:});        
     case 'Speak'
@@ -34,7 +37,7 @@ end
 % ShowModel()
 function ShowModel(mu,Objective,sett,N)
 mu = spm_multireg_util('softmax',mu);
-if sett.gen.is3d
+if size(mu,3) > 1
     ShowCat(mu,1,2,3,1,sett.show.figname_model);
     ShowCat(mu,2,2,3,2,sett.show.figname_model);
     ShowCat(mu,3,2,3,3,sett.show.figname_model);
@@ -51,8 +54,59 @@ end
 %==========================================================================
 
 %==========================================================================
+% ShowParameters()
+function ShowParameters(dat,sett)
+fg = findobj('Type', 'Figure', 'Name', sett.show.figname_parameters);
+if isempty(fg)
+    fg = figure('Name', sett.show.figname_parameters, 'NumberTitle', 'off');
+else
+    clf(fg);
+end
+set(0, 'CurrentFigure', fg);  
+
+nd = min(numel(dat),sett.show.mx_subjects);
+nr = 3;
+if ~isfield(dat,'mog')
+    nr = nr - 1;
+end
+for n=1:nd              
+    % Affine parameters
+    q    = double(dat(n).q);
+    M    = spm_dexpm(q,sett.registr.B);
+    q    = spm_imatrix(M);            
+    q    = q([1 2 6]);
+    q(3) = 180/pi*q(3);
+    q    = abs(q);
+    subplot(nr,nd,n) 
+    hold on
+    for k=1:numel(q)
+        bar(k, q(k));
+    end
+    box on
+    hold off            
+    set(gca,'xtick',[])  
+    
+    % Velocities (x)
+    v = spm_multireg_io('GetData',dat(n).v);
+    ShowIm(v(:,:,:,1),3,nr,nd,n + 1*nd,sett.show.figname_parameters)
+    
+    if isfield(dat,'mog')
+        % Intensity histogram
+        f = spm_multireg_io('GetData',dat(n).f);
+        subplot(nr,nd,n + 2*nd)
+        histogram(f(isfinite(f)))                
+        set(gca,'ytick',[])  
+        axis tight
+    end
+
+end
+drawnow
+end
+%==========================================================================
+
+%==========================================================================
 % ShowSubjects()
-function ShowSubjects(dat,mu,sett)
+function ShowSubjects(dat,mu0,sett)
 fg = findobj('Type', 'Figure', 'Name', sett.show.figname_subjects);
 if isempty(fg)
     fg = figure('Name', sett.show.figname_subjects, 'NumberTitle', 'off');
@@ -68,49 +122,43 @@ for n=1:nd
     Mn   = dat(n).Mat;
     psi1 = spm_multireg_io('GetData',dat(n).psi);
     psi  = spm_multireg_util('Compose',psi1,spm_multireg_util('Affine',d,sett.var.Mmu\spm_dexpm(q,sett.registr.B)*Mn));
-    mu1  = spm_multireg_util('Pull1',mu,psi);
+    mu   = spm_multireg_util('Pull1',mu0,psi);
     
     % Get resp, image and template
-    r   = spm_multireg_io('GetClasses',dat(n),mu1,sett);
-    f   = spm_multireg_io('GetData',dat(n).f);
-    mu1 = spm_multireg_util('softmax',mu1);
+    r  = spm_multireg_io('GetClasses',dat(n),mu,sett);    
+    mu = spm_multireg_util('softmax',mu);
+    if isfield(dat,'mog')
+        f = spm_multireg_io('GetData',dat(n).f);
+    end
     
-    % Make plots    
-    if sett.gen.is3d
-        nr = 9;
+    % Image, segmentation, template
+    if d(3) > 1
+        if isfield(dat,'mog')
+            nr  = 9;
+            mlt = 3;
+        else
+            nr  = 6;
+            mlt = 2;
+        end
         for ax=1:3
-            ShowIm(f,ax,nr,nd,   n + 3*(ax - 1)*nd,sett.show.figname_subjects);
-            ShowCat(r,ax,nr,nd,  n + nd + 3*(ax - 1)*nd,sett.show.figname_subjects);
-            ShowCat(mu1,ax,nr,nd,n + 2*nd + 3*(ax - 1)*nd,sett.show.figname_subjects);
+            ShowCat(mu,ax,nr,nd,   n + mlt*(ax - 1)*nd,sett.show.figname_subjects);
+            ShowCat(r,ax,nr,nd,    n + nd + mlt*(ax - 1)*nd,sett.show.figname_subjects);
+            if isfield(dat,'mog')
+                ShowIm(f,ax,nr,nd, n + 2*nd + mlt*(ax - 1)*nd,sett.show.figname_subjects);
+            end
         end
     else
-        nr = 5;
-        
-        % Intensity histogram
-        subplot(nr,nd,n)
-        histogram(f(isfinite(f)))                
-        set(gca,'ytick',[])  
-        
-        % Image, segmentation, template
-        ax = 3;
-        ShowIm(f,ax,nr,nd,   n + nd,sett.show.figname_subjects);
-        ShowCat(r,ax,nr,nd,  n + 2*nd,sett.show.figname_subjects);
-        ShowCat(mu1,ax,nr,nd,n + 3*nd,sett.show.figname_subjects);
-                        
-        % Affine parameters
-        M    = spm_dexpm(q,sett.registr.B);
-        q    = spm_imatrix(M);            
-        q    = q([1 2 6]);
-        q(3) = 180/pi*q(3);
-        q    = abs(q);
-        subplot(nr,nd,n + 4*nd) 
-        hold on
-        for k=1:numel(q)
-            bar(k, q(k));
+        if isfield(dat,'mog')
+            nr = 3;
+        else
+            nr = 2;
         end
-        box on
-        hold off            
-        set(gca,'xtick',[])  
+        ax = 3;        
+        ShowCat(mu,ax,nr,nd,  n,sett.show.figname_subjects);
+        ShowCat(r,ax,nr,nd,   n + nd,sett.show.figname_subjects);        
+        if isfield(dat,'mog')
+            ShowIm(f,ax,nr,nd,n + 2*nd,sett.show.figname_subjects);
+        end
     end
 end
 drawnow
@@ -159,7 +207,10 @@ set(0, 'CurrentFigure', f);
 
 subplot(nr,nc,np);
 
-dm  = size(in);
+dm = size(in);
+if numel(dm) ~= 4
+    dm = [dm 1 1];
+end
 K   = dm(4);
 pal = hsv(K);
 mid = ceil(dm(1:3).*0.55);

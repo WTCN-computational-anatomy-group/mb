@@ -105,6 +105,9 @@ function sett = Settings(sett,is3d)
 if ~isfield(sett,'do')
     sett.do = struct;
 end
+if ~isfield(sett.do,'gmm')
+    sett.do.gmm = true;
+end
 if ~isfield(sett.do,'updt_aff')
     sett.do.updt_aff = true;
 end
@@ -140,12 +143,8 @@ end
 if ~isfield(sett.model,'K')
     sett.model.K = 5;
 end
-if ~isfield(sett.model,'vx')
-    if sett.gen.is3d
-        sett.model.vx = 2;
-    else
-        sett.model.vx = 1;
-    end
+if ~isfield(sett.model,'vx')    
+    sett.model.vx = 1;    
 end
 
 %------------------
@@ -160,7 +159,7 @@ if ~isfield(sett.nit,'gmm')
 end
 if ~isfield(sett.nit,'init')
     % The number of iterations, at largest zoom level.
-    sett.nit.init = 10;
+    sett.nit.init = 6;
 end
 if ~isfield(sett.nit,'init_mu')
     % The number of template update iterations, at largest zoom level.
@@ -210,6 +209,9 @@ end
 if ~isfield(sett.show,'figname_model')
     sett.show.figname_model = '(spm_multireg) Model';
 end
+if ~isfield(sett.show,'figname_parameters')
+    sett.show.figname_parameters = '(spm_multireg) Parameters';
+end
 if ~isfield(sett.show,'figname_subjects')
     sett.show.figname_subjects = '(spm_multireg) Segmentations';
 end
@@ -244,7 +246,11 @@ if ~isfield(sett.var,'mu_settings')
     sett.var.mu_settings = [1e-3 0.2 0];
 end
 if ~isfield(sett.var,'v_settings')
-    sett.var.v_settings = [0 0 0.2 0.05 0.2]*4;
+    if sett.do.updt_aff
+        sett.var.v_settings = [0 0 0.2 0.05 0.2]*4;
+    else
+        sett.var.v_settings = [1e-4 0 0.2 0.05 0.2]*4;
+    end
 end
 %------------------
 % .write (writing to disk)

@@ -3,7 +3,7 @@ function varargout = spm_multireg_init(varargin)
 %
 % Initialisation functions for spm_multireg.
 %
-% FORMAT dat = spm_multireg_init('InitDat',F,sett)
+% FORMAT dat = spm_multireg_init('InitDat',F,K,sett)
 % FORMAT dat = spm_multireg_init('InitDef',dat,sett)
 %
 %__________________________________________________________________________
@@ -29,18 +29,25 @@ end
 
 %==========================================================================
 % InitDat()
-function dat = InitDat(F,sett)
+function dat = InitDat(F,K,sett)
 
-% Need a better way of initialising these parameters
-K1    = sett.model.K + 1;
-mog   = struct('mu',(1:-(1/K1):(1/K1))*2000,'sig2',ones(1,K1)/3*sqrt(1000)); % Random
-%mog  = struct('mu',ones(1,K1)*500,'sig2',ones(1,K1)*500^2); % Same (for existing TPM)
+if sett.do.gmm
+    % Need a better way of initialising these parameters
+    K1    = K + 1;
+    mog   = struct('mu',(1:-(1/K1):(1/K1))*2000,'sig2',ones(1,K1)/3*sqrt(1000)); % Random
+    %mog  = struct('mu',ones(1,K1)*500,'sig2',ones(1,K1)*500^2); % Same (for existing TPM)
+end
 
-M0    = eye(4);
-dat   = struct('f',F,'M',M0, 'q',zeros(6,1), 'v',[], 'psi',[], 'E',[0 0],'mog',mog);
+M0 = eye(4);
+if sett.do.gmm
+    dat = struct('f',F,'M',M0, 'q',zeros(6,1), 'v',[], 'psi',[], 'E',[0 0],'mog',mog);
+else
+    dat = struct('f',F,'M',M0, 'q',zeros(6,1), 'v',[], 'psi',[], 'E',[0 0]);
+end
+
 for n=1:numel(dat)
     if isnumeric(dat(n).f)
-        dat(n).Mat     = eye(4); % Should really do this better
+        dat(n).Mat = eye(4); % Should really do this better
     else
         if isa(dat(n).f,'char')
             dat(n).f   = nifti(dat(n).f);
