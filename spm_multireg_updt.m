@@ -144,6 +144,21 @@ else
     end
 end
 mu = mu - spm_field(H, g, [sett.var.mu_settings sett.shoot.s_settings]);
+
+if 0
+    % Show stuff
+    d  = size(mu);
+    K  = d(4);        
+    nr = floor(sqrt(K));
+    nc = ceil(K/nr);  
+        
+    for k=1:K    
+        % Show template    
+        figure(666); subplot(nr,nc,k); imagesc(mu(:,:,ceil(d(3).*0.55),k)'); 
+        title('mu');
+        axis image xy off; drawnow
+    end
+end    
 end
 %==========================================================================
 
@@ -212,6 +227,9 @@ end
 %==========================================================================
 % UpdateVelocities()
 function dat = UpdateVelocities(dat,mu,sett)
+
+if ~sett.do.updt_vel, return; end
+
 spm_multireg_util('SetBoundCond');
 G  = spm_diffeo('grad',mu);
 H0 = spm_multireg_der('VelocityHessian',mu,G,sett.gen.accel);

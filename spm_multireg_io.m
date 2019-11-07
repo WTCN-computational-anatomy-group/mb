@@ -62,30 +62,38 @@ end
 function [P,datn] = GetClasses(datn,mu,sett)
 if ~isfield(datn,'mog')
     P = GetData(datn.f,sett);
-    
-    if 0
-        % Show segmentation
-        d  = size(mu);
-        K  = d(4);        
-        nr = floor(sqrt(K));
-        nc = ceil(K/nr);  
-        for k=1:K    
-            figure(664); subplot(nr,nc,k); imagesc(P(:,:,ceil(d(3).*0.55),k)'); 
-            title('Seg')
-            axis image xy off; drawnow
-        end
-    end
 
-    % Mask
-    msk = sum(P,4) > 0; % Removes voxels that sums to zero across classes..
-    msk = msk & sum(~isfinite(P),4) == 0; % ..and voxels that are not finite in segmentation..
+    % Make mask
+%     msk = sum(P,4) > 0; % Removes voxels that sums to zero across classes..
+    msk = sum(~isfinite(P),4) == 0; % ..and voxels that are not finite in segmentation..
     msk = msk & sum(~isfinite(mu),4) == 0; % ..and voxels that are not finite in template
     
-    % Compute categorical cross-entropy loss between segmentation and template         
-    tmp       = sum(P.*spm_multireg_util('lse',mu),4);    
-    datn.E(1) = sum(tmp(msk));
+    % Compute subject-specific categorical cross-entropy loss between
+    % segmentation and template
+    tmp       = sum(P.*mu,4) - spm_multireg_util('lse',mu);  
+    datn.E(1) = -sum(tmp(msk));
 else
     [P,datn] = GetClassesFromGMM(datn,mu,sett);
+end
+
+if 0
+    % Show stuff
+    d  = size(mu);
+    K  = d(4);        
+    nr = floor(sqrt(K));
+    nc = ceil(K/nr);  
+        
+    for k=1:K    
+        % Show template    
+        figure(664); subplot(nr,nc,k); imagesc(mu(:,:,ceil(d(3).*0.55),k)'); 
+        title('mu');
+        axis image xy off; drawnow
+        
+        % Show segmentation
+        figure(665); subplot(nr,nc,k); imagesc(P(:,:,ceil(d(3).*0.55),k)'); 
+        title('Seg')
+        axis image xy off; drawnow
+    end
 end
 end
 %==========================================================================
@@ -247,17 +255,6 @@ d  = [size(fn) 1];
 d  = d(1:3);
 K  = size(mu,4);
 
-if 0
-    % Show template
-    nr = floor(sqrt(K));
-    nc = ceil(K/nr);  
-    for k=1:K    
-        figure(665); subplot(nr,nc,k); imagesc(mu(:,:,ceil(d(3).*0.55),k)'); 
-        title('mu');
-        axis image xy off; drawnow
-    end
-end
-
 % Mask
 msk = find(fn~=0 & isfinite(fn) & isfinite(mu(:,:,:,1)));
 mu  = reshape(mu,[prod(d) K]);
@@ -284,18 +281,6 @@ for k=1:K
     Pk(msk)    = R(:,k);
     P(:,:,:,k) = Pk;
 end
-
-if 0
-    % Show responsibilities
-    nr = floor(sqrt(K));
-    nc = ceil(K/nr);  
-    for k=1:K    
-        figure(666); subplot(nr,nc,k); imagesc(P(:,:,ceil(d(3).*0.55),k)'); 
-        title('Resp')
-        axis image xy off; drawnow
-    end
-end
-
 end
 %==========================================================================
 
@@ -347,6 +332,6 @@ end
 datn.E(1) = -sum(log(sR) + pmx,1) + adjust; % doesn't account for priors (so can increase)
 %fprintf(' %g\n', datn.E(1));
 
-R   = R./sR;
+R = R./sR;
 end
 %==========================================================================

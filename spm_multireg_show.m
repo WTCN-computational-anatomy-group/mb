@@ -36,7 +36,8 @@ end
 %==========================================================================
 % ShowModel()
 function ShowModel(mu,Objective,sett,N)
-mu = spm_multireg_util('softmax',mu);
+mu = spm_multireg_util('softmax',mu);    
+mu = cat(4,mu,1 - sum(mu,4)); % Show K + 1 classes
 if size(mu,3) > 1
     ShowCat(mu,1,2,3,1,sett.show.figname_model);
     ShowCat(mu,2,2,3,2,sett.show.figname_model);
@@ -123,14 +124,38 @@ for n=1:nd
     psi1 = spm_multireg_io('GetData',dat(n).psi);
     psi  = spm_multireg_util('Compose',psi1,spm_multireg_util('Affine',d,sett.var.Mmu\spm_dexpm(q,sett.registr.B)*Mn));
     mu   = spm_multireg_util('Pull1',mu0,psi);
-    
+        
     % Get resp, image and template
     r  = spm_multireg_io('GetClasses',dat(n),mu,sett);    
     mu = spm_multireg_util('softmax',mu);
+    
+    % Show K + 1 classes
+    r  = cat(4,r,1 - sum(r,4));
+    mu = cat(4,mu,1 - sum(mu,4));
+    
     if isfield(dat,'mog')
         f = spm_multireg_io('GetData',dat(n).f);
     end
     
+    if 0
+        % Show stuff
+        K  = size(mu,4);        
+        nr = floor(sqrt(K));
+        nc = ceil(K/nr);  
+
+        for k=1:K    
+            % Show template    
+            figure(664); subplot(nr,nc,k); imagesc(mu(:,:,ceil(d(3).*0.55),k)'); 
+            title('mu');
+            axis image xy off; drawnow
+
+            % Show segmentation
+            figure(665); subplot(nr,nc,k); imagesc(r(:,:,ceil(d(3).*0.55),k)'); 
+            title('Seg')
+            axis image xy off; drawnow
+        end
+    end
+
     % Image, segmentation, template
     if d(3) > 1
         if isfield(dat,'mog')
@@ -169,6 +194,10 @@ end
 % Speak()
 function Speak(nam,varargin)
 switch nam
+    case 'Finished'
+        t = varargin{1}; 
+        
+        fprintf('Algorithm finished in %.1f seconds.\n', t);
     case 'Init'
         nit = varargin{1}; 
         

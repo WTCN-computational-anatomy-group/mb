@@ -71,6 +71,7 @@ clear F
 %------------------
 
 nz       = max(ceil(log2(min(d(d~=1))) - log2(8)),1);
+if ~sett.do.zoom, nz = 1; end
 % nz       = max(ceil(log2(min(d)) - log2(8)),1);
 sz       = spm_multireg_par('ZoomSettings',d,Mmu,sett.var.v_settings,sett.var.mu_settings,nz);
 sett.var = spm_multireg_io('CopyFields',sz(end), sett.var);
@@ -137,14 +138,17 @@ spm_multireg_show('Speak','Iter',numel(sz)); tic;
 for zm=numel(sz):-1:1 % loop over zoom levels
     
    %if zm~=numel(sz), [mu,dat] = spm_multireg_updt('UpdateSimpleMean',dat, mu, sett); end
-    if zm ~= numel(sz)
+    E0 = 0;
+    if zm ~= numel(sz) || zm == 1
+        % 
         for i=1:4
             % Update mean
             [mu,dat] = spm_multireg_updt('UpdateMean',dat, mu, sett);
         end
-    end
-    te = spm_multireg_energ('TemplateEnergy',mu,sett);
-
+        te = spm_multireg_energ('TemplateEnergy',mu,sett);
+        E0 = sum(sum(cat(2,dat.E),2),1) + te;
+    end    
+    
     niter = sett.nit.zm;
 %     niter = niter + (zm-1);
    %if zm==numel(sz), niter=niter+4; end
@@ -155,27 +159,27 @@ for zm=numel(sz):-1:1 % loop over zoom levels
         % Update mean
         % Might be an idea to run this multiple times
         [mu,dat] = spm_multireg_updt('UpdateMean',dat, mu, sett);
-        E1       = sum(sum(cat(2,dat.E),2),1)+te; % Cost function after diffeo update
+        E1       = sum(sum(cat(2,dat.E),2),1) + te; % Cost function after diffeo update
         te       = spm_multireg_energ('TemplateEnergy',mu,sett);
 
         % Update affine
         % (Might be an idea to run this less often - currently slow)
         dat      = spm_multireg_updt('UpdateAffines',dat,mu,sett);
-        E2       = sum(sum(cat(2,dat.E),2),1)+te; % Cost function after mean update
+        E2       = sum(sum(cat(2,dat.E),2),1) + te; % Cost function after mean update
 
         % Update mean
         % (Might be an idea to run this multiple times)
         [mu,dat] = spm_multireg_updt('UpdateMean',dat, mu, sett); % An extra mean iteration
         te       = spm_multireg_energ('TemplateEnergy',mu,sett);
         [mu,dat] = spm_multireg_updt('UpdateMean',dat, mu, sett);
-        E3       = sum(sum(cat(2,dat.E),2),1)+te; % Cost function after rigid update
+        E3       = sum(sum(cat(2,dat.E),2),1) + te; % Cost function after rigid update
         te       = spm_multireg_energ('TemplateEnergy',mu,sett);
 
         % Update velocities
         dat      = spm_multireg_energ('VelocityEnergy',dat,sett);
         dat      = spm_multireg_updt('UpdateVelocities',dat,mu,sett);
         E4old    = E4;
-        E4       = sum(sum(cat(2,dat.E),2),1)+te; % Cost function after mean update
+        E4       = sum(sum(cat(2,dat.E),2),1) + te; % Cost function after mean update
         dat      = spm_multireg_energ('VelocityEnergy',dat,sett);
 
 %       if (E4old-E4)/E4 < 3.5e-4, done = true; end
@@ -190,7 +194,7 @@ for zm=numel(sz):-1:1 % loop over zoom levels
         dat = spm_multireg_updt('UpdateWarps',dat,sett);
 
         % Print stuff
-        fprintf('zm=%i it=%i\t%g\t%g\t%g\t%g\n', zm, iter, E1, E2, E3, E4);
+        fprintf('zm=%i it=%i\t%g\t%g\t%g\t%g\t%g\n', zm, iter, E0, E1, E2, E3, E4);
         Objective = [Objective; E4];     
         
         % Save stuff
@@ -214,7 +218,7 @@ end
 dat = spm_multireg_io('SaveImages',dat,mu,sett);
 
 % Print total runtime
-fprintf('Algorithm converged in %.1f seconds.\n', toc(t0));
+spm_multireg_show('Speak','Finished',toc(t0));
 
 end
 %==========================================================================
@@ -249,6 +253,7 @@ K   = size(mu0,4);
 
 d        = [size(mu0,1) size(mu0,2) size(mu0,3)];
 nz       = max(ceil(log2(min(d(d ~= 1))) - log2(8)),1);
+if ~sett.do.zoom, nz = 1; end
 % nz       = max(ceil(log2(min(d)) - log2(8)),1);
 sz       = spm_multireg_par('ZoomSettings',d,Mmu,sett.var.v_settings,sett.var.mu_settings,nz);
 sett.var = spm_multireg_io('CopyFields',sz(end), sett.var);
@@ -382,7 +387,7 @@ for zm=numel(sz):-1:1 % loop over zoom levels
 end
 
 % Print total runtime
-fprintf('Algorithm converged in %.1f seconds.\n', toc(t0));
+spm_multireg_show('Speak','Finished',toc(t0));
 
 end
 %==========================================================================

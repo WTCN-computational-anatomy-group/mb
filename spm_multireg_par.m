@@ -111,6 +111,12 @@ end
 if ~isfield(sett.do,'updt_aff')
     sett.do.updt_aff = true;
 end
+if ~isfield(sett.do,'updt_vel')
+    sett.do.updt_vel = true;
+end
+if ~isfield(sett.do,'zoom')
+    sett.do.zoom = true;
+end
 
 %------------------
 % .gen (general)
@@ -155,7 +161,7 @@ if ~isfield(sett,'nit')
     sett.nit = struct;
 end
 if ~isfield(sett.nit,'gmm')   
-    sett.nit.gmm = 60;
+    sett.nit.gmm = 100;
 end
 if ~isfield(sett.nit,'init')
     % The number of iterations, at largest zoom level.
