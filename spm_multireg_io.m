@@ -63,17 +63,23 @@ function [P,datn] = GetClasses(datn,mu,sett)
 if ~isfield(datn,'mog')
     P = GetData(datn.f,sett);
 
-    % Make mask
-%     msk = sum(P,4) > 0; % Removes voxels that sums to zero across classes..
-    msk = sum(~isfinite(P),4) == 0; % ..and voxels that are not finite in segmentation..
-    msk = msk & sum(~isfinite(mu),4) == 0; % ..and voxels that are not finite in template
-    
-    % Compute subject-specific categorical cross-entropy loss between
-    % segmentation and template
-    tmp       = sum(P.*mu,4) - spm_multireg_util('lse',mu);  
-    datn.E(1) = -sum(tmp(msk));
+    if nargout > 1
+        % Make mask
+    %     msk = sum(P,4) > 0; % Removes voxels that sums to zero across classes..
+        msk = sum(~isfinite(P),4) == 0; % ..and voxels that are not finite in segmentation..
+        msk = msk & sum(~isfinite(mu),4) == 0; % ..and voxels that are not finite in template
+
+        % Compute subject-specific categorical cross-entropy loss between
+        % segmentation and template
+        tmp       = sum(P.*mu,4) - spm_multireg_util('lse',mu);  
+        datn.E(1) = -sum(tmp(msk));
+    end
 else
-    [P,datn] = GetClassesFromGMM(datn,mu,sett);
+    if nargout > 1
+        [P,datn] = GetClassesFromGMM(datn,mu,sett);
+    else
+        P = GetClassesFromGMM(datn,mu,sett);
+    end
 end
 
 if 0
@@ -267,8 +273,10 @@ adjust = sum(log(sum(exp(mu-maxmu),2) + exp(-maxmu))+maxmu);
 clear maxmu
 %adjust= log(sum(exp(mu),2)+1);
 
-% Update GMM parameters
-datn = spm_multireg_updt('UpdateGMM',datn,fn,mu,adjust,sett);
+if nargout > 1
+    % Update GMM parameters
+    datn = spm_multireg_updt('UpdateGMM',datn,fn,mu,adjust,sett);
+end
 
 % Compute resonsibilities (segmentations)
 [R,datn] = GetResp(datn,fn,mu,adjust,sett);

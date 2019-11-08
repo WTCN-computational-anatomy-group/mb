@@ -126,11 +126,11 @@ for n=1:nd
     mu   = spm_multireg_util('Pull1',mu0,psi);
         
     % Get resp, image and template
-    r  = spm_multireg_io('GetClasses',dat(n),mu,sett);    
+    fn = spm_multireg_io('GetClasses',dat(n),mu,sett);    
     mu = spm_multireg_util('softmax',mu);
     
     % Show K + 1 classes
-    r  = cat(4,r,1 - sum(r,4));
+    fn  = cat(4,fn,1 - sum(fn,4));
     mu = cat(4,mu,1 - sum(mu,4));
     
     if isfield(dat,'mog')
@@ -167,7 +167,7 @@ for n=1:nd
         end
         for ax=1:3
             ShowCat(mu,ax,nr,nd,   n + mlt*(ax - 1)*nd,sett.show.figname_subjects);
-            ShowCat(r,ax,nr,nd,    n + nd + mlt*(ax - 1)*nd,sett.show.figname_subjects);
+            ShowCat(fn,ax,nr,nd,    n + nd + mlt*(ax - 1)*nd,sett.show.figname_subjects);
             if isfield(dat,'mog')
                 ShowIm(f,ax,nr,nd, n + 2*nd + mlt*(ax - 1)*nd,sett.show.figname_subjects);
             end
@@ -180,7 +180,7 @@ for n=1:nd
         end
         ax = 3;        
         ShowCat(mu,ax,nr,nd,  n,sett.show.figname_subjects);
-        ShowCat(r,ax,nr,nd,   n + nd,sett.show.figname_subjects);        
+        ShowCat(fn,ax,nr,nd,   n + nd,sett.show.figname_subjects);        
         if isfield(dat,'mog')
             ShowIm(f,ax,nr,nd,n + 2*nd,sett.show.figname_subjects);
         end
