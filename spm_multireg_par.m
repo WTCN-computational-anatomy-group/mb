@@ -269,6 +269,11 @@ if ~isfield(sett.write,'dir_res')
     sett.write.dir_res = '.';
 end
 
+% Make directories (if does not exist)
+if ~(exist(sett.write.dir_res,'dir') == 7)  
+    mkdir(sett.write.dir_res);  
+end
+
 end
 %==========================================================================
 
