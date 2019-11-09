@@ -116,6 +116,13 @@ else
 end
 set(0, 'CurrentFigure', fg);   
 
+if isfield(dat,'mog'), nr = 3;
+else,                  nr = 2;
+end
+if size(mu0,3) == 1, ax = 3;
+else,                ax = sett.show.axis_3d;   
+end
+    
 nd = min(numel(dat),sett.show.mx_subjects);
 for n=1:nd
     d    = spm_multireg_io('GetSize',dat(n).f);
@@ -137,53 +144,12 @@ for n=1:nd
         f = spm_multireg_io('GetData',dat(n).f);
     end
     
-    if 0
-        % Show stuff
-        K  = size(mu,4);        
-        nr = floor(sqrt(K));
-        nc = ceil(K/nr);  
-
-        for k=1:K    
-            % Show template    
-            figure(664); subplot(nr,nc,k); imagesc(mu(:,:,ceil(d(3).*0.55),k)'); 
-            title('mu');
-            axis image xy off; drawnow
-
-            % Show segmentation
-            figure(665); subplot(nr,nc,k); imagesc(r(:,:,ceil(d(3).*0.55),k)'); 
-            title('Seg')
-            axis image xy off; drawnow
-        end
-    end
-
-    % Image, segmentation, template
-    if d(3) > 1
-        if isfield(dat,'mog')
-            nr  = 9;
-            mlt = 3;
-        else
-            nr  = 6;
-            mlt = 2;
-        end
-        for ax=1:3
-            ShowCat(mu,ax,nr,nd,   n + mlt*(ax - 1)*nd,sett.show.figname_subjects);
-            ShowCat(fn,ax,nr,nd,    n + nd + mlt*(ax - 1)*nd,sett.show.figname_subjects);
-            if isfield(dat,'mog')
-                ShowIm(f,ax,nr,nd, n + 2*nd + mlt*(ax - 1)*nd,sett.show.figname_subjects);
-            end
-        end
-    else
-        if isfield(dat,'mog')
-            nr = 3;
-        else
-            nr = 2;
-        end
-        ax = 3;        
-        ShowCat(mu,ax,nr,nd,  n,sett.show.figname_subjects);
-        ShowCat(fn,ax,nr,nd,   n + nd,sett.show.figname_subjects);        
-        if isfield(dat,'mog')
-            ShowIm(f,ax,nr,nd,n + 2*nd,sett.show.figname_subjects);
-        end
+    % Show template, segmentation
+    ShowCat(mu,ax,nr,nd,n,sett.show.figname_subjects);
+    ShowCat(fn,ax,nr,nd,n + nd,sett.show.figname_subjects);        
+    if isfield(dat,'mog')
+        % and image (if using GMM)
+        ShowIm(f,ax,nr,nd,n + 2*nd,sett.show.figname_subjects);
     end
 end
 drawnow

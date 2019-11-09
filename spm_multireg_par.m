@@ -212,6 +212,9 @@ end
 if ~isfield(sett,'show')
     sett.show = struct;
 end
+if ~isfield(sett.show,'axis_3d')
+    sett.show.axis_3d = 3; % 1, 2, 3
+end
 if ~isfield(sett.show,'figname_model')
     sett.show.figname_model = '(spm_multireg) Model';
 end
