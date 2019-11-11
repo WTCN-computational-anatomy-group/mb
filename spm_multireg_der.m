@@ -64,7 +64,7 @@ end
 function H = AppearanceHessian(mu,accel)
 M  = size(mu,4);
 d  = [size(mu,1) size(mu,2) size(mu,3)];
-if accel>0, s  = spm_multireg_util('softmax',mu); end
+if accel>0, s  = spm_multireg_util('softmax',mu,4); end
 Ab = 0.5*(eye(M)-1/(M+1)); % See Bohning's paper
 I  = Horder(M);
 H  = zeros([d (M*(M+1))/2],'single');
@@ -116,7 +116,7 @@ end
 function H = VelocityHessian(mu,G,accel)
 d  = [size(mu,1),size(mu,2),size(mu,3)];
 M  = size(mu,4);
-if accel>0, s  = spm_multireg_util('softmax',mu); end
+if accel>0, s  = spm_multireg_util('softmax',mu,4); end
 Ab = 0.5*(eye(M)-1/(M+1)); % See Bohning's paper
 H  = zeros([d 6],'single');
 for m1=1:M

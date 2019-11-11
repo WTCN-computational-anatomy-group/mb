@@ -217,7 +217,7 @@ else
 end
 for it=1:ceil(4+2*log2(numel(dat)))
     H  = w.*spm_multireg_der('AppearanceHessian',mu,sett.gen.accel);
-    g  = w.*spm_multireg_util('softmax',mu) - gf;
+    g  = w.*spm_multireg_util('softmax',mu,4) - gf;
     g  = g  + spm_field('vel2mom', mu, sett.var.mu_settings);
     mu = mu - spm_field(H, g, [sett.var.mu_settings sett.shoot.s_settings]);
 end
@@ -325,7 +325,7 @@ end
 clear J
 
 msk       = all(isfinite(f),4);
-a         = spm_multireg_util('Mask',f - spm_multireg_util('softmax',mu1),msk);
+a         = spm_multireg_util('Mask',f - spm_multireg_util('softmax',mu1,4),msk);
 [H,g]     = spm_multireg_der('AffineHessian',mu1,G,a,single(msk),sett.gen.accel);
 g         = double(dM'*g);
 H         = dM'*H*dM;
@@ -345,13 +345,13 @@ psi = spm_multireg_util('Compose',spm_multireg_io('GetData',datn.psi), spm_multi
 mu  = spm_multireg_util('Pull1',mu,psi);
 [f,datn] = spm_multireg_io('GetClasses',datn,mu,sett);
 if isempty(H0)
-    g     = spm_multireg_util('Push1',spm_multireg_util('softmax',mu) - f,psi,sett.var.d);
+    g     = spm_multireg_util('Push1',spm_multireg_util('softmax',mu,4) - f,psi,sett.var.d);
     H     = spm_multireg_util('Push1',spm_multireg_der('AppearanceHessian',mu,sett.gen.accel),psi,sett.var.d);
 else
     % Faster approximation - but might be unstable
     % If there are problems, then revert to the slow
     % way.
-    [g,w] = spm_multireg_util('Push1',spm_multireg_util('softmax',mu) - f,psi,sett.var.d);
+    [g,w] = spm_multireg_util('Push1',spm_multireg_util('softmax',mu,4) - f,psi,sett.var.d);
     H     = w.*H0;
 end
 end
@@ -374,7 +374,7 @@ psi      = spm_multireg_util('Affine',d,sett.var.Mmu\Mr*Mn);
 mu1      = spm_multireg_util('Pull1',mu,psi);
 [f,datn] = spm_multireg_io('GetClasses',datn,mu1,sett);
 
-[a,w]     = spm_multireg_util('Push1',f - spm_multireg_util('softmax',mu1),psi,sett.var.d);
+[a,w]     = spm_multireg_util('Push1',f - spm_multireg_util('softmax',mu1,4),psi,sett.var.d);
 [H,g]     = spm_multireg_der('SimpleAffineHessian',mu,G,H0,a,w);
 g         = double(dM'*g);
 H         = dM'*H*dM;
@@ -409,7 +409,7 @@ d         = spm_multireg_io('GetSize',datn.f);
 psi       = spm_multireg_util('Compose',spm_multireg_io('GetData',datn.psi), spm_multireg_util('Affine',d,Mat));
 mu1       = spm_multireg_util('Pull1',mu,psi);
 [f,datn]  = spm_multireg_io('GetClasses',datn,mu1,sett);
-[a,w]     = spm_multireg_util('Push1',f - spm_multireg_util('softmax',mu1),psi,sett.var.d);
+[a,w]     = spm_multireg_util('Push1',f - spm_multireg_util('softmax',mu1,4),psi,sett.var.d);
 g         = reshape(sum(a.*G,4),[sett.var.d 3]);
 H         = w.*H0;
 u0        = spm_diffeo('vel2mom', v, sett.var.v_settings);                                                % Initial momentum

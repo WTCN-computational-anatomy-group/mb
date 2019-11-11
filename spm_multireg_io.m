@@ -77,7 +77,7 @@ if ~isfield(datn,'mog')
 
         % Compute subject-specific categorical cross-entropy loss between
         % segmentation and template
-        tmp       = sum(P.*mu,4) - spm_multireg_util('lse',mu);  
+        tmp       = sum(P.*mu,4) - spm_multireg_util('lse',mu,4);  
         datn.E(1) = -sum(tmp(msk));
     end
 else

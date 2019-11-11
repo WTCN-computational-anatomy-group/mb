@@ -6,7 +6,7 @@ function varargout = spm_multireg_util(varargin)
 % FORMAT psi0      = spm_multireg_util('Affine',d,Mat)
 % FORMAT psi       = spm_multireg_util('Compose',psi1,psi0)
 % FORMAT id        = spm_multireg_util('Identity',d)
-% FORMAT l         = spm_multireg_util('lse',mu)
+% FORMAT l         = spm_multireg_util('lse',mu,dr)
 % FORMAT f         = spm_multireg_util('Mask',f,msk)
 % FORMAT a1        = spm_multireg_util('Pull1',a0,psi,r)
 % FORMAT [f1,w1]   = spm_multireg_util('Push1',f,psi,d,r)
@@ -14,7 +14,7 @@ function varargout = spm_multireg_util(varargin)
 % FORMAT             spm_multireg_util('SetPath')
 % FORMAT varargout = spm_multireg_util('Shoot',v0,kernel,args)
 % FORMAT mu1       = spm_multireg_util('ShrinkTemplate',mu,oMmu,sett)
-% FORMAT P         = spm_multireg_util('softmax',mu)
+% FORMAT P         = spm_multireg_util('softmax',mu,dr)
 % FORMAT [Mmu,d]   = spm_multireg_util('SpecifyMean',dat,vx)
 % FORMAT [dat,mu]  = spm_multireg_util('ZoomVolumes',dat,mu,sett,oMmu)
 %
@@ -89,10 +89,9 @@ end
 
 %==========================================================================
 % lse()
-function l = lse(mu)
-d   = numel(size(mu));
-mx  = max(mu,[],d);
-l   = log(exp(-mx) + sum(exp(mu - mx),d)) + mx;
+function l = lse(mu,dr)
+mx = max(mu,[],dr);
+l  = log(exp(-mx) + sum(exp(mu - mx),dr)) + mx;
 end
 %==========================================================================
 
@@ -407,11 +406,10 @@ end
 
 %==========================================================================
 % softmax()
-function P = softmax(mu)
-d   = numel(size(mu));
-mx  = max(mu,[],d);
+function P = softmax(mu,dr)
+mx  = max(mu,[],dr);
 E   = exp(mu-mx);
-den = sum(E,d)+exp(-mx);
+den = sum(E,dr)+exp(-mx);
 P   = E./den;
 end
 %==========================================================================
