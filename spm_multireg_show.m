@@ -36,8 +36,7 @@ end
 %==========================================================================
 % ShowModel()
 function ShowModel(mu,Objective,sett,N)
-mu = spm_multireg_util('softmax',mu);    
-mu = cat(4,mu,1 - sum(mu,4)); % Show K + 1 classes
+mu = spm_multireg_util('softmaxmu',mu,4); % Gives K + 1 classes    
 if size(mu,3) > 1
     ShowCat(mu,1,2,3,1,sett.show.figname_model);
     ShowCat(mu,2,2,3,2,sett.show.figname_model);
@@ -130,15 +129,12 @@ for n=1:nd
     Mn   = dat(n).Mat;
     psi1 = spm_multireg_io('GetData',dat(n).psi);
     psi  = spm_multireg_util('Compose',psi1,spm_multireg_util('Affine',d,sett.var.Mmu\spm_dexpm(q,sett.registr.B)*Mn));
-    mu   = spm_multireg_util('Pull1',mu0,psi);
-        
-    % Get resp, image and template
-    fn = spm_multireg_io('GetClasses',dat(n),mu,sett);    
-    mu = spm_multireg_util('softmax',mu);
+    mu   = spm_multireg_util('Pull1',mu0,psi);            
     
-    % Show K + 1 classes
-    fn  = cat(4,fn,1 - sum(fn,4));
-    mu = cat(4,mu,1 - sum(mu,4));
+    fn = spm_multireg_io('GetClasses',dat(n),mu,sett);   
+    fn = cat(4,fn,1 - sum(fn,4)); % Gives K + 1 classes
+    
+    mu = spm_multireg_util('softmaxmu',mu,4); % Gives K + 1 classes
     
     if isfield(dat,'mog')
         f = spm_multireg_io('GetData',dat(n).f);

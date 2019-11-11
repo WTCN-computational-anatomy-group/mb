@@ -237,10 +237,8 @@ if ~isempty(mu)
     create(Nmu);
     Nmu.dat(:,:,:,:) = mu;
     
-    % Save mu (softmax)
-    
-    mu       = spm_multireg_util('softmax',mu);
-    mu       = cat(4,mu,1 - sum(mu,4));
+    % Save mu (softmax)    
+    mu       = spm_multireg_util('softmaxmu',mu,4);    
     fa       = file_array(fullfile(sett.write.dir_res ,'mu_softmax.nii'),size(mu),'float32',0);
     Nmu      = nifti;
     Nmu.dat  = fa;

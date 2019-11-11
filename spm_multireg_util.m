@@ -15,6 +15,7 @@ function varargout = spm_multireg_util(varargin)
 % FORMAT varargout = spm_multireg_util('Shoot',v0,kernel,args)
 % FORMAT mu1       = spm_multireg_util('ShrinkTemplate',mu,oMmu,sett)
 % FORMAT P         = spm_multireg_util('softmax',mu,dr)
+% FORMAT P         = spm_multireg_util('softmaxmu',mu,dr)
 % FORMAT [Mmu,d]   = spm_multireg_util('SpecifyMean',dat,vx)
 % FORMAT [dat,mu]  = spm_multireg_util('ZoomVolumes',dat,mu,sett,oMmu)
 %
@@ -52,6 +53,8 @@ switch id
         [varargout{1:nargout}] = ShrinkTemplate(varargin{:});
     case 'softmax'
         [varargout{1:nargout}] = softmax(varargin{:}); 
+    case 'softmaxmu'
+        [varargout{1:nargout}] = softmaxmu(varargin{:});         
     case 'SpecifyMean'
         [varargout{1:nargout}] = SpecifyMean(varargin{:});        
     case 'ZoomVolumes'
@@ -411,6 +414,26 @@ mx  = max(mu,[],dr);
 E   = exp(mu-mx);
 den = sum(E,dr)+exp(-mx);
 P   = E./den;
+end
+%==========================================================================
+
+%==========================================================================
+% softmaxmu()
+function P = softmaxmu(mu,dr)
+d  = size(mu);
+d  = [d 1 1];
+K  = d(4);
+d  = d(1:3);
+
+mx = max(mu,[],dr);
+e  = exp(mu - mx);
+on = exp(-mx);
+se = on.*sum(e,dr);
+se = on + se;
+
+P            = zeros([d K + 1],'like',mu);
+P(:,:,:,1:K) = e./se;  % The first K classes softmax is: exp(a_i)/(1+sum exp(a_j))
+P(:,:,:,end) = on./se; % And the last class is: 1/(1+sum exp(a_j))
 end
 %==========================================================================
 
