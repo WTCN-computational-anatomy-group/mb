@@ -92,17 +92,23 @@ for n=1:nd
     
     if isfield(dat,'mog')
         % Intensity histogram
-%         d    = spm_multireg_io('GetSize',dat(n).f);
-%         q    = double(dat(n).q);
-%         Mn   = dat(n).Mat;
-%         psi1 = spm_multireg_io('GetData',dat(n).psi);
-%         psi  = spm_multireg_util('Compose',psi1,spm_multireg_util('Affine',d,sett.var.Mmu\spm_dexpm(q,sett.registr.B)*Mn));
-%         mu   = spm_multireg_util('Pull1',mu0,psi);        
-%         mu   = spm_multireg_util('softmax',mu,4);
-%         mu   = reshape(mu,[prod(d(1:3)) size(mu,4)]);
         
+        % Here we get approximate class proportions from the (softmaxed K + 1)
+        % tissue template
+        d    = spm_multireg_io('GetSize',dat(n).f);
+        q    = double(dat(n).q);
+        Mn   = dat(n).Mat;
+        psi1 = spm_multireg_io('GetData',dat(n).psi);
+        psi  = spm_multireg_util('Compose',psi1,spm_multireg_util('Affine',d,sett.var.Mmu\spm_dexpm(q,sett.registr.B)*Mn));
+        mu   = spm_multireg_util('Pull1',mu0,psi);        
+        mu   = spm_multireg_util('softmaxmu',mu,4);
+        mu   = reshape(mu,[prod(d(1:3)) size(mu,4)]);
+        mu   = sum(mu,1);
+        mu   = mu./sum(mu);
+        
+        % Plot GMM fit
         f = spm_multireg_io('GetData',dat(n).f);
-        ShowGMMFit(f, [], dat(n).mog, nr, nd, n + 2*nd);
+        ShowGMMFit(f, mu, dat(n).mog, nr, nd, n + 2*nd);
     end
 end
 drawnow
@@ -256,41 +262,42 @@ end
 
 %==========================================================================
 % ShowGMMFit()
-function ShowGMMFit(f,mu,mog,nr,nd,n)
-% histogram(f(isfinite(f)))                
-
-% Get histogram
-[h,x] = hist(f(f > 0 & isfinite(f)),0:max(f(:)));
-h     = double(h(:));
-x     = double(x(:));
-
-K = numel(mog.mu);
-p = zeros(numel(x),K);
-for k=1:K
-    % Product Rule
-    % p(class=k, x | mg, nu, sig) = p(class=k|mg) p(x | nu, sig, class=k)
-%     if k <= K                
-        p(:,k) = 1/K*normpdf(x(:),mog.mu(k),sqrt(mog.sig2(k)));
-%     else
-%         p(:,k) = normpdf(x(:),mog.mu(k),sqrt(mog.sig2(k)));
-%     end
-end
-
-% Sum Rule
-% p(x | mg, nu, sig) = \sum_k p(class=k, x | mg, nu, sig)
-sp  = sum(p,2) + eps;
-
-% Bayes Rule
-% p(class=k | x, mg, nu, sig) = p(class=k, x | mg, nu, sig) / p(x | mg, nu, sig)
-p = bsxfun(@rdivide,p,sp);
+function ShowGMMFit(f,PI,mog,nr,nd,n)
+K      = numel(mog.mu);
+colors = hsv(K);
 
 subplot(nr,nd,n)
-% plot(x(:),h/sum(h)/mean(diff(x)),'b.',x(:),sp,'r',x(:),p,'--','LineWidth',1);
-plot(x(:),h/sum(h)/mean(diff(x)),x(:),sp);
-% plot(x(:),sp);
+hold on
 
+% ---------
+% Histogram
+
+% Input is a list of observations
+[H, edges] = histcounts(f(f > 0 & isfinite(f)), 64, 'Normalization', 'pdf');
+centres = (edges(1:end-1) + edges(2:end))/2;
+bar(centres, H, 'EdgeColor', 'none', 'FaceColor', [0.7 0.7 0.7]);
+
+% -----------
+% GMM Density
+xlims = [inf -inf];
+for k=1:K
+    x = linspace(mog.mu(k) - 3*sqrt(mog.sig2(k)), mog.mu(k) + 3*sqrt(mog.sig2(k)),100);
+    y = PI(k)*normpdf(x, mog.mu(k), sqrt(mog.sig2(k)));
+    plot(x, y, 'Color', colors(k,:), 'LineWidth', 1)
+    xlims = [min([xlims(1) x]) max([xlims(2) x])];
+end
+
+ymax = max(H);
+xlim(xlims);
+if ymax == 0
+    ylim([0 1.1]);
+else
+    ylim([0 1.1*ymax]);
+end
+
+box on
+hold off
 set(gca,'ytick',[])  
-% axis tight
 end
 %==========================================================================
         
