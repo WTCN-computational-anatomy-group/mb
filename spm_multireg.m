@@ -37,21 +37,20 @@ end
 function [dat,mu] = Groupwise(F,sett)
 if nargin < 2, sett = struct; end
 
-t0       = tic;
-[~,is3d] = spm_multireg_io('GetData',F{1});
-N        = numel(F); % Number of subjects
+t0 = tic;
 
 %------------------
 % Get algorithm settings
 %------------------
 
-sett                 = spm_multireg_par('Settings',sett,is3d);
+sett                 = spm_multireg_par('Settings',sett);
 sett.model.groupwise = true;
 if sett.do.gmm
-    K     = sett.model.K;    
+    K = sett.model.K;    
 else
-    [~,K] = spm_multireg_io('GetSize',F{1});
+    K = spm_multireg_io('GetK',F);
 end
+N = numel(F); % Number of subjects
 
 %------------------
 % Init dat (f, M, q, v, psi, E, mog, Mat)
@@ -227,17 +226,16 @@ end
 function dat = Register(F,mu,sett)
 if nargin < 3, sett = struct; end
 
-t0       = tic;
-[~,is3d] = spm_multireg_io('GetData',F{1});
-N        = numel(F); % Number of subjects
+t0 = tic;
 
 %------------------
 % Get algorithm settings
 %------------------
 
-sett                 = spm_multireg_par('Settings',sett,is3d);
+sett                 = spm_multireg_par('Settings',sett);
 sett.model.groupwise = false;
 sett.gen.threads     = 1;
+N                    = numel(F); % Number of subjects
 
 %------------------
 % Get template

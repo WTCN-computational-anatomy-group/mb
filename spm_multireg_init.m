@@ -39,22 +39,32 @@ if sett.do.gmm
 end
 
 M0 = eye(4);
-if sett.do.gmm
-    dat = struct('f',F,'M',M0, 'q',zeros(6,1), 'v',[], 'psi',[], 'E',[0 0],'mog',mog);
-else
-    dat = struct('f',F,'M',M0, 'q',zeros(6,1), 'v',[], 'psi',[], 'E',[0 0]);
-end
-
-for n=1:numel(dat)
-    if isnumeric(dat(n).f)
-        dat(n).Mat = eye(4); % Should really do this better
-    else
-        if isa(dat(n).f,'char')
-            dat(n).f   = nifti(dat(n).f);
+for n=1:numel(F)
+    if iscell(F(n)) && isnumeric(F{n})
+        if sett.gen.run2d
+            % Get 2D slice from 3D data
+            dat(n).f = get_slice(F{n},sett.gen.run2d,sett.do.gmm);
+        else
+            dat(n).f = single(F{n});
         end
-        if isa(dat(n).f,'nifti')
-            dat(n).Mat = dat(n).f(1).mat;
-        end
+    elseif isa(F(n),'nifti')
+        dat(n).f = F(n);        
+    elseif iscell(F(n)) && isa(F{n},'char')
+        dat(n).f = nifti(F{n});        
+    end
+    
+    dat(n).M   = M0;    
+    dat(n).q   = zeros(6,1);    
+    dat(n).v   = [];    
+    dat(n).psi = [];    
+    dat(n).E   = [0 0];    
+    if sett.do.gmm
+        dat(n).mog = mog;
+    end
+    
+    dat(n).Mat = eye(4); % Should really do this better           
+    if isa(dat(n).f,'nifti') && ~sett.gen.run2d
+        dat(n).Mat = dat(n).f(1).mat;        
     end
 end
 end
@@ -73,8 +83,8 @@ for n=1:numel(dat)
     else
         if isa(dat(n).f,'nifti')
             [~,nam,~] = fileparts(dat(n).f(1).dat.fname);
-            vname    = fullfile('.',['v_' nam '.nii']);
-            pname    = fullfile('.',['psi_' nam '.nii']);
+            vname    = fullfile(sett.write.dir_res,['v_' nam '.nii']);
+            pname    = fullfile(sett.write.dir_res,['psi_' nam '.nii']);
             fa       = file_array(vname,[sett.var.d(1:3) 1 3],'float32',0);
             nii      = nifti;
             nii.dat  = fa;
@@ -95,3 +105,32 @@ for n=1:numel(dat)
 end
 end
 %==========================================================================
+
+%==========================================================================
+% get_slice()
+function fn = get_slice(fn,direction,do_gmm)
+d  = size(fn);
+d  = [d 1];
+ix = round(d(1:3)*0.5);
+
+if d(3) == 1, return; end
+
+if direction == 1
+    fn = single(fn(ix(1),:,:,:));
+elseif direction == 2
+    fn = single(fn(:,ix(2),:,:));
+elseif direction == 3
+    fn = single(fn(:,:,ix(3),:));
+end
+
+% Reshape
+K  = d(4);
+ix = 1:3;
+d  = d(1:3);
+if ~do_gmm    
+    fn = reshape(fn, [d(ix ~= direction) 1 K]);
+else
+    fn = reshape(fn, [d(ix ~= direction) 1]);
+end
+end
+%==========================================================================            

@@ -3,14 +3,16 @@ function varargout = spm_multireg_io(varargin)
 %
 % I/O functions for spm_multireg.
 %
-% FORMAT to          = spm_multireg_io('CopyFields',from,to)
-% FORMAT [P,datn]    = spm_multireg_io('GetClasses',datn,mu,sett)
-% FORMAT [fout,is3d] = spm_multireg_io('GetData',fin)
-% FORMAT Mat         = spm_multireg_io('GetMat',fin)
-% FORMAT [d,M]       = spm_multireg_io('GetSize',fin)
-% FORMAT psi         = spm_multireg_io('ResavePsiSub',datn,sett)
-% FORMAT dat         = spm_multireg_io('SaveImages',dat,mu,sett)
-% FORMAT fout        = spm_multireg_io('SetData',fin,f)
+% FORMAT to       = spm_multireg_io('CopyFields',from,to)
+% FORMAT [P,datn] = spm_multireg_io('GetClasses',datn,mu,sett)
+% FORMAT fout     = spm_multireg_io('GetData',fin)
+% FORMAT Mat      = spm_multireg_io('GetMat',fin)
+% FORMAT K        = spm_multireg_io('GetK',fn)
+% FORMAT [d,M]    = spm_multireg_io('GetSize',fin)
+% FORMAT is3d     = spm_multireg_io('Is3D',fn)
+% FORMAT psi      = spm_multireg_io('ResavePsiSub',datn,sett)
+% FORMAT dat      = spm_multireg_io('SaveImages',dat,mu,sett)
+% FORMAT fout     = spm_multireg_io('SetData',fin,f)
 %
 %__________________________________________________________________________
 % Copyright (C) 2019 Wellcome Trust Centre for Neuroimaging
@@ -28,12 +30,16 @@ switch id
         [varargout{1:nargout}] = GetClasses(varargin{:});
     case 'GetData'
         [varargout{1:nargout}] = GetData(varargin{:});
+    case 'GetK'
+        [varargout{1:nargout}] = GetK(varargin{:});            
     case 'GetMat'
         [varargout{1:nargout}] = GetMat(varargin{:});    
     case 'GetResp'
         [varargout{1:nargout}] = GetResp(varargin{:});            
     case 'GetSize'
         [varargout{1:nargout}] = GetSize(varargin{:});
+    case 'Is3D'
+        [varargout{1:nargout}] = Is3D(varargin{:});        
     case 'ResavePsiSub'
         [varargout{1:nargout}] = ResavePsiSub(varargin{:});    
     case 'SaveImages'
@@ -61,7 +67,7 @@ end
 % GetClasses()
 function [P,datn] = GetClasses(datn,mu,sett)
 if ~isfield(datn,'mog')
-    P = GetData(datn.f,sett);
+    P = GetData(datn.f);
 
     if nargout > 1
         % Make mask
@@ -106,11 +112,9 @@ end
 
 %==========================================================================
 % GetData()
-function [fout,is3d] = GetData(fin,sett)
+function fout = GetData(fin)
 if isnumeric(fin)
     fout = single(fin);
-%     fout(~isfinite(fout)) = 0;
-    is3d = size(fout,3) > 1;    
     return
 end
 if isa(fin,'char')
@@ -131,12 +135,22 @@ if isa(fin,'nifti')
             fout = reshape(fout,[d(1:3) d(5)]);
         end
     end
-%     fout(~isfinite(fout)) = 0;
-    is3d = size(fout,3) > 1;
     return
 end
 error('Unknown datatype.');
 
+end
+%==========================================================================
+
+%==========================================================================
+% GetK()
+function K = GetK(fn)
+if iscell(fn(1))
+    fn = GetData(fn{1});
+else
+    fn = GetData(fn(1));
+end
+K = size(fn,4);
 end
 %==========================================================================
 
@@ -164,6 +178,19 @@ function [d,M] = GetSize(fin)
 d = [GetDimensions(fin) 1 1 1];
 M = d(4);
 d = d(1:3);
+end
+%==========================================================================
+
+%==========================================================================
+% Is3D()
+function is3d = Is3D(fn)
+if iscell(fn(1))
+    fn = GetData(fn{1});
+else
+    fn = GetData(fn(1));
+end
+d    = GetSize(fn);
+is3d = d(3) > 1;
 end
 %==========================================================================
 
@@ -210,6 +237,9 @@ if ~isempty(mu)
     Nmu.dat(:,:,:,:) = mu;
     
     % Save mu (softmax)
+    
+    mu       = spm_multireg_util('softmax',mu);
+    mu       = cat(4,mu,1 - sum(mu,4));
     fa       = file_array(fullfile(sett.write.dir_res ,'mu_softmax.nii'),size(mu),'float32',0);
     Nmu      = nifti;
     Nmu.dat  = fa;
@@ -217,7 +247,7 @@ if ~isempty(mu)
     Nmu.mat0 = sett.var.Mmu;
     Nmu.descrip = 'Mean parameters (softmax)';
     create(Nmu);
-    Nmu.dat(:,:,:,:) = spm_multireg_util('softmax',mu);
+    Nmu.dat(:,:,:,:) = mu;
 end
 end
 %==========================================================================

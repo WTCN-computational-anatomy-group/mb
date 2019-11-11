@@ -4,7 +4,7 @@ function varargout = spm_multireg_par(varargin)
 % Parameter/settings functions for spm_multireg.
 %
 % FORMAT B    = spm_multireg_par('AffineBases',code)
-% FORMAT sett = spm_multireg_par('Settings',is3d)
+% FORMAT sett = spm_multireg_par('Settings')
 % FORMAT sz   = spm_multireg_par('ZoomSettings',d, Mmu, v_settings, mu_settings, n)
 %
 %__________________________________________________________________________
@@ -96,7 +96,7 @@ end
 
 %==========================================================================
 % Settings()
-function sett = Settings(sett,is3d)
+function sett = Settings(sett)
 
 %------------------
 % .do (enable/disable functionality)
@@ -129,8 +129,8 @@ if ~isfield(sett.gen,'accel')
     % 0 <= accel <= 1: 0 -> slow & stable; 1 -> fast & unstable
     sett.gen.accel = 0;
 end
-if ~isfield(sett.gen,'is3d')
-    sett.gen.is3d = is3d;
+if ~isfield(sett.gen,'run2d')
+    sett.gen.run2d = 0; % 0, 1, 2, 3
 end
 if ~isfield(sett.gen,'threads')
     sett.gen.threads = Inf;
@@ -147,7 +147,7 @@ if ~isfield(sett.model,'groupwise')
     sett.model.groupwise = false;
 end
 if ~isfield(sett.model,'K')
-    sett.model.K = 5;
+    sett.model.K = 3;
 end
 if ~isfield(sett.model,'vx')    
     sett.model.vx = 1;    
@@ -198,10 +198,10 @@ if ~isfield(sett,'registr')
     sett.registr = struct;
 end
 if ~isfield(sett.registr,'B')
-    if sett.gen.is3d
-        sett.registr.B = AffineBases('SE(3)');
-    else
+    if sett.gen.run2d
         sett.registr.B = AffineBases('SE(2)');
+    else
+        sett.registr.B = AffineBases('SE(3)');
     end
 end
 
