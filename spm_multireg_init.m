@@ -41,10 +41,19 @@ for n=1:numel(F)
         else
             dat(n).f = single(F{n});
         end
-    elseif isa(F(n),'nifti')
-        dat(n).f = F(n);        
-    elseif iscell(F(n)) && isa(F{n},'char')
-        dat(n).f = nifti(F{n});        
+    elseif isa(F(n),'nifti') || (iscell(F(n)) && isa(F{n},'char'))
+        if isa(F(n),'nifti')
+            dat(n).f = F(n);        
+        elseif iscell(F(n)) && isa(F{n},'char')
+            dat(n).f = nifti(F{n});        
+        end
+        
+        if sett.gen.run2d
+            % Get 2D slice from 3D data
+            fn       = spm_multireg_io('GetData',dat(n).f);
+            dat(n).f = get_slice(fn,sett.gen.run2d,sett.do.gmm);
+        end
+    end
                   
     if sett.do.gmm            
         % GMM
