@@ -40,6 +40,8 @@ end
 
 M0 = eye(4);
 for n=1:numel(F)
+    
+    % Data
     if iscell(F(n)) && isnumeric(F{n})
         if sett.gen.run2d
             % Get 2D slice from 3D data
@@ -53,15 +55,14 @@ for n=1:numel(F)
         dat(n).f = nifti(F{n});        
     end
     
+    % Other parameters
     dat(n).M   = M0;    
     dat(n).q   = zeros(6,1);    
     dat(n).v   = [];    
     dat(n).psi = [];    
-    dat(n).E   = [0 0];    
-    if sett.do.gmm
-        dat(n).mog = mog;
-    end
+    dat(n).E   = [0 0];  
     
+    % Orientation matrix (image voxel-to-world)
     dat(n).Mat = eye(4); % Should really do this better           
     if isa(dat(n).f,'nifti') && ~sett.gen.run2d
         dat(n).Mat = dat(n).f(1).mat;        

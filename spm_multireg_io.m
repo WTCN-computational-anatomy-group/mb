@@ -3,16 +3,16 @@ function varargout = spm_multireg_io(varargin)
 %
 % I/O functions for spm_multireg.
 %
-% FORMAT to       = spm_multireg_io('CopyFields',from,to)
-% FORMAT [P,datn] = spm_multireg_io('GetClasses',datn,mu,sett)
-% FORMAT fout     = spm_multireg_io('GetData',fin)
-% FORMAT Mat      = spm_multireg_io('GetMat',fin)
-% FORMAT K        = spm_multireg_io('GetK',fn)
-% FORMAT [d,M]    = spm_multireg_io('GetSize',fin)
-% FORMAT is3d     = spm_multireg_io('Is3D',fn)
-% FORMAT psi      = spm_multireg_io('ResavePsiSub',datn,sett)
-% FORMAT dat      = spm_multireg_io('SaveImages',dat,mu,sett)
-% FORMAT fout     = spm_multireg_io('SetData',fin,f)
+% FORMAT to          = spm_multireg_io('CopyFields',from,to)
+% FORMAT [P,datn]    = spm_multireg_io('GetClasses',datn,mu,sett)
+% FORMAT fout        = spm_multireg_io('GetData',fin)
+% FORMAT Mat         = spm_multireg_io('GetMat',fin)
+% FORMAT K           = spm_multireg_io('GetK',fn)
+% FORMAT [d,M]       = spm_multireg_io('GetSize',fin)
+% FORMAT is3d        = spm_multireg_io('Is3D',fn)
+% FORMAT psi         = spm_multireg_io('ResavePsiSub',datn,sett)
+% FORMAT dat         = spm_multireg_io('SaveImages',dat,mu,sett)
+% FORMAT fout        = spm_multireg_io('SetData',fin,f)
 %
 %__________________________________________________________________________
 % Copyright (C) 2019 Wellcome Trust Centre for Neuroimaging
@@ -91,6 +91,7 @@ end
 if 0
     % Show stuff
     d  = size(mu);
+    d  = [d 1 1];
     K  = d(4);        
     nr = floor(sqrt(K));
     nc = ceil(K/nr);  
@@ -121,8 +122,8 @@ if isa(fin,'char')
     fin = nifti(fin);
 end
 if isa(fin,'nifti')
-    M    = numel(fin);
-    d    = size(fin(1).dat,[1 2 3 4 5]);
+    M = numel(fin);
+    d = size(fin(1).dat,[1 2 3 4 5]);
     if M>1
         d(4) = M;
         fout = zeros(d,'single');

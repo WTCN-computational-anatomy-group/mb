@@ -71,7 +71,6 @@ clear F
 
 nz       = max(ceil(log2(min(d(d~=1))) - log2(8)),1);
 if ~sett.do.zoom, nz = 1; end
-% nz       = max(ceil(log2(min(d)) - log2(8)),1);
 sz       = spm_multireg_par('ZoomSettings',d,Mmu,sett.var.v_settings,sett.var.mu_settings,nz);
 sett.var = spm_multireg_io('CopyFields',sz(end), sett.var);
 dat      = spm_multireg_init('InitDef',dat,sett);
@@ -252,7 +251,6 @@ K   = size(mu0,4);
 d        = [size(mu0,1) size(mu0,2) size(mu0,3)];
 nz       = max(ceil(log2(min(d(d ~= 1))) - log2(8)),1);
 if ~sett.do.zoom, nz = 1; end
-% nz       = max(ceil(log2(min(d)) - log2(8)),1);
 sz       = spm_multireg_par('ZoomSettings',d,Mmu,sett.var.v_settings,sett.var.mu_settings,nz);
 sett.var = spm_multireg_io('CopyFields',sz(end), sett.var);
 
