@@ -4,7 +4,7 @@ function varargout = spm_multireg_show(varargin)
 % Visualisation functions for spm_multireg.
 %
 % FORMAT spm_multireg_show('ShowModel',mu,Objective,sett,N)
-% FORMAT spm_multireg_show('ShowParameters',dat,sett)
+% FORMAT spm_multireg_show('ShowParameters',dat,mu,sett)
 % FORMAT spm_multireg_show('ShowSubjects',dat,mu,sett)
 % FORMAT spm_multireg_show('Speak',nam,varargin)
 %
@@ -55,7 +55,7 @@ end
 
 %==========================================================================
 % ShowParameters()
-function ShowParameters(dat,sett)
+function ShowParameters(dat,mu0,sett)
 fg = findobj('Type', 'Figure', 'Name', sett.show.figname_parameters);
 if isempty(fg)
     fg = figure('Name', sett.show.figname_parameters, 'NumberTitle', 'off');
@@ -92,13 +92,18 @@ for n=1:nd
     
     if isfield(dat,'mog')
         % Intensity histogram
+%         d    = spm_multireg_io('GetSize',dat(n).f);
+%         q    = double(dat(n).q);
+%         Mn   = dat(n).Mat;
+%         psi1 = spm_multireg_io('GetData',dat(n).psi);
+%         psi  = spm_multireg_util('Compose',psi1,spm_multireg_util('Affine',d,sett.var.Mmu\spm_dexpm(q,sett.registr.B)*Mn));
+%         mu   = spm_multireg_util('Pull1',mu0,psi);        
+%         mu   = spm_multireg_util('softmax',mu,4);
+%         mu   = reshape(mu,[prod(d(1:3)) size(mu,4)]);
+        
         f = spm_multireg_io('GetData',dat(n).f);
-        subplot(nr,nd,n + 2*nd)
-        histogram(f(isfinite(f)))                
-        set(gca,'ytick',[])  
-        axis tight
+        ShowGMMFit(f, [], dat(n).mog, nr, nd, n + 2*nd);
     end
-
 end
 drawnow
 end
@@ -249,6 +254,46 @@ imagesc(c); axis off image xy;
 end
 %==========================================================================
 
+%==========================================================================
+% ShowGMMFit()
+function ShowGMMFit(f,mu,mog,nr,nd,n)
+% histogram(f(isfinite(f)))                
+
+% Get histogram
+[h,x] = hist(f(f > 0 & isfinite(f)),0:max(f(:)));
+h     = double(h(:));
+x     = double(x(:));
+
+K = numel(mog.mu);
+p = zeros(numel(x),K);
+for k=1:K
+    % Product Rule
+    % p(class=k, x | mg, nu, sig) = p(class=k|mg) p(x | nu, sig, class=k)
+%     if k <= K                
+        p(:,k) = 1/K*normpdf(x(:),mog.mu(k),sqrt(mog.sig2(k)));
+%     else
+%         p(:,k) = normpdf(x(:),mog.mu(k),sqrt(mog.sig2(k)));
+%     end
+end
+
+% Sum Rule
+% p(x | mg, nu, sig) = \sum_k p(class=k, x | mg, nu, sig)
+sp  = sum(p,2) + eps;
+
+% Bayes Rule
+% p(class=k | x, mg, nu, sig) = p(class=k, x | mg, nu, sig) / p(x | mg, nu, sig)
+p = bsxfun(@rdivide,p,sp);
+
+subplot(nr,nd,n)
+% plot(x(:),h/sum(h)/mean(diff(x)),'b.',x(:),sp,'r',x(:),p,'--','LineWidth',1);
+plot(x(:),h/sum(h)/mean(diff(x)),x(:),sp);
+% plot(x(:),sp);
+
+set(gca,'ytick',[])  
+% axis tight
+end
+%==========================================================================
+        
 %==========================================================================
 % ShowIm()
 function ShowIm(in,ax,nr,nc,np,fn)

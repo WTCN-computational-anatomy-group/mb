@@ -123,7 +123,7 @@ if sett.do.updt_aff
 
         % Show stuff
         spm_multireg_show('ShowSubjects',dat,mu,sett);
-        spm_multireg_show('ShowParameters',dat,sett);
+        spm_multireg_show('ShowParameters',dat,mu,sett);
         spm_multireg_show('ShowModel',mu,Objective,sett,N);        
     end
 end
@@ -200,7 +200,7 @@ for zm=numel(sz):-1:1 % loop over zoom levels
         
         % Show stuff
         spm_multireg_show('ShowSubjects',dat,mu,sett);
-        spm_multireg_show('ShowParameters',dat,sett);           
+        spm_multireg_show('ShowParameters',dat,mu,sett);           
         spm_multireg_show('ShowModel',mu,Objective,sett,N);        
 
        %if done, break; end
@@ -302,7 +302,7 @@ if sett.do.updt_aff
 
         % Show stuff
         spm_multireg_show('ShowSubjects',dat,mu,sett);   
-        spm_multireg_show('ShowParameters',dat,sett);
+        spm_multireg_show('ShowParameters',dat,mu,sett);
         spm_multireg_show('ShowModel',mu,Objective,sett,N);   
     end
 end
@@ -372,7 +372,7 @@ for zm=numel(sz):-1:1 % loop over zoom levels
 
         % Show stuff
         spm_multireg_show('ShowSubjects',dat,mu,sett);        
-        spm_multireg_show('ShowParameters',dat,sett);
+        spm_multireg_show('ShowParameters',dat,mu,sett);
         spm_multireg_show('ShowModel',mu,Objective,sett,N);  
 
         % Finished?
