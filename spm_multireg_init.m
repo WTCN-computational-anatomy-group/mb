@@ -30,14 +30,6 @@ end
 %==========================================================================
 % InitDat()
 function dat = InitDat(F,K,sett)
-
-if sett.do.gmm
-    % Need a better way of initialising these parameters
-    K1    = K + 1;
-    mog   = struct('mu',(1:-(1/K1):(1/K1))*2000,'sig2',ones(1,K1)/3*sqrt(1000)); % Random
-    %mog  = struct('mu',ones(1,K1)*500,'sig2',ones(1,K1)*500^2); % Same (for existing TPM)
-end
-
 M0 = eye(4);
 for n=1:numel(F)
     
@@ -53,6 +45,19 @@ for n=1:numel(F)
         dat(n).f = F(n);        
     elseif iscell(F(n)) && isa(F{n},'char')
         dat(n).f = nifti(F{n});        
+                  
+    if sett.do.gmm            
+        % GMM
+        K1  = K + 1;
+        fn  = spm_multireg_io('GetData',dat(n).f);
+        mx  = max(fn(:));
+        mu  = (0:(K1 - 1))'*mx/(K1 + 1);
+        sig = ones(K1,1)*mx/(K1);
+        
+        mog = struct('mu',mu,'sig2',sig.^2);
+        %mog   = struct('mu',(1:-(1/K1):(1/K1))*2000,'sig2',ones(1,K1)/3*sqrt(1000)); % Random
+        %mog  = struct('mu',ones(1,K1)*500,'sig2',ones(1,K1)*500^2); % Same (for existing TPM)
+        dat(n).mog = mog;
     end
     
     % Other parameters
