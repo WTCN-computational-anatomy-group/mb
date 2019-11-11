@@ -127,7 +127,7 @@ if ~isfield(sett,'gen')
 end
 if ~isfield(sett.gen,'accel')
     % 0 <= accel <= 1: 0 -> slow & stable; 1 -> fast & unstable
-    sett.gen.accel = 0;
+    sett.gen.accel = 0.8;
 end
 if ~isfield(sett.gen,'run2d')
     sett.gen.run2d = 0; % 0, 1, 2, 3
@@ -259,9 +259,9 @@ if ~isfield(sett.var,'mu_settings')
 end
 if ~isfield(sett.var,'v_settings')
     if sett.do.updt_aff
-        sett.var.v_settings = [0 0 0.2 0.05 0.2];
+        sett.var.v_settings = [0 0 0.2 0.05 0.2]*2;
     else
-        sett.var.v_settings = [1e-4 0 0.2 0.05 0.2];
+        sett.var.v_settings = [1e-4 0 0.2 0.05 0.2]*2;
     end
 end
 %------------------
