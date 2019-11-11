@@ -3,16 +3,17 @@ function varargout = spm_multireg_io(varargin)
 %
 % I/O functions for spm_multireg.
 %
-% FORMAT to          = spm_multireg_io('CopyFields',from,to)
-% FORMAT [P,datn]    = spm_multireg_io('GetClasses',datn,mu,sett)
-% FORMAT fout        = spm_multireg_io('GetData',fin)
-% FORMAT Mat         = spm_multireg_io('GetMat',fin)
-% FORMAT K           = spm_multireg_io('GetK',fn)
-% FORMAT [d,M]       = spm_multireg_io('GetSize',fin)
-% FORMAT is3d        = spm_multireg_io('Is3D',fn)
-% FORMAT psi         = spm_multireg_io('ResavePsiSub',datn,sett)
-% FORMAT dat         = spm_multireg_io('SaveImages',dat,mu,sett)
-% FORMAT fout        = spm_multireg_io('SetData',fin,f)
+% FORMAT to       = spm_multireg_io('CopyFields',from,to)
+% FORMAT [P,datn] = spm_multireg_io('GetClasses',datn,mu,sett)
+% FORMAT fout     = spm_multireg_io('GetData',fin)
+% FORMAT Mat      = spm_multireg_io('GetMat',fin)
+% FORMAT K        = spm_multireg_io('GetK',fn)
+% FORMAT [R,datn] = spm_multireg_io('GetResp'datn,fn,mu,adjust,sett)
+% FORMAT [d,M]    = spm_multireg_io('GetSize',fin)
+% FORMAT is3d     = spm_multireg_io('Is3D',fn)
+% FORMAT psi      = spm_multireg_io('ResavePsiSub',datn,sett)
+% FORMAT dat      = spm_multireg_io('SaveImages',dat,mu,sett)
+% FORMAT fout     = spm_multireg_io('SetData',fin,f)
 %
 %__________________________________________________________________________
 % Copyright (C) 2019 Wellcome Trust Centre for Neuroimaging
@@ -170,6 +171,33 @@ if isa(fin,'nifti')
     return
 end
 error('Unknown datatype.');
+end
+%==========================================================================
+
+%==========================================================================
+% GetResp()
+function [R,datn] = GetResp(datn,fn,mu,adjust,sett)
+K   = size(mu,2);
+mog = datn.mog;
+R   = zeros([numel(fn),K+1],'single');
+for k=1:(K+1)
+    R(:,k) = -((fn - mog.mu(k)).^2)/(2*mog.sig2(k)+eps) - 0.5*log(2*pi*mog.sig2(k)+eps);
+    if k<=K, R(:,k) = R(:,k) + mu(:,k); end
+end
+pmx = max(R,[],2);
+R   = R - pmx;
+R   = exp(R);
+sR  = sum(R,2);
+
+% Negative log-likelihood
+if isempty(adjust)
+    maxmu  = max(max(mu,[],2),0);
+    adjust = sum(log(sum(exp(mu-maxmu),2) + exp(-maxmu))+maxmu);
+end
+datn.E(1) = -sum(log(sR) + pmx,1) + adjust; % doesn't account for priors (so can increase)
+%fprintf(' %g\n', datn.E(1));
+
+R = R./sR;
 end
 %==========================================================================
 
@@ -343,32 +371,5 @@ if isa(fin,'nifti')
     end
     return
 end
-end
-%==========================================================================
-
-%==========================================================================
-% GetResp()
-function [R,datn] = GetResp(datn,Fn,mu,adjust,sett)
-K   = size(mu,2);
-mog = datn.mog;
-R   = zeros([numel(Fn),K+1],'single');
-for k=1:(K+1)
-    R(:,k) = -((Fn-mog.mu(k)).^2)/(2*mog.sig2(k)+eps) - 0.5*log(2*pi*mog.sig2(k)+eps);
-    if k<=K, R(:,k) = R(:,k) + mu(:,k); end
-end
-pmx = max(R,[],2);
-R   = R - pmx;
-R   = exp(R);
-sR  = sum(R,2);
-
-% Negative log-likelihood
-if isempty(adjust)
-    maxmu  = max(max(mu,[],2),0);
-    adjust = sum(log(sum(exp(mu-maxmu),2) + exp(-maxmu))+maxmu);
-end
-datn.E(1) = -sum(log(sR) + pmx,1) + adjust; % doesn't account for priors (so can increase)
-%fprintf(' %g\n', datn.E(1));
-
-R = R./sR;
 end
 %==========================================================================
