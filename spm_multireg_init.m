@@ -76,8 +76,6 @@ for n=1:numel(F)
         sig = ones(K1,1)*mx/(K1);
         
         mog = struct('mu',mu,'sig2',sig.^2);
-        %mog   = struct('mu',(1:-(1/K1):(1/K1))*2000,'sig2',ones(1,K1)/3*sqrt(1000)); % Random
-        %mog  = struct('mu',ones(1,K1)*500,'sig2',ones(1,K1)*500^2); % Same (for existing TPM)
         dat(n).mog = mog;
     end
     

@@ -117,6 +117,7 @@ end
 function fout = GetData(fin)
 if isnumeric(fin)
     fout = single(fin);
+%     fout = spm_multireg_util('Mask',fout);
     return
 end
 if isa(fin,'char')
@@ -137,6 +138,7 @@ if isa(fin,'nifti')
             fout = reshape(fout,[d(1:3) d(5)]);
         end
     end
+%     fout = spm_multireg_util('Mask',fout);
     return
 end
 error('Unknown datatype.');

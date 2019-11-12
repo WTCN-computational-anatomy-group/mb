@@ -325,7 +325,7 @@ end
 clear J
 
 msk       = all(isfinite(f),4);
-a         = spm_multireg_util('Mask',f - spm_multireg_util('softmax',mu1,4),msk);
+a         = Mask(f - spm_multireg_util('softmax',mu1,4),msk);
 [H,g]     = spm_multireg_der('AffineHessian',mu1,G,a,single(msk),sett.gen.accel);
 g         = double(dM'*g);
 H         = dM'*H*dM;
@@ -435,5 +435,19 @@ end
 datn.v   = spm_multireg_io('SetData',datn.v,v);
 psi1     = spm_multireg_util('Shoot',v, kernel, sett.shoot.args); % Geodesic shooting
 datn.psi = spm_multireg_io('SetData',datn.psi,psi1);
+end
+%==========================================================================
+
+%==========================================================================
+%
+% Utility functions
+%
+%==========================================================================
+
+%==========================================================================
+% Mask()
+function f = Mask(f,msk)
+f(~isfinite(f)) = 0;
+f = f.*msk;
 end
 %==========================================================================

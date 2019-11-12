@@ -7,7 +7,7 @@ function varargout = spm_multireg_util(varargin)
 % FORMAT psi       = spm_multireg_util('Compose',psi1,psi0)
 % FORMAT id        = spm_multireg_util('Identity',d)
 % FORMAT l         = spm_multireg_util('lse',mu,dr)
-% FORMAT f         = spm_multireg_util('Mask',f,msk)
+% FORMAT f         = spm_multireg_util('Mask',f)
 % FORMAT a1        = spm_multireg_util('Pull1',a0,psi,r)
 % FORMAT [f1,w1]   = spm_multireg_util('Push1',f,psi,d,r)
 % FORMAT             spm_multireg_util('SetBoundCond')
@@ -100,9 +100,8 @@ end
 
 %==========================================================================
 % Mask()
-function f = Mask(f,msk)
-f(~isfinite(f)) = 0;
-f = f.*msk;
+function f = Mask(f)
+f(~isfinite(f) | f == 0) = NaN;
 end
 %==========================================================================
 
@@ -443,12 +442,8 @@ function [Mmu,d] = SpecifyMean(dat,vx)
 dims = zeros(numel(dat),3);
 Mat0 = zeros(4,4,numel(dat));
 for n=1:numel(dat)
-    dims(n,:)   = spm_multireg_io('GetSize',dat(n).f)';
-    if isa(dat(n).f,'nifti')
-        Mat0(:,:,n) = dat(n).f(1).mat;
-    else
-        Mat0(:,:,n) = eye(4);
-    end
+    dims(n,:)   = spm_multireg_io('GetSize',dat(n).f)';    
+    Mat0(:,:,n) = dat(n).Mat;
 end
 
 [Mmu,d] = ComputeAvgMat(Mat0,dims);
