@@ -5,7 +5,7 @@ function varargout = spm_multireg_io(varargin)
 %
 % FORMAT to       = spm_multireg_io('CopyFields',from,to)
 % FORMAT [P,datn] = spm_multireg_io('GetClasses',datn,mu,sett)
-% FORMAT fout     = spm_multireg_io('GetData',fin)
+% FORMAT out      = spm_multireg_io('GetData',in)
 % FORMAT Mat      = spm_multireg_io('GetMat',fin)
 % FORMAT K        = spm_multireg_io('GetK',fn)
 % FORMAT [R,datn] = spm_multireg_io('GetResp'datn,fn,mu,adjust,sett)
@@ -72,8 +72,8 @@ if ~isfield(datn,'mog')
 
     if nargout > 1
         % Make mask
-    %     msk = sum(P,4) > 0; % Removes voxels that sums to zero across classes..
-        msk = sum(~isfinite(P),4) == 0; % ..and voxels that are not finite in segmentation..
+        msk = sum(P,4) > 0; % Removes voxels that sums to zero across classes..
+        msk = msk & sum(~isfinite(P),4) == 0; % ..and voxels that are not finite in segmentation..
         msk = msk & sum(~isfinite(mu),4) == 0; % ..and voxels that are not finite in template
 
         % Compute subject-specific categorical cross-entropy loss between
@@ -114,35 +114,32 @@ end
 
 %==========================================================================
 % GetData()
-function fout = GetData(fin)
-if isnumeric(fin)
-    fout = single(fin);
-%     fout = spm_multireg_util('Mask',fout);
+function out = GetData(in)
+if isnumeric(in)
+    out = single(in);
     return
 end
-if isa(fin,'char')
-    fin = nifti(fin);
+if isa(in,'char')
+    in = nifti(in);
 end
-if isa(fin,'nifti')
-    M = numel(fin);
-    d = size(fin(1).dat,[1 2 3 4 5]);
+if isa(in,'nifti')
+    M = numel(in);
+    d = size(in(1).dat,[1 2 3 4 5]);
     if M>1
         d(4) = M;
-        fout = zeros(d,'single');
+        out = zeros(d,'single');
         for m=1:M
-            fout(:,:,:,m) = single(fin(m).dat(:,:,:,:,:));
+            out(:,:,:,m) = single(in(m).dat(:,:,:,:,:));
         end
     else
-        fout = single(fin.dat(:,:,:,:,:));
+        out = single(in.dat(:,:,:,:,:));
         if numel(d)>4 && d(4)==1
-            fout = reshape(fout,[d(1:3) d(5)]);
+            out = reshape(out,[d(1:3) d(5)]);
         end
     end
-%     fout = spm_multireg_util('Mask',fout);
     return
 end
 error('Unknown datatype.');
-
 end
 %==========================================================================
 
@@ -314,17 +311,23 @@ end
 
 %==========================================================================
 % GetClassesFromGMM()
-function [P,datn] = GetClassesFromGMM(datn,mu,sett)
+function [R,datn] = GetClassesFromGMM(datn,mu,sett)
 fn = GetData(datn.f);
-d  = [size(fn) 1];
-d  = d(1:3);
+d  = GetDimensions(datn.f);
+C  = d(4);
 K  = size(mu,4);
 
 % Mask
-msk = find(fn~=0 & isfinite(fn) & isfinite(mu(:,:,:,1)));
-mu  = reshape(mu,[prod(d) K]);
-mu  = mu(msk,:);
-fn  = fn(msk);
+mu  = reshape(mu,[prod(d(1:3)) K]);
+fn  = reshape(fn,[prod(d(1:3)) C]);
+% for k=1:K
+%     msk       = ~isfinite(mu(:,k));
+%     mu(msk,k) = 0;
+% end
+for c=1:C
+    msk       = ~isfinite(fn(:,c));
+    fn(msk,c) = 0;
+end
 
 % Compute adjust
 maxmu  = max(max(mu,[],2),0);
@@ -339,15 +342,10 @@ end
 
 % Compute resonsibilities (segmentations)
 [R,datn] = GetResp(datn,fn,mu,adjust,sett);
-clear adjust fn mu
 
 % Get 4D versions
-P = zeros([d(1:3) K],'single') + NaN;
-for k=1:K
-    Pk         = P(:,:,:,k);
-    Pk(msk)    = R(:,k);
-    P(:,:,:,k) = Pk;
-end
+R = reshape(R(:,1:K),[d(1:3) K]);
+
 end
 %==========================================================================
 
@@ -356,6 +354,7 @@ end
 function d = GetDimensions(fin)
 if isnumeric(fin)
     d = size(fin);
+    d = [d 1 1];
     return
 end
 if isa(fin,'char')
