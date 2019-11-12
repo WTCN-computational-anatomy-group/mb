@@ -108,6 +108,7 @@ for n=1:nd
         
         % Plot GMM fit
         f = spm_multireg_io('GetData',dat(n).f);
+        f = f(:,:,:,min(sett.show.channel,size(f,4)));
         ShowGMMFit(f, mu, dat(n).mog, nr, nd, n + 2*nd);
     end
 end
@@ -147,15 +148,13 @@ for n=1:nd
     
     mu = spm_multireg_util('softmaxmu',mu,4); % Gives K + 1 classes
     
-    if isfield(dat,'mog')
-        f = spm_multireg_io('GetData',dat(n).f);
-    end
-    
     % Show template, segmentation
     ShowCat(mu,ax,nr,nd,n,sett.show.figname_subjects);
     ShowCat(fn,ax,nr,nd,n + nd,sett.show.figname_subjects);        
     if isfield(dat,'mog')
         % and image (if using GMM)
+        f = spm_multireg_io('GetData',dat(n).f);
+        f = f(:,:,:,min(sett.show.channel,size(f,4)));
         ShowIm(f,ax,nr,nd,n + 2*nd,sett.show.figname_subjects);
     end
 end
