@@ -33,25 +33,37 @@ function dat = InitDat(F,K,sett)
 M0 = eye(4);
 for n=1:numel(F)
     
-    % Data
+    % Init datn.f
     if iscell(F(n)) && isnumeric(F{n})
-        if sett.gen.run2d
+        % Input F is numeric -> store as numeric
+        
+        if sett.gen.run2d            
             % Get 2D slice from 3D data
-            dat(n).f = get_slice(F{n},sett.gen.run2d,sett.do.gmm);
+            dat(n).f = get_slice(F{n},sett.gen.run2d);
         else
             dat(n).f = single(F{n});
         end
-    elseif isa(F(n),'nifti') || (iscell(F(n)) && isa(F{n},'char'))
+    elseif isa(F(n),'nifti') || (iscell(F(n)) && (isa(F{n},'char') || isa(F{n},'nifti')))
+        % Input F is nifti (path or object) -> store as nifti
+                       
         if isa(F(n),'nifti')
             dat(n).f = F(n);        
-        elseif iscell(F(n)) && isa(F{n},'char')
-            dat(n).f = nifti(F{n});        
+        elseif iscell(F(n)) 
+            if isa(F{n},'char')
+                dat(n).f = nifti(F{n});        
+            elseif isa(F{n},'nifti')
+                dat(n).f = nifti;
+                C        = numel(F{n});
+                for c=1:C
+                    dat(n).f(c) = F{n}(c);
+                end
+            end
         end
         
         if sett.gen.run2d
             % Get 2D slice from 3D data
             fn       = spm_multireg_io('GetData',dat(n).f);
-            dat(n).f = get_slice(fn,sett.gen.run2d,sett.do.gmm);
+            dat(n).f = get_slice(fn,sett.gen.run2d);
         end
     end
                   
@@ -123,7 +135,7 @@ end
 
 %==========================================================================
 % get_slice()
-function fn = get_slice(fn,direction,do_gmm)
+function fn = get_slice(fn,direction)
 d  = size(fn);
 d  = [d 1];
 ix = round(d(1:3)*0.5);
@@ -139,13 +151,9 @@ elseif direction == 3
 end
 
 % Reshape
-K  = d(4);
+C  = d(4);
 ix = 1:3;
 d  = d(1:3);
-if ~do_gmm    
-    fn = reshape(fn, [d(ix ~= direction) 1 K]);
-else
-    fn = reshape(fn, [d(ix ~= direction) 1]);
-end
+fn = reshape(fn, [d(ix ~= direction) 1 C]);
 end
 %==========================================================================            
