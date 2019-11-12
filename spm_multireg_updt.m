@@ -82,14 +82,14 @@ mog = datn.mog; % Get GMM parameters
 
 if isempty(adjust)
     maxmu  = max(max(mu,[],2),0);
-    adjust = sum(log(sum(exp(mu-maxmu),2) + exp(-maxmu))+maxmu);
+    adjust = sum(log(sum(exp(mu - maxmu),2) + exp(-maxmu)) + maxmu);
 end
 
 p = zeros([numel(Fn),K + 1],'single');
 for it=1:sett.nit.gmm
     
     for k=1:(K+1)
-        p(:,k) = -((Fn-mog.mu(k)).^2)/(2*mog.sig2(k)+eps) - 0.5*log(2*pi*mog.sig2(k)+eps);
+        p(:,k) = -((Fn - mog.mu(k)).^2)/(2*mog.sig2(k) + eps) - 0.5*log(2*pi*mog.sig2(k) + eps);
         
         if k<=K
             p(:,k) = p(:,k) + mu(:,k); 
@@ -100,20 +100,24 @@ for it=1:sett.nit.gmm
     p   = p - pmx;
     p   = exp(p);
     sp  = sum(p,2);
+            
     prevE     = datn.E(1);
-    datn.E(1) = -sum(log(sp)+pmx,1) + adjust; % doesn't account for priors (so can increase)
-   %fprintf(' %g', datn.E(1));
+    datn.E(1) = -sum(log(sp) + pmx,1) + adjust; % doesn't account for priors (so can increase)
+%     fprintf(' %g', prevE - datn.E(1));
    
-    p   = p./sp;
+    % Suffstats
+    p = p./sp;
     for k=1:(K+1)
         sp          = sum(p(:,k))+eps;
         mog.mu(k)   = sum(Fn.*p(:,k))./sp;
-        mog.sig2(k) = (sum((Fn-mog.mu(k)).^2.*p(:,k))+10000*80^2)./(sp+10000); % ad hoc "Wishart priors"
+        mog.sig2(k) = (sum((Fn - mog.mu(k)).^2.*p(:,k)) + 10000*80^2)./(sp + 10000); % ad hoc "Wishart priors"
+%         mog.sig2(k) = (sum((Fn - mog.mu(k)).^2.*p(:,k)))./sp; % ad hoc "Wishart priors"
     end
     
    %disp([mog.mu; mog.sig2])
     if it>1 && abs(prevE-datn.E(1))/size(p,1) < 1e-4, break; end
 end
+% fprintf('\n');
 
 datn.mog = mog; % Update GMM parameters
 
