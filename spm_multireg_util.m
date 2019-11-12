@@ -427,7 +427,7 @@ d  = d(1:3);
 mx = max(mu,[],dr);
 e  = exp(mu - mx);
 on = exp(-mx);
-se = on.*sum(e,dr);
+se = sum(e,dr);
 se = on + se;
 
 P            = zeros([d K + 1],'like',mu);
