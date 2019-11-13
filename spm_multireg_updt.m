@@ -4,7 +4,7 @@ function varargout = spm_multireg_updt(varargin)
 % Update functions for spm_multireg.
 %
 % FORMAT dat      = spm_multireg_updt('UpdateAffines',dat,mu,sett)
-% FORMAT dat      = spm_multireg_updt('UpdateGMM',dat,F,mu,adjust,sett)
+% FORMAT dat      = spm_multireg_updt('UpdateIntensity',dat, sett)
 % FORMAT [mu,dat] = spm_multireg_updt('UpdateMean',dat, mu, sett)
 % FORMAT dat      = spm_multireg_updt('UpdateSimpleAffines',dat,mu,sett)
 % FORMAT [mu,dat] = spm_multireg_updt('UpdateSimpleMean',dat, mu, sett)
@@ -22,9 +22,9 @@ id = varargin{1};
 varargin = varargin(2:end);
 switch id
     case 'UpdateAffines'
-        [varargout{1:nargout}] = UpdateAffines(varargin{:});               
-    case 'UpdateGMM'
-        [varargout{1:nargout}] = UpdateGMM(varargin{:});        
+        [varargout{1:nargout}] = UpdateAffines(varargin{:});         
+    case 'UpdateIntensity'
+        [varargout{1:nargout}] = UpdateIntensity(varargin{:});        
     case 'UpdateMean'
         [varargout{1:nargout}] = UpdateMean(varargin{:});
     case 'UpdateSimpleAffines'
@@ -75,52 +75,27 @@ end
 %==========================================================================
 
 %==========================================================================
-% UpdateGMM()
-function datn = UpdateGMM(datn,Fn,mu,adjust,sett)
-K   = size(mu,2);
-mog = datn.mog; % Get GMM parameters
-
-if isempty(adjust)
-    maxmu  = max(max(mu,[],2),0);
-    adjust = sum(log(sum(exp(mu - maxmu),2) + exp(-maxmu)) + maxmu);
+% UpdateIntensity()
+function dat = UpdateIntensity(dat, sett)
+N  = numel(dat);
+po = cell(1,N);
+for n=1:N
+    po{n}{1}{1} = dat(n).mog.po.m;
+    po{n}{1}{2} = dat(n).mog.po.b;
+    po{n}{2}{1} = dat(n).mog.po.V;
+    po{n}{2}{2} = dat(n).mog.po.n;
 end
-
-p = zeros([numel(Fn),K + 1],'single');
-for it=1:sett.nit.gmm
-    
-    for k=1:(K+1)
-        p(:,k) = -((Fn - mog.mu(k)).^2)/(2*mog.sig2(k) + eps) - 0.5*log(2*pi*mog.sig2(k) + eps);
-        
-        if k<=K
-            p(:,k) = p(:,k) + mu(:,k); 
-        end
-    end
-    
-    pmx = max(p,[],2);
-    p   = p - pmx;
-    p   = exp(p);
-    sp  = sum(p,2);
-            
-    prevE     = datn.E(1);
-    datn.E(1) = -sum(log(sp) + pmx,1) + adjust; % doesn't account for priors (so can increase)
-%     fprintf(' %g', prevE - datn.E(1));
-   
-    % Suffstats
-    p = p./sp;
-    for k=1:(K+1)
-        sp          = sum(p(:,k))+eps;
-        mog.mu(k)   = sum(Fn.*p(:,k))./sp;
-        mog.sig2(k) = (sum((Fn - mog.mu(k)).^2.*p(:,k)) + 10000*80^2)./(sp + 10000); % ad hoc "Wishart priors"
-%         mog.sig2(k) = (sum((Fn - mog.mu(k)).^2.*p(:,k)))./sp; % ad hoc "Wishart priors"
-    end
-    
-   %disp([mog.mu; mog.sig2])
-    if it>1 && abs(prevE-datn.E(1))/size(p,1) < 1e-4, break; end
-end
-% fprintf('\n');
-
-datn.mog = mog; % Update GMM parameters
-
+pr = dat(1).mog.pr;
+pr = {pr.m,pr.b,pr.V,pr.n};
+pr = spm_gmm_lib('updatehyperpars',po,pr,...
+                 'verbose', true, ...
+                 'figname', sett.show.figname_int);
+for n=1:N
+    dat(n).mog.pr.m = pr{1};
+    dat(n).mog.pr.b = pr{2};
+    dat(n).mog.pr.V = pr{3};
+    dat(n).mog.pr.n = pr{4};
+end             
 end
 %==========================================================================
 

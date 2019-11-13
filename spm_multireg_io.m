@@ -310,67 +310,117 @@ end
 %==========================================================================
 
 %==========================================================================
+% comp_resp()
+function R = comp_resp(fn,mu,code,datn)
+
+% Is there missing data?
+L       = unique(code);
+do_miss = numel(unique(code)) > 1;
+
+% Posterior
+m = datn.mog.po.m;
+b = datn.mog.po.b;
+V = datn.mog.po.V;
+n = datn.mog.po.n;
+
+if do_miss, const = spm_gmm_lib('Const', {m,b}, {V,n}, L);
+else,       const = spm_gmm_lib('Const', {m,b}, {V,n});
+end
+
+fn = spm_gmm_lib('Marginal', fn, {m,V,n}, const, {code,L});
+R  = spm_gmm_lib('Responsibility', fn, mu);
+end
+%==========================================================================
+
+%==========================================================================
 % GetClassesFromGMM()
 function [R,datn] = GetClassesFromGMM(datn,mu,sett)
 fn = GetData(datn.f);
-d  = GetDimensions(datn.f);
-C  = d(4);
+d0 = GetDimensions(datn.f);
+C  = d0(4);
 K  = size(mu,4);
+K1 = K + 1;
+fn = reshape(fn,[prod(d0(1:3)) C]);
 
-% Mask
-mu  = reshape(mu,[prod(d(1:3)) K]);
-fn  = reshape(fn,[prod(d(1:3)) C]);
-% for k=1:K
-%     msk       = ~isfinite(mu(:,k));
-%     mu(msk,k) = 0;
-% end
-for c=1:C
-    msk       = ~isfinite(fn(:,c));
-    fn(msk,c) = 0;
+% Missing data stuff
+fn      = mask(fn);
+code    = spm_gmm_lib('obs2code', fn);
+L       = unique(code);
+do_miss = numel(unique(code)) > 1;
+
+% Posterior
+m  = datn.mog.po.m;
+b  = datn.mog.po.b;
+V  = datn.mog.po.V;
+n  = datn.mog.po.n;
+
+% Prior
+m0 = datn.mog.pr.m;
+b0 = datn.mog.pr.b;
+V0 = datn.mog.pr.V;
+n0 = datn.mog.pr.n;
+
+% Make softmaxed K + 1 template
+mu = log(spm_multireg_util('softmaxmu',mu,4));
+mu = reshape(mu,[prod(d0(1:3)) K1]);
+
+if nargout > 1    
+    % Update GMM and get responsibilities
+               
+    if sett.gen.samp_gmm > 1
+        % Subsample (runs faster)        
+        code0    = code;
+        code     = reshape(code,[d0(1:3) 1]);
+        [code,d] = spm_multireg_util('SubSample',code,datn.Mat,sett.gen.samp_gmm);       
+        code     = reshape(code,[prod(d(1:3)) 1]);
+        fn0      = fn;
+        fn       = reshape(fn,[d0(1:3) C]);
+        [fn,d]   = spm_multireg_util('SubSample',fn,datn.Mat,sett.gen.samp_gmm);       
+        fn       = reshape(fn,[prod(d(1:3)) C]);
+        mu0      = mu;
+        mu       = reshape(mu,[d0(1:3) K1]);
+        [mu,d]   = spm_multireg_util('SubSample',mu,datn.Mat,sett.gen.samp_gmm);       
+        mu       = reshape(mu,[prod(d(1:3)) K1]);                
+    end        
+       
+    [R,mog,~,lb] = spm_gmm_loop(fn,{{m,b},{V,n}},{'LogProp', mu}, ...
+                                'GaussPrior',   {m0,b0,V0,n0}, ...
+                                'Missing',      do_miss, ...
+                                'MissingCode',  {code,L}, ...
+                                'IterMax',      sett.nit.gmm, ...
+                                'Tolerance',    1e-4, ...
+                                'SubIterMax',   sett.nit.gmm_miss, ...
+                                'SubTolerance', 1e-4, ...
+                                'Verbose',      0);
+    clear mu code
+    
+    % Update datn
+    datn.mog.po.m = mog.MU; % GMM posteriors
+    datn.mog.po.b = mog.b;
+    datn.mog.po.V = mog.V;
+    datn.mog.po.n = mog.n;    
+    datn.E(1)     = -sum(lb.sum(end)); % objective function
+    
+    if sett.gen.samp_gmm > 1
+        % Compute responsibilities on original data         
+        R = comp_resp(fn0,mu0,code0,datn);
+    end    
+else
+    % Just compute responsibilities    
+    R = comp_resp(fn,mu,code,datn);
 end
-
-% Compute adjust
-maxmu  = max(max(mu,[],2),0);
-adjust = sum(log(sum(exp(mu-maxmu),2) + exp(-maxmu))+maxmu);
-clear maxmu
-%adjust= log(sum(exp(mu),2)+1);
-
-if nargout > 1
-    % Update GMM parameters
-    datn = spm_multireg_updt('UpdateGMM',datn,fn,mu,adjust,sett);
-end
-
-% Compute resonsibilities (segmentations)
-[R,datn] = GetResp(datn,fn,mu,adjust,sett);
 
 % Get 4D versions
-R = reshape(R(:,1:K),[d(1:3) K]);
-
+R = reshape(R(:,1:K),[d0(1:3) K]);
 end
 %==========================================================================
 
 %==========================================================================
-% GetDimensions()
-function d = GetDimensions(fin)
-if isnumeric(fin)
-    d = size(fin);
-    d = [d 1 1];
-    return
-end
-if isa(fin,'char')
-    fin = nifti(fin);
-end
-if isa(fin,'nifti')
-    M    = numel(fin);
-    d    = size(fin(1).dat,[1 2 3 4 5]);
-    if M>1
-        d(4) = M;
-    else
-        if numel(d)>4 && d(4)==1
-            d = [d(1:3) d(5)];
-        end
-    end
-    return
+% mask()
+function fn = mask(fn)
+C = size(fn,2);
+for c=1:C
+    fn(:,c) = spm_multireg_util('Mask',fn(:,c));
 end
 end
 %==========================================================================

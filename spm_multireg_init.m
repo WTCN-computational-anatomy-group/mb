@@ -69,13 +69,12 @@ for n=1:numel(F)
                   
     if sett.do.gmm            
         % GMM
-        K1  = K + 1;
-        fn  = spm_multireg_io('GetData',dat(n).f);
-        mx  = max(fn(:));
-        mu  = (0:(K1 - 1))'*mx/(K1 + 1);
-        sig = ones(K1,1)*mx/(K1);
-        
-        mog = struct('mu',mu,'sig2',sig.^2);
+        d  = spm_multireg_io('GetDimensions',dat(n).f);
+        C  = d(4);
+        fn = spm_multireg_io('GetData',dat(n).f);                     
+                          
+        % Initial means and precisions from image channel max
+        mog        = init_gmm(fn,K);        
         dat(n).mog = mog;
     end
     
@@ -132,6 +131,12 @@ end
 %==========================================================================
 
 %==========================================================================
+%
+% Utility functions
+%
+%==========================================================================
+
+%==========================================================================
 % get_slice()
 function fn = get_slice(fn,direction)
 d  = size(fn);
@@ -153,5 +158,37 @@ C  = d(4);
 ix = 1:3;
 d  = d(1:3);
 fn = reshape(fn, [d(ix ~= direction) 1 C]);
+end
+%==========================================================================    
+
+%==========================================================================    
+% init_gmm()
+function mog = init_gmm(fn,K)
+K  = K + 1;
+d  = size(fn);
+d  = [d 1];
+C  = size(fn,4);
+fn = reshape(fn,[prod(d(1:3)) C]);
+
+% Posterior
+mu = zeros(C,K);
+A  = zeros(C,C,K);        
+for c=1:C
+    mx       = nanmax(fn(:,c));                            
+    mu(c,:)  = (0:(K - 1))'*mx/(2*K);
+    A(c,c,:) = mx/K;        
+    A(c,c,:) = 1/A(c,c,:);
+end   
+
+mog.po.m = mu;
+mog.po.b = ones(1,K);
+mog.po.n = C*ones(1,K);
+mog.po.V = bsxfun(@times, A, reshape(mog.po.n, [1 1 K])); % Expected precision
+
+% Prior (uninformative)
+mog.pr.m = zeros(C,K);
+mog.pr.b = ones(1,K);
+mog.pr.n = C*ones(1,K);
+mog.pr.V = bsxfun(@times, repmat(eye(C),[1 1 K]), reshape(mog.pr.n, [1 1 K]));
 end
 %==========================================================================            

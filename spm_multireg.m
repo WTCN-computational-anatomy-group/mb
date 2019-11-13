@@ -96,26 +96,27 @@ if sett.do.updt_aff
         %------------------
 
         for subit=1:sett.nit.init_mu
-            % Update template (mean)
+            % Update template and intensity model
             Eold     = E; tic;
             [mu,dat] = spm_multireg_updt('UpdateMean',dat, mu, sett);
+            dat      = spm_multireg_updt('UpdateIntensity',dat, sett);
             E        = sum(sum(cat(2,dat.E),2),1) + te; % Cost function after rigid update
             te       = spm_multireg_energ('TemplateEnergy',mu,sett);
             t        = toc;
-
+                               
             % Print stuff
             fprintf('it=%i mu \t%g\t%g\t%g\n', iter, E, t, (Eold-E)/prevt);
             prevt     = t;
             Objective = [Objective; E];
         end
-       %if (Eold-E)/(numel(dat)*100^3)<1e-4, break; end
+        %if (Eold-E)/(numel(dat)*100^3)<1e-4, break; end
 
         % Update affine
         Eold = E; tic;
         dat  = spm_multireg_updt('UpdateSimpleAffines',dat,mu,sett);
         E    = sum(sum(cat(2,dat.E),2),1)+te;   % Cost function after mean update
-        t    = toc;
-
+        t    = toc;       
+        
         % Print stuff
         fprintf('it=%i q  \t%g\t%g\t%g\n', iter, E, t, (Eold-E)/prevt);
         prevt = t;
@@ -139,9 +140,10 @@ for zm=numel(sz):-1:1 % loop over zoom levels
     E0 = 0;
     if zm ~= numel(sz) || zm == 1
         % 
-        for i=1:4
-            % Update mean
+        for i=1:sett.nit.init_mu
+            % Update template and intensity model
             [mu,dat] = spm_multireg_updt('UpdateMean',dat, mu, sett);
+            dat      = spm_multireg_updt('UpdateIntensity',dat, sett);                        
         end
         te = spm_multireg_energ('TemplateEnergy',mu,sett);
         E0 = sum(sum(cat(2,dat.E),2),1) + te;
@@ -154,25 +156,32 @@ for zm=numel(sz):-1:1 % loop over zoom levels
    %done  = false;
     for iter=1:niter
 
-        % Update mean
+        % Update template and intensity model
         % Might be an idea to run this multiple times
         [mu,dat] = spm_multireg_updt('UpdateMean',dat, mu, sett);
+        dat      = spm_multireg_updt('UpdateIntensity',dat, sett);
         E1       = sum(sum(cat(2,dat.E),2),1) + te; % Cost function after diffeo update
         te       = spm_multireg_energ('TemplateEnergy',mu,sett);
-
+                           
         % Update affine
         % (Might be an idea to run this less often - currently slow)
         dat      = spm_multireg_updt('UpdateAffines',dat,mu,sett);
         E2       = sum(sum(cat(2,dat.E),2),1) + te; % Cost function after mean update
 
-        % Update mean
+        % Update template and intensity model
         % (Might be an idea to run this multiple times)
         [mu,dat] = spm_multireg_updt('UpdateMean',dat, mu, sett); % An extra mean iteration
+        dat      = spm_multireg_updt('UpdateIntensity',dat, sett);
         te       = spm_multireg_energ('TemplateEnergy',mu,sett);
+                    
         [mu,dat] = spm_multireg_updt('UpdateMean',dat, mu, sett);
+        dat      = spm_multireg_updt('UpdateIntensity',dat, sett);
         E3       = sum(sum(cat(2,dat.E),2),1) + te; % Cost function after rigid update
         te       = spm_multireg_energ('TemplateEnergy',mu,sett);
 
+        % Update intensity model
+        dat = spm_multireg_updt('UpdateIntensity',dat, sett);
+            
         % Update velocities
         dat      = spm_multireg_energ('VelocityEnergy',dat,sett);
         dat      = spm_multireg_updt('UpdateVelocities',dat,mu,sett);

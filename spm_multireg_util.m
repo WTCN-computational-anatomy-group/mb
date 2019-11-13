@@ -17,6 +17,7 @@ function varargout = spm_multireg_util(varargin)
 % FORMAT P         = spm_multireg_util('softmax',mu,dr)
 % FORMAT P         = spm_multireg_util('softmaxmu',mu,dr)
 % FORMAT [Mmu,d]   = spm_multireg_util('SpecifyMean',dat,vx)
+% FORMAT [f,d]     = spm_multireg_util('SubSample',f,Mat,samp)
 % FORMAT [dat,mu]  = spm_multireg_util('ZoomVolumes',dat,mu,sett,oMmu)
 %
 %__________________________________________________________________________
@@ -57,6 +58,8 @@ switch id
         [varargout{1:nargout}] = softmaxmu(varargin{:});         
     case 'SpecifyMean'
         [varargout{1:nargout}] = SpecifyMean(varargin{:});        
+    case 'SubSample'
+        [varargout{1:nargout}] = SubSample(varargin{:});               
     case 'ZoomVolumes'
         [varargout{1:nargout}] = ZoomVolumes(varargin{:});        
     otherwise
@@ -469,6 +472,20 @@ if unique(dims(:,3),'rows') == 1
     d(1:3) = diff(bb) + 1;
     Mmu    = Mmu*spm_matrix((bb(1,:)-1));
 end
+end
+%==========================================================================
+
+%==========================================================================
+% SubSample()
+function [f,d] = SubSample(f,Mat,samp)
+samp = repmat(samp,[1 3]);
+samp = samp(1:3);
+vx   = sqrt(sum(Mat(1:3,1:3).^2));        
+samp = round(samp ./ vx);
+samp = max(samp, 1);        
+f    = f(1:samp:end,1:samp:end,1:samp:end,:);
+d    = size(f);
+d    = [d 1];
 end
 %==========================================================================
 
