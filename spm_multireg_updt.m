@@ -77,6 +77,8 @@ end
 %==========================================================================
 % UpdateIntensity()
 function dat = UpdateIntensity(dat, sett)
+if ~isfield(dat(1),'mog'), return; end
+
 N  = numel(dat);
 po = cell(1,N);
 for n=1:N
