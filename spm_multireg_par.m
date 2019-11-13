@@ -132,6 +132,9 @@ end
 if ~isfield(sett.gen,'run2d')
     sett.gen.run2d = 0; % 0, 1, 2, 3
 end
+if ~isfield(sett.gen,'samp_gmm')
+    sett.gen.samp_gmm = 3;
+end
 if ~isfield(sett.gen,'threads')
     sett.gen.threads = Inf;
 end
@@ -161,15 +164,18 @@ if ~isfield(sett,'nit')
     sett.nit = struct;
 end
 if ~isfield(sett.nit,'gmm')   
-    sett.nit.gmm = 100;
+    sett.nit.gmm = 20;
 end
 if ~isfield(sett.nit,'init')
     % The number of iterations, at largest zoom level.
-    sett.nit.init = 6;
+    sett.nit.init = 3;
 end
 if ~isfield(sett.nit,'init_mu')
     % The number of template update iterations, at largest zoom level.
     sett.nit.init_mu = 3;
+end
+if ~isfield(sett.nit,'miss')   
+    sett.nit.gmm_miss = 32;
 end
 if ~isfield(sett.nit,'zm')
     % The number of iterations, for updating all model parameters, at each zoom
@@ -218,8 +224,11 @@ end
 if ~isfield(sett.show,'channel')
     sett.show.channel = 1; % 1, ..., C
 end
+if ~isfield(sett.show,'figname_int')
+    sett.show.figname_int = '(spm_multireg) Intensity model';
+end
 if ~isfield(sett.show,'figname_model')
-    sett.show.figname_model = '(spm_multireg) Model';
+    sett.show.figname_model = '(spm_multireg) Template model';
 end
 if ~isfield(sett.show,'figname_parameters')
     sett.show.figname_parameters = '(spm_multireg) Parameters';

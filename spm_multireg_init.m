@@ -33,39 +33,48 @@ function dat = InitDat(F,K,sett)
 M0 = eye(4);
 for n=1:numel(F)
     
-    % Data
+    % Init datn.f
     if iscell(F(n)) && isnumeric(F{n})
-        if sett.gen.run2d
+        % Input F is numeric -> store as numeric
+        
+        if sett.gen.run2d            
             % Get 2D slice from 3D data
-            dat(n).f = get_slice(F{n},sett.gen.run2d,sett.do.gmm);
+            dat(n).f = get_slice(F{n},sett.gen.run2d);
         else
             dat(n).f = single(F{n});
         end
-    elseif isa(F(n),'nifti') || (iscell(F(n)) && isa(F{n},'char'))
+    elseif isa(F(n),'nifti') || (iscell(F(n)) && (isa(F{n},'char') || isa(F{n},'nifti')))
+        % Input F is nifti (path or object) -> store as nifti
+                       
         if isa(F(n),'nifti')
             dat(n).f = F(n);        
-        elseif iscell(F(n)) && isa(F{n},'char')
-            dat(n).f = nifti(F{n});        
+        elseif iscell(F(n)) 
+            if isa(F{n},'char')
+                dat(n).f = nifti(F{n});        
+            elseif isa(F{n},'nifti')
+                dat(n).f = nifti;
+                C        = numel(F{n});
+                for c=1:C
+                    dat(n).f(c) = F{n}(c);
+                end
+            end
         end
         
         if sett.gen.run2d
             % Get 2D slice from 3D data
             fn       = spm_multireg_io('GetData',dat(n).f);
-            dat(n).f = get_slice(fn,sett.gen.run2d,sett.do.gmm);
+            dat(n).f = get_slice(fn,sett.gen.run2d);
         end
     end
                   
     if sett.do.gmm            
         % GMM
-        K1  = K + 1;
-        fn  = spm_multireg_io('GetData',dat(n).f);
-        mx  = max(fn(:));
-        mu  = (0:(K1 - 1))'*mx/(K1 + 1);
-        sig = ones(K1,1)*mx/(K1);
-        
-        mog = struct('mu',mu,'sig2',sig.^2);
-        %mog   = struct('mu',(1:-(1/K1):(1/K1))*2000,'sig2',ones(1,K1)/3*sqrt(1000)); % Random
-        %mog  = struct('mu',ones(1,K1)*500,'sig2',ones(1,K1)*500^2); % Same (for existing TPM)
+        d  = spm_multireg_io('GetDimensions',dat(n).f);
+        C  = d(4);
+        fn = spm_multireg_io('GetData',dat(n).f);                     
+                          
+        % Initial means and precisions from image channel max
+        mog        = init_gmm(fn,K);        
         dat(n).mog = mog;
     end
     
@@ -122,8 +131,14 @@ end
 %==========================================================================
 
 %==========================================================================
+%
+% Utility functions
+%
+%==========================================================================
+
+%==========================================================================
 % get_slice()
-function fn = get_slice(fn,direction,do_gmm)
+function fn = get_slice(fn,direction)
 d  = size(fn);
 d  = [d 1];
 ix = round(d(1:3)*0.5);
@@ -139,13 +154,41 @@ elseif direction == 3
 end
 
 % Reshape
-K  = d(4);
+C  = d(4);
 ix = 1:3;
 d  = d(1:3);
-if ~do_gmm    
-    fn = reshape(fn, [d(ix ~= direction) 1 K]);
-else
-    fn = reshape(fn, [d(ix ~= direction) 1]);
+fn = reshape(fn, [d(ix ~= direction) 1 C]);
 end
+%==========================================================================    
+
+%==========================================================================    
+% init_gmm()
+function mog = init_gmm(fn,K)
+K  = K + 1;
+d  = size(fn);
+d  = [d 1];
+C  = size(fn,4);
+fn = reshape(fn,[prod(d(1:3)) C]);
+
+% Posterior
+mu = zeros(C,K);
+A  = zeros(C,C,K);        
+for c=1:C
+    mx       = nanmax(fn(:,c));                            
+    mu(c,:)  = (0:(K - 1))'*mx/(2*K);
+    A(c,c,:) = mx/K;        
+    A(c,c,:) = 1/A(c,c,:);
+end   
+
+mog.po.m = mu;
+mog.po.b = ones(1,K);
+mog.po.n = C*ones(1,K);
+mog.po.V = bsxfun(@times, A, reshape(mog.po.n, [1 1 K])); % Expected precision
+
+% Prior (uninformative)
+mog.pr.m = zeros(C,K);
+mog.pr.b = ones(1,K);
+mog.pr.n = C*ones(1,K);
+mog.pr.V = bsxfun(@times, repmat(eye(C),[1 1 K]), reshape(mog.pr.n, [1 1 K]));
 end
 %==========================================================================            

@@ -106,9 +106,11 @@ for n=1:nd
         mu   = sum(mu,1);
         mu   = mu./sum(mu);
         
-        % Plot GMM fit
-        f = spm_multireg_io('GetData',dat(n).f);
-        ShowGMMFit(f, mu, dat(n).mog, nr, nd, n + 2*nd);
+        % Plot GMM fit        
+        f = spm_multireg_io('GetData',dat(n).f);        
+        c = min(sett.show.channel,size(f,4));
+        f = f(:,:,:,c);
+        ShowGMMFit(f,mu,dat(n).mog,nr,nd,n + 2*nd,c);
     end
 end
 drawnow
@@ -147,15 +149,13 @@ for n=1:nd
     
     mu = spm_multireg_util('softmaxmu',mu,4); % Gives K + 1 classes
     
-    if isfield(dat,'mog')
-        f = spm_multireg_io('GetData',dat(n).f);
-    end
-    
     % Show template, segmentation
     ShowCat(mu,ax,nr,nd,n,sett.show.figname_subjects);
     ShowCat(fn,ax,nr,nd,n + nd,sett.show.figname_subjects);        
     if isfield(dat,'mog')
         % and image (if using GMM)
+        f = spm_multireg_io('GetData',dat(n).f);
+        f = f(:,:,:,min(sett.show.channel,size(f,4)));
         ShowIm(f,ax,nr,nd,n + 2*nd,sett.show.figname_subjects);
     end
 end
@@ -262,8 +262,8 @@ end
 
 %==========================================================================
 % ShowGMMFit()
-function ShowGMMFit(f,PI,mog,nr,nd,n)
-K      = numel(mog.mu);
+function ShowGMMFit(f,PI,mog,nr,nd,n,c)
+K      = size(mog.po.m,2);
 colors = hsv(K);
 
 subplot(nr,nd,n)
@@ -279,10 +279,14 @@ bar(centres, H, 'EdgeColor', 'none', 'FaceColor', [0.7 0.7 0.7]);
 
 % -----------
 % GMM Density
+A     = bsxfun(@times, mog.po.V, reshape(mog.po.n, [1 1 K])); % Expected precision
 xlims = [inf -inf];
 for k=1:K
-    x = linspace(mog.mu(k) - 3*sqrt(mog.sig2(k)), mog.mu(k) + 3*sqrt(mog.sig2(k)),100);
-    y = PI(k)*normpdf(x, mog.mu(k), sqrt(mog.sig2(k)));
+    MU   = mog.po.m(c,k);    
+    sig2 = inv(A(c,c,k));
+    
+    x = linspace(MU - 3*sqrt(sig2), MU + 3*sqrt(sig2),100);
+    y = PI(k)*normpdf(x, MU, sqrt(sig2));
     plot(x, y, 'Color', colors(k,:), 'LineWidth', 1)
     xlims = [min([xlims(1) x]) max([xlims(2) x])];
 end

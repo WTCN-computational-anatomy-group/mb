@@ -7,7 +7,7 @@ function varargout = spm_multireg_util(varargin)
 % FORMAT psi       = spm_multireg_util('Compose',psi1,psi0)
 % FORMAT id        = spm_multireg_util('Identity',d)
 % FORMAT l         = spm_multireg_util('lse',mu,dr)
-% FORMAT f         = spm_multireg_util('Mask',f,msk)
+% FORMAT f         = spm_multireg_util('Mask',f)
 % FORMAT a1        = spm_multireg_util('Pull1',a0,psi,r)
 % FORMAT [f1,w1]   = spm_multireg_util('Push1',f,psi,d,r)
 % FORMAT             spm_multireg_util('SetBoundCond')
@@ -17,6 +17,7 @@ function varargout = spm_multireg_util(varargin)
 % FORMAT P         = spm_multireg_util('softmax',mu,dr)
 % FORMAT P         = spm_multireg_util('softmaxmu',mu,dr)
 % FORMAT [Mmu,d]   = spm_multireg_util('SpecifyMean',dat,vx)
+% FORMAT [f,d]     = spm_multireg_util('SubSample',f,Mat,samp)
 % FORMAT [dat,mu]  = spm_multireg_util('ZoomVolumes',dat,mu,sett,oMmu)
 %
 %__________________________________________________________________________
@@ -57,6 +58,8 @@ switch id
         [varargout{1:nargout}] = softmaxmu(varargin{:});         
     case 'SpecifyMean'
         [varargout{1:nargout}] = SpecifyMean(varargin{:});        
+    case 'SubSample'
+        [varargout{1:nargout}] = SubSample(varargin{:});               
     case 'ZoomVolumes'
         [varargout{1:nargout}] = ZoomVolumes(varargin{:});        
     otherwise
@@ -100,9 +103,8 @@ end
 
 %==========================================================================
 % Mask()
-function f = Mask(f,msk)
-f(~isfinite(f)) = 0;
-f = f.*msk;
+function f = Mask(f)
+f(~isfinite(f) | f == 0) = NaN;
 end
 %==========================================================================
 
@@ -428,7 +430,7 @@ d  = d(1:3);
 mx = max(mu,[],dr);
 e  = exp(mu - mx);
 on = exp(-mx);
-se = on.*sum(e,dr);
+se = sum(e,dr);
 se = on + se;
 
 P            = zeros([d K + 1],'like',mu);
@@ -443,12 +445,8 @@ function [Mmu,d] = SpecifyMean(dat,vx)
 dims = zeros(numel(dat),3);
 Mat0 = zeros(4,4,numel(dat));
 for n=1:numel(dat)
-    dims(n,:)   = spm_multireg_io('GetSize',dat(n).f)';
-    if isa(dat(n).f,'nifti')
-        Mat0(:,:,n) = dat(n).f(1).mat;
-    else
-        Mat0(:,:,n) = eye(4);
-    end
+    dims(n,:)   = spm_multireg_io('GetSize',dat(n).f)';    
+    Mat0(:,:,n) = dat(n).Mat;
 end
 
 [Mmu,d] = ComputeAvgMat(Mat0,dims);
@@ -478,6 +476,20 @@ end
 %==========================================================================
 
 %==========================================================================
+% SubSample()
+function [f,d] = SubSample(f,Mat,samp)
+samp = repmat(samp,[1 3]);
+samp = samp(1:3);
+vx   = sqrt(sum(Mat(1:3,1:3).^2));        
+samp = round(samp ./ vx);
+samp = max(samp, 1);        
+f    = f(1:samp:end,1:samp:end,1:samp:end,:);
+d    = size(f);
+d    = [d 1];
+end
+%==========================================================================
+
+%==========================================================================
 % ZoomVolumes()
 function [dat,mu] = ZoomVolumes(dat,mu,sett,oMmu)
 SetBoundCond;
@@ -486,7 +498,7 @@ d0    = [size(mu,1) size(mu,2) size(mu,3)];
 Mmu   = sett.var.Mmu;
 z     = single(reshape(d./d0,[1 1 1 3]));
 Mzoom = oMmu\Mmu;
-y     = reshape(reshape(Identity(d),[prod(d),3])*Mzoom(1:3,1:3)'+Mzoom(1:3,4)',[d 3]);
+y     = reshape(reshape(Identity(d),[prod(d),3])*Mzoom(1:3,1:3)' + Mzoom(1:3,4)',[d 3]);
 mu    = spm_diffeo('pullc',mu,y);
 
 if sett.gen.threads>1 && numel(dat)>1
