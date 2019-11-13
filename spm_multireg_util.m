@@ -498,7 +498,7 @@ d0    = [size(mu,1) size(mu,2) size(mu,3)];
 Mmu   = sett.var.Mmu;
 z     = single(reshape(d./d0,[1 1 1 3]));
 Mzoom = oMmu\Mmu;
-y     = reshape(reshape(Identity(d),[prod(d),3])*Mzoom(1:3,1:3)'+Mzoom(1:3,4)',[d 3]);
+y     = reshape(reshape(Identity(d),[prod(d),3])*Mzoom(1:3,1:3)' + Mzoom(1:3,4)',[d 3]);
 mu    = spm_diffeo('pullc',mu,y);
 
 if sett.gen.threads>1 && numel(dat)>1

@@ -6,6 +6,7 @@ function varargout = spm_multireg_io(varargin)
 % FORMAT to       = spm_multireg_io('CopyFields',from,to)
 % FORMAT [P,datn] = spm_multireg_io('GetClasses',datn,mu,sett)
 % FORMAT out      = spm_multireg_io('GetData',in)
+% FORMAT d        = spm_multireg_io('GetDimensions',fn)
 % FORMAT Mat      = spm_multireg_io('GetMat',fin)
 % FORMAT K        = spm_multireg_io('GetK',fn)
 % FORMAT [R,datn] = spm_multireg_io('GetResp'datn,fn,mu,adjust,sett)
@@ -31,6 +32,8 @@ switch id
         [varargout{1:nargout}] = GetClasses(varargin{:});
     case 'GetData'
         [varargout{1:nargout}] = GetData(varargin{:});
+    case 'GetDimensions'
+        [varargout{1:nargout}] = GetDimensions(varargin{:});        
     case 'GetK'
         [varargout{1:nargout}] = GetK(varargin{:});            
     case 'GetMat'
@@ -140,6 +143,32 @@ if isa(in,'nifti')
     return
 end
 error('Unknown datatype.');
+end
+%==========================================================================
+
+%==========================================================================
+% GetDimensions()
+function d = GetDimensions(fin)
+if isnumeric(fin)
+    d = size(fin);
+    d = [d 1 1];
+    return
+end
+if isa(fin,'char')
+    fin = nifti(fin);
+end
+if isa(fin,'nifti')
+    M    = numel(fin);
+    d    = size(fin(1).dat,[1 2 3 4 5]);
+    if M>1
+        d(4) = M;
+    else
+        if numel(d)>4 && d(4)==1
+            d = [d(1:3) d(5)];
+        end
+    end
+    return
+end
 end
 %==========================================================================
 
