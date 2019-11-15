@@ -311,7 +311,7 @@ a         = Mask(f - spm_multireg_util('softmax',mu1,4),msk);
 g         = double(dM'*g);
 H         = dM'*H*dM;
 H         = H + eye(numel(q))*(norm(H)*1e-6 + 0.1);
-q         = q + sett.optim.scal*(H\g);
+q         = q + sett.optim.scal_q*(H\g);
 datn.q    = q;
 end
 %==========================================================================
@@ -360,7 +360,7 @@ mu1      = spm_multireg_util('Pull1',mu,psi);
 g         = double(dM'*g);
 H         = dM'*H*dM;
 H         = H + eye(numel(q))*(norm(H)*1e-6 + 0.1);
-q         = q + sett.optim.scal*(H\g);
+q         = q + sett.optim.scal_q*(H\g);
 datn.q    = q;
 end
 %==========================================================================
@@ -395,7 +395,7 @@ g         = reshape(sum(a.*G,4),[sett.var.d 3]);
 H         = w.*H0;
 u0        = spm_diffeo('vel2mom', v, sett.var.v_settings);                                                % Initial momentum
 datn.E(2) = 0.5*sum(u0(:).*v(:));                                                                         % Prior term
-v         = v - sett.optim.scal*spm_diffeo('fmg',H, g + u0, [sett.var.v_settings sett.shoot.s_settings]); % Gauss-Newton update
+v         = v - sett.optim.scal_v*spm_diffeo('fmg',H, g + u0, [sett.var.v_settings sett.shoot.s_settings]); % Gauss-Newton update
 
 if sett.var.d(3)==1, v(:,:,:,3) = 0; end % If 2D
 if sett.var.v_settings(1)==0             % Mean displacement should be 0

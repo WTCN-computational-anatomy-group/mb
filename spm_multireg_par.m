@@ -191,9 +191,17 @@ end
 if ~isfield(sett,'optim')
     sett.optim = struct;
 end
-if ~isfield(sett.model,'scal')
-     % Scaling of GN updates
-    sett.optim.scal = 1.0;
+if ~isfield(sett.optim,'nls_bf')
+     % Scaling of q GN updates
+    sett.optim.nls_bf = 6;
+end
+if ~isfield(sett.optim,'scal_q')
+     % Scaling of q GN updates
+    sett.optim.scal_q = 1.0;
+end
+if ~isfield(sett.optim,'scal_v')
+     % Scaling of v GN updates
+    sett.optim.scal_v = 1.0;
 end
 
 %------------------
