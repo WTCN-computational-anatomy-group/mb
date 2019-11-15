@@ -7,7 +7,7 @@ function varargout = spm_multireg_util(varargin)
 % FORMAT psi       = spm_multireg_util('Compose',psi1,psi0)
 % FORMAT id        = spm_multireg_util('Identity',d)
 % FORMAT l         = spm_multireg_util('lse',mu,dr)
-% FORMAT f         = spm_multireg_util('Mask',f)
+% FORMAT f         = spm_multireg_util('MaskF',f)
 % FORMAT a1        = spm_multireg_util('Pull1',a0,psi,r)
 % FORMAT [f1,w1]   = spm_multireg_util('Push1',f,psi,d,r)
 % FORMAT             spm_multireg_util('SetBoundCond')
@@ -38,8 +38,8 @@ switch id
         [varargout{1:nargout}] = Identity(varargin{:});
     case 'lse'
         [varargout{1:nargout}] = lse(varargin{:});
-    case 'Mask'
-        [varargout{1:nargout}] = Mask(varargin{:});    
+    case 'MaskF'
+        [varargout{1:nargout}] = MaskF(varargin{:});    
     case 'Pull1'
         [varargout{1:nargout}] = Pull1(varargin{:});
     case 'Push1'
@@ -102,9 +102,12 @@ end
 %==========================================================================
 
 %==========================================================================
-% Mask()
-function f = Mask(f)
-f(~isfinite(f) | f == 0) = NaN;
+% MaskF()
+function fn = MaskF(fn)
+C = size(fn,2);
+for c=1:C
+    fn(:,c) = Mask(fn(:,c));
+end
 end
 %==========================================================================
 
@@ -645,7 +648,14 @@ end
 %==========================================================================
 
 %==========================================================================
-% range()
+% Mask()
+function f = Mask(f)
+f(~isfinite(f) | f == 0) = NaN;
+end
+%==========================================================================
+
+%==========================================================================
+% Range()
 function r = Range(n)
 r = (-floor((n-1)/2):ceil((n-1)/2))/n;
 end

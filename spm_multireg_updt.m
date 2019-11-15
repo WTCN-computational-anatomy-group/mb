@@ -4,6 +4,8 @@ function varargout = spm_multireg_updt(varargin)
 % Update functions for spm_multireg.
 %
 % FORMAT dat      = spm_multireg_updt('UpdateAffines',dat,mu,sett)
+% FORMAT dat      = spm_multireg_updt('UpdateBiasField',dat,mu,sett)
+% FORMAT dat      = spm_multireg_updt('UpdateGMM',dat,mu,sett)
 % FORMAT dat      = spm_multireg_updt('UpdateIntensity',dat, sett)
 % FORMAT [mu,dat] = spm_multireg_updt('UpdateMean',dat, mu, sett)
 % FORMAT dat      = spm_multireg_updt('UpdateSimpleAffines',dat,mu,sett)
@@ -22,7 +24,11 @@ id = varargin{1};
 varargin = varargin(2:end);
 switch id
     case 'UpdateAffines'
-        [varargout{1:nargout}] = UpdateAffines(varargin{:});         
+        [varargout{1:nargout}] = UpdateAffines(varargin{:});
+    case 'UpdateBiasField'
+        [varargout{1:nargout}] = UpdateBiasField(varargin{:});           
+    case 'UpdateGMM'  
+        [varargout{1:nargout}] = UpdateGMM(varargin{:});        
     case 'UpdateIntensity'
         [varargout{1:nargout}] = UpdateIntensity(varargin{:});        
     case 'UpdateMean'
@@ -71,6 +77,49 @@ if ~isempty(sett.registr.B)
         end
     end
 end
+end
+%==========================================================================
+
+%==========================================================================
+% UpdateBiasField()
+function dat = UpdateBiasField(dat,mu,sett)
+
+if ~sett.do.updt_bf, return; end
+
+if sett.gen.threads>1 && numel(dat)>1    
+    parfor(n=1:numel(dat),sett.gen.threads) % PARFOR
+        spm_multireg_util('SetBoundCond');
+        dat(n) = UpdateBiasFieldSub(dat(n),mu,sett);
+    end
+else
+    for n=1:numel(dat)
+        dat(n) = UpdateBiasFieldSub(dat(n),mu,sett);
+    end
+end    
+
+if sett.do.bf_norm
+    % Zero-mean the field DC component
+    dat = ZeroMeanDC(dat,mu,sett);
+    
+    % Update GMM after mean correction    
+    dat = UpdateGMM(dat,mu,sett);
+end
+end
+%==========================================================================
+
+%==========================================================================
+% UpdateGMM()
+function dat = UpdateGMM(dat,mu,sett)
+if sett.gen.threads>1 && numel(dat)>1    
+    parfor(n=1:numel(dat),sett.gen.threads) % PARFOR
+        spm_multireg_util('SetBoundCond');
+        dat(n) = UpdateGMMSub(dat(n),mu,sett);
+    end
+else
+    for n=1:numel(dat)
+        dat(n) = UpdateGMMSub(dat(n),mu,sett);
+    end
+end 
 end
 %==========================================================================
 
@@ -124,22 +173,7 @@ else
         H              = H + Hn;
     end
 end
-mu = mu - spm_field(H, g, [sett.var.mu_settings sett.shoot.s_settings]);
-
-if 0
-    % Show stuff
-    d  = size(mu);
-    K  = d(4);        
-    nr = floor(sqrt(K));
-    nc = ceil(K/nr);  
-        
-    for k=1:K    
-        % Show template    
-        figure(666); subplot(nr,nc,k); imagesc(mu(:,:,ceil(d(3).*0.55),k)'); 
-        title('mu');
-        axis image xy off; drawnow
-    end
-end    
+mu = mu - spm_field(H, g, [sett.var.mu_settings sett.shoot.s_settings]);  
 end
 %==========================================================================
 
@@ -268,6 +302,162 @@ end
 %==========================================================================
 
 %==========================================================================
+% Mask()
+function f = Mask(f,msk)
+f(~isfinite(f)) = 0;
+f = f.*msk;
+end
+%==========================================================================
+
+%==========================================================================
+function dat = ZeroMeanDC(dat,mu,sett)
+% Get correction factor
+sm_dc_ln  = 0;
+sm_dc_int = 0;
+for n=1:numel(dat)
+    sm_dc_ln  = sm_dc_ln  + dat(n).bf.dc.ln;
+    sm_dc_int = sm_dc_int + dat(n).bf.dc.int;
+end   
+mn_dc_ln  = sm_dc_ln./numel(dat);
+mn_dc_int = sm_dc_int./numel(dat);
+C         = numel(mn_dc_ln); 
+
+if 0     
+    % Some verbose (should tend towards 1, for all channels)
+    fprintf('mn_dc_int = [');
+    for c=1:C - 1
+        fprintf('%4.5f ',mn_dc_int(c));
+    end
+    fprintf('%4.5f',mn_dc_int(C))
+    fprintf(']\n');
+end
+
+% Adjust bias field DC component
+scl = (1./mn_dc_int)';
+for n=1:numel(dat)
+    for c=1:C
+        dat(n).bf.chan(c).T(1,1,1) = dat(n).bf.chan(c).T(1,1,1) - mn_dc_ln(c);
+    end
+end
+   
+% Correct GMM posterior parameters and lower bound/objective
+if sett.gen.threads>1 && numel(dat)>1    
+    parfor(n=1:numel(dat),sett.gen.threads) % PARFOR
+        spm_multireg_util('SetBoundCond');
+        dat(n) = ZeroMeanDCSub(dat(n),mu,scl,sett);
+    end
+else
+    for n=1:numel(dat)
+        dat(n) = ZeroMeanDCSub(dat(n),mu,scl,sett);
+    end
+end    
+end
+%==========================================================================
+
+%==========================================================================
+function datn = ZeroMeanDCSub(datn,mu,scl,sett)
+L     = datn.bf.L;
+[d,C] = spm_multireg_io('GetSize',datn.f);
+
+% GMM posterior
+m = datn.mog.po.m;
+b = datn.mog.po.b;
+V = datn.mog.po.V;
+n = datn.mog.po.n;
+
+% GMM prior
+m0 = datn.mog.pr.m;
+b0 = datn.mog.pr.b;
+V0 = datn.mog.pr.V;
+n0 = datn.mog.pr.n;
+
+% Get suffstats
+lSS0 = datn.bf.lSS0;
+lSS1 = datn.bf.lSS1;
+lSS2 = datn.bf.lSS2;
+
+% Rescale suffstats
+K = size(m,2);
+A = bsxfun(@times,V,reshape(n,[1 1 K]));
+for l=2:numel(L)
+    obs = spm_gmm_lib('code2bin', L(l), C);
+    lSS1{l} = bsxfun(@times,lSS1{l},scl(obs));
+    for k=1:size(lSS2{l},3)
+        lSS2{l}(:,:,k) = (scl(obs)*scl(obs)').*lSS2{l}(:,:,k);
+    end     
+end
+
+% Update GMM posteriors
+[SS0,SS1,SS2] = spm_gmm_lib('SuffStat', 'infer', lSS0, lSS1, lSS2, {m,A}, L);        
+[m,~,b,V,n]  = spm_gmm_lib('UpdateClusters', SS0, SS1, SS2, {m0,b0,V0,n0});    
+
+% Save updated GMM posteriors
+datn.mog.po.m = m;
+datn.mog.po.b = b;
+datn.mog.po.V = V;
+datn.mog.po.n = n;
+
+% Update lower bound/objective
+%--------------------------------------------------------------------------
+
+% Get subject-space template (softmaxed K + 1)
+q    = double(datn.q);
+Mn   = datn.Mat;
+Mr   = spm_dexpm(q,sett.registr.B);
+psi1 = spm_multireg_io('GetData',datn.psi);
+psi0 = spm_multireg_util('Affine',d,sett.var.Mmu\Mr*Mn);
+psi  = spm_multireg_util('Compose',psi1,psi0);
+clear psi0 psi1
+mu   = spm_multireg_util('Pull1',mu,psi);
+mu   = log(spm_multireg_util('softmaxmu',mu,4));
+clear psi
+mu   = reshape(mu,[prod(d(1:3)) size(mu,4)]);
+
+% Get bias field
+[bf,pr_bf] = spm_multireg_io('GetBiasField',datn.bf.chan,d);
+
+% Get image(s)
+fn = spm_multireg_io('GetData',datn.f);
+fn = reshape(fn,[prod(d(1:3)) C]);
+
+% Get responsibilities
+fn   = spm_multireg_util('MaskF',fn);
+code = spm_gmm_lib('obs2code', fn);
+zn   = spm_multireg_io('ComputeResponsibilities',datn,bf.*fn,mu,code);
+clear mu
+
+lx  = spm_multireg_energ('LowerBound','X',bf.*fn,zn,code,{m,b},{V,n});
+clear zn fn
+
+lxb = spm_multireg_energ('LowerBound','XB',bf);
+clear bf
+
+datn.mog.lb.XB(end + 1) = lxb;
+datn.mog.lb.X(end  + 1) = lx;
+datn.mog.lb             = spm_multireg_energ('SumLowerBound',datn.mog.lb);
+
+datn.E(1) = -datn.mog.lb.sum(end);
+datn.E(3) = -sum(pr_bf);
+end
+%==========================================================================
+
+%==========================================================================
+% SclFromBiasFieldDC()
+function scl = SclFromBiasFieldDC(chan)
+C   = numel(chan);
+scl = zeros(1,C);
+for c=1:C
+    b1 = chan(c).B1(1,1);
+    b2 = chan(c).B2(1,1);
+    b3 = chan(c).B3(1,1);
+    t1 = chan(c).T(1,1,1);
+    
+    scl(c) = exp(b1*b2*b3*t1);
+end
+end
+%==========================================================================
+
+%==========================================================================
 % UpdateAffinesSub()
 function datn = UpdateAffinesSub(datn,mu,sett)
 % This could be made more efficient.
@@ -287,6 +477,7 @@ J    = spm_diffeo('jacobian',psi1);
 J    = reshape(spm_multireg_util('Pull1',reshape(J,[sett.var.d 3*3]),psi0),[d 3 3]);
 psi  = spm_multireg_util('Compose',psi1,psi0);
 clear psi0 psi1
+
 mu1  = spm_multireg_util('Pull1',mu,psi);
 [f,datn] = spm_multireg_io('GetClasses',datn,mu1,sett);
 M    = size(mu,4);
@@ -303,7 +494,7 @@ for m=1:M
     end
     clear Gm;
 end
-clear J
+clear J mu
 
 msk       = all(isfinite(f),4);
 a         = Mask(f - spm_multireg_util('softmax',mu1,4),msk);
@@ -313,6 +504,270 @@ H         = dM'*H*dM;
 H         = H + eye(numel(q))*(norm(H)*1e-6 + 0.1);
 q         = q + sett.optim.scal_q*(H\g);
 datn.q    = q;
+end
+%==========================================================================
+
+%==========================================================================
+% UpdateBiasFieldSub()
+function datn = UpdateBiasFieldSub(datn,mu,sett)
+[d,C] = spm_multireg_io('GetSize',datn.f);
+
+% Get subject-space template (softmaxed K + 1)
+q    = double(datn.q);
+Mn   = datn.Mat;
+Mr   = spm_dexpm(q,sett.registr.B);
+psi1 = spm_multireg_io('GetData',datn.psi);
+psi0 = spm_multireg_util('Affine',d,sett.var.Mmu\Mr*Mn);
+psi  = spm_multireg_util('Compose',psi1,psi0);
+clear psi0 psi1
+mu   = spm_multireg_util('Pull1',mu,psi);
+mu   = log(spm_multireg_util('softmaxmu',mu,4));
+clear psi
+
+% Get bias field
+chan       = datn.bf.chan;
+kron       = @(a,b) spm_krutil(a,b);
+[bf,pr_bf] = spm_multireg_io('GetBiasField',chan,d);
+
+% Get responsibilities
+[zn,datn,code] = spm_multireg_io('GetClasses',datn,mu,sett,true);
+L              = unique(code);
+nL             = numel(L);
+mu             = reshape(mu,[prod(d(1:3)) size(mu,4)]);
+
+% Get image(s)
+fn = spm_multireg_io('GetData',datn.f);
+fn = reshape(fn,[prod(d(1:3)) C]);
+
+% GMM posterior
+m  = datn.mog.po.m;
+b  = datn.mog.po.b;
+V  = datn.mog.po.V;
+n  = datn.mog.po.n;
+K1 = size(m,2);
+
+lx  = datn.mog.lb.X(end);
+lxb = datn.mog.lb.XB(end);
+
+% -----------------------------------------------------------------
+% Update bias field parameters
+for it=1:sett.nit.bf
+    
+    % -----------------------------------------------------------------
+    % Update bias field parameters for each channel separately
+    for c=1:C % Loop over channels
+
+        % -----------------------------------------------------------------
+        % Compute gradient and Hessian    
+        gr_l = zeros(d(1:3));
+        H_l  = zeros(d(1:3));
+
+        % -----------------------------------------------------------------
+        % For each combination of missing voxels
+        for l=1:nL
+
+            % -------------------------------------------------------------
+            % Get mask of missing modalities (with this particular code)        
+            observed_channels = spm_gmm_lib('code2bin', L(l), C);
+            missing_channels  = ~observed_channels;
+            if missing_channels(c), continue; end
+            if isempty(code), selected_voxels = ones(size(code), 'logical');
+            else,                   selected_voxels = (code == L(l));
+            end
+            nb_channels_missing  = sum(missing_channels);
+            nb_voxels_coded      = sum(selected_voxels);
+            if nb_voxels_coded == 0, continue; end
+
+            % -------------------------------------------------------------
+            % Convert channel indices to observed indices
+            mapped_c     = 1:C;
+            mapped_c     = mapped_c(observed_channels);
+            mapped_c     = find(mapped_c == c);
+            cc           = mapped_c; % short alias
+
+            selected_obs = bf(selected_voxels,observed_channels).*fn(selected_voxels,observed_channels);
+            gi = 0; % Gradient accumulated accross clusters
+            Hi = 0; % Hessian accumulated accross clusters
+            for k=1:K1
+
+                % ---------------------------------------------------------
+                % Compute expected precision (see GMM+missing data)
+                Voo = V(observed_channels,observed_channels,k);
+                Vom = V(observed_channels,missing_channels,k);
+                Vmm = V(missing_channels,missing_channels,k);
+                Vmo = V(missing_channels,observed_channels,k);
+                Ao  = Voo - Vom*(Vmm\Vmo);
+                Ao  = (n(k)-nb_channels_missing) * Ao;
+                MUo = m(observed_channels,k);
+
+                % ---------------------------------------------------------
+                % Compute statistics
+                gk = bsxfun(@minus, selected_obs, MUo.') * Ao(cc,:).';
+                Hk = Ao(cc,cc);
+
+                selected_resp = zn(selected_voxels,k);
+                gk = bsxfun(@times, gk, selected_resp);
+                Hk = bsxfun(@times, Hk, selected_resp);
+                clear selected_resp
+
+                % ---------------------------------------------------------
+                % Accumulate across clusters
+                gi = gi + gk;
+                Hi = Hi + Hk;
+                clear sk1x sk2x
+            end
+
+            % -------------------------------------------------------------
+            % Multiply with bias corrected value (chain rule)
+            gi = gi .* selected_obs(:,cc);
+            Hi = Hi .* (selected_obs(:,cc).^2);
+            clear selected_obs
+
+            % -------------------------------------------------------------
+            % Normalisation term
+            gi = gi - 1;
+
+            % -------------------------------------------------------------
+            % Accumulate across missing codes
+            gr_l(selected_voxels) = gr_l(selected_voxels) + gi;
+            H_l(selected_voxels)  = H_l(selected_voxels) + Hi;
+            clear selected_voxels
+        end
+        clear zn
+        
+        d3 = numel(chan(c).T); % Number of DCT parameters
+        H  = zeros(d3,d3);     
+        gr = zeros(d3,1);      
+        for z=1:d(3)
+            b3 = double(chan(c).B3(z,:)');
+            gr = gr + kron(b3,spm_krutil(gr_l(:,:,z),double(chan(c).B1),double(chan(c).B2),0));
+            H  = H  + kron(b3*b3',spm_krutil(H_l(:,:,z),double(chan(c).B1),double(chan(c).B2),1));
+        end
+        if 0
+            b3 = double(chan(c).B3');
+            gr1 = kron(b3, spm_krutil(gr_l,double(chan(c).B1), double(chan(c).B2),0));
+            H1  = kron(b3*double(b3)', spm_krutil(H_l,double(chan(c).B1), double(chan(c).B2),1));
+        end
+        clear b3                       
+
+        % -------------------------------------------------------------
+        % Gauss-Newton update of bias field parameters
+        Update = reshape((H + chan(c).C)\(gr + chan(c).C*chan(c).T(:)),size(chan(c).T));
+        clear H gr
+
+        % Line-search
+        %------------------------------------------------------------------    
+        armijo = 1;
+        nls    = sett.optim.nls_bf;
+
+        % Old parameters
+        oT     = chan(c).T;       
+        obf    = bf;
+        opr_bf = pr_bf;
+        olxb   = lxb;   
+        olx    = lx;
+
+        for ls=1:nls
+
+            % Update bias-field parameters
+            chan(c).T = chan(c).T - armijo*Update;
+
+            % Compute new bias-field (only for channel c)
+            [bf,pr_bf] = spm_multireg_io('GetBiasField',chan,d,obf,c,opr_bf);
+
+            % Recompute responsibilities (with updated bias field)
+            zn = spm_multireg_io('ComputeResponsibilities',datn,bf.*fn,mu,code);
+            
+            % Compute new lower bound
+            lx  = spm_multireg_energ('LowerBound','X',bf.*fn,zn,code,{m,b},{V,n});
+            lxb = spm_multireg_energ('LowerBound','XB',bf);
+            
+            % Check new lower bound
+            if (lx + lxb + sum(pr_bf)) > (olx + olxb + sum(opr_bf))       
+                datn.mog.lb.XB(end + 1) = lxb;
+                datn.mog.lb.X(end  + 1) = lx;
+                break;
+            else                                
+                armijo    = armijo*0.5;
+                chan(c).T = oT;
+
+                if ls == nls                  
+                    bf    = obf;         
+                    pr_bf = opr_bf;
+                    zn    = spm_multireg_io('ComputeResponsibilities',datn,bf.*fn,mu,code);
+                end
+            end
+        end
+        clear oT Update obf    
+    end
+end
+
+% Set output (update datn)
+datn.bf.chan = chan;
+datn.mog.lb  = spm_multireg_energ('SumLowerBound',datn.mog.lb);
+datn.E(1)    = -datn.mog.lb.sum(end);
+datn.E(3)    = -sum(pr_bf);
+
+if sett.do.bf_norm
+    [lSS0,lSS1,lSS2] = spm_gmm_lib('SuffStat', 'base', bf.*fn, zn, 1, {code,L});   
+    datn.bf.lSS0     = lSS0;
+    datn.bf.lSS1     = lSS1;
+    datn.bf.lSS2     = lSS2;
+    datn.bf.L        = L;
+
+    % Get DC component
+    dc    = struct;
+    dc.ln = zeros(1,C);
+    for c=1:C
+        dc.ln(c) = chan(c).T(1,1,1);
+    end
+    dc.int     = SclFromBiasFieldDC(chan);
+    datn.bf.dc = dc;
+end
+
+if 1
+    % Show stuff    
+    z  = ceil(d(3).*0.5);
+    fn = reshape(fn,[d(1:3) C]);
+    bf = reshape(bf,[d(1:3) C]);
+    
+    figure(664);
+    for c=1:C
+        subplot(C,3,1 + (c - 1)*3); imagesc(fn(:,:,z,c)'); 
+        title('fn');
+        axis image xy off; drawnow
+
+        subplot(C,3,2 + (c - 1)*3); imagesc(bf(:,:,z,c)'); 
+        title('bf');
+        axis image xy off; drawnow
+
+        subplot(C,3,3 + (c - 1)*3); imagesc(bf(:,:,z,c)'.*fn(:,:,z,c)'); 
+        title('bf.*fn');
+        axis image xy off; drawnow
+    end
+end
+
+end
+%==========================================================================
+
+%==========================================================================
+% UpdateGMMSub()
+function datn = UpdateGMMSub(datn,mu,sett)
+d = spm_multireg_io('GetSize',datn.f);
+
+% Get subject-space template (softmaxed K + 1)
+q    = double(datn.q);
+Mn   = datn.Mat;
+Mr   = spm_dexpm(q,sett.registr.B);
+psi1 = spm_multireg_io('GetData',datn.psi);
+psi0 = spm_multireg_util('Affine',d,sett.var.Mmu\Mr*Mn);
+psi  = spm_multireg_util('Compose',psi1,psi0);
+clear psi0 psi1
+mu   = spm_multireg_util('Pull1',mu,psi);
+clear psi
+
+% Update GMM parameters
+[~,datn] = spm_multireg_io('GetClasses',datn,mu,sett);
 end
 %==========================================================================
 
@@ -356,6 +811,8 @@ mu1      = spm_multireg_util('Pull1',mu,psi);
 [f,datn] = spm_multireg_io('GetClasses',datn,mu1,sett);
 
 [a,w]     = spm_multireg_util('Push1',f - spm_multireg_util('softmax',mu1,4),psi,sett.var.d);
+clear mu1 psi f
+
 [H,g]     = spm_multireg_der('SimpleAffineHessian',mu,G,H0,a,w);
 g         = double(dM'*g);
 H         = dM'*H*dM;
@@ -372,8 +829,8 @@ d     = spm_multireg_io('GetSize',datn.f);
 q     = double(datn.q);
 Mn    = datn.Mat;
 psi   = spm_multireg_util('Compose',spm_multireg_io('Affine',datn.psi), spm_multireg_util('affine',d, sett.var.Mmu\spm_dexpm(q,sett.registr.B)*Mn));
-mu1   = spm_multireg_util('Pull1',mu,psi);
-[f,datn] = spm_multireg_io('GetClasses',datn,mu1,sett);
+mu    = spm_multireg_util('Pull1',mu,psi);
+[f,datn] = spm_multireg_io('GetClasses',datn,mu,sett);
 [g,w] = spm_multireg_util('Push1',f,psi,sett.var.d);
 end
 %==========================================================================
@@ -388,11 +845,15 @@ Mr        = spm_dexpm(q,sett.registr.B);
 Mat       = sett.var.Mmu\Mr*Mn;
 d         = spm_multireg_io('GetSize',datn.f);
 psi       = spm_multireg_util('Compose',spm_multireg_io('GetData',datn.psi), spm_multireg_util('Affine',d,Mat));
-mu1       = spm_multireg_util('Pull1',mu,psi);
-[f,datn]  = spm_multireg_io('GetClasses',datn,mu1,sett);
-[a,w]     = spm_multireg_util('Push1',f - spm_multireg_util('softmax',mu1,4),psi,sett.var.d);
+mu        = spm_multireg_util('Pull1',mu,psi);
+[f,datn]  = spm_multireg_io('GetClasses',datn,mu,sett);
+[a,w]     = spm_multireg_util('Push1',f - spm_multireg_util('softmax',mu,4),psi,sett.var.d);
+clear psi f mu
+
 g         = reshape(sum(a.*G,4),[sett.var.d 3]);
 H         = w.*H0;
+clear a w
+
 u0        = spm_diffeo('vel2mom', v, sett.var.v_settings);                                                % Initial momentum
 datn.E(2) = 0.5*sum(u0(:).*v(:));                                                                         % Prior term
 v         = v - sett.optim.scal_v*spm_diffeo('fmg',H, g + u0, [sett.var.v_settings sett.shoot.s_settings]); % Gauss-Newton update
@@ -416,19 +877,5 @@ end
 datn.v   = spm_multireg_io('SetData',datn.v,v);
 psi1     = spm_multireg_util('Shoot',v, kernel, sett.shoot.args); % Geodesic shooting
 datn.psi = spm_multireg_io('SetData',datn.psi,psi1);
-end
-%==========================================================================
-
-%==========================================================================
-%
-% Utility functions
-%
-%==========================================================================
-
-%==========================================================================
-% Mask()
-function f = Mask(f,msk)
-f(~isfinite(f)) = 0;
-f = f.*msk;
 end
 %==========================================================================

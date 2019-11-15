@@ -3,6 +3,7 @@ function varargout = spm_multireg_show(varargin)
 %
 % Visualisation functions for spm_multireg.
 %
+% FORMAT spm_multireg_show('ShowBiasField',dat,sett)
 % FORMAT spm_multireg_show('ShowModel',mu,Objective,sett,N)
 % FORMAT spm_multireg_show('ShowParameters',dat,mu,sett)
 % FORMAT spm_multireg_show('ShowSubjects',dat,mu,sett)
@@ -18,6 +19,8 @@ end
 id = varargin{1};
 varargin = varargin(2:end);
 switch id
+    case 'ShowBiasField'
+        [varargout{1:nargout}] = ShowBiasField(varargin{:});    
     case 'ShowModel'
         [varargout{1:nargout}] = ShowModel(varargin{:});
     case 'ShowParameters'
@@ -34,15 +37,53 @@ end
 %==========================================================================
 
 %==========================================================================
+% ShowBiasField()
+function ShowBiasField(dat,sett)
+
+if ~sett.do.updt_bf, return; end
+
+fg = findobj('Type', 'Figure', 'Name', sett.show.figname_bf);
+if isempty(fg)
+    fg = figure('Name', sett.show.figname_bf, 'NumberTitle', 'off');
+else
+    clf(fg);
+end
+set(0, 'CurrentFigure', fg);   
+
+[d,C] = spm_multireg_io('GetSize',dat(1).f);
+nr = 3;
+if d(3) == 1, ax = 3;
+else,         ax = sett.show.axis_3d;   
+end
+    
+nd = min(numel(dat),sett.show.mx_subjects);
+for n=1:nd
+    d  = spm_multireg_io('GetSize',dat(n).f);
+    fn = spm_multireg_io('GetData',dat(n).f);   
+    bf = spm_multireg_io('GetBiasField',dat(n).bf.chan,d);
+    bf = reshape(bf,[d C]);
+    c  = min(sett.show.channel,size(fn,4));
+    
+    % Show stuff
+    ShowIm(fn(:,:,:,c),ax,nr,nd,n,sett.show.figname_bf,false);
+    ShowIm(bf(:,:,:,c),ax,nr,nd,n + nd,sett.show.figname_bf,false);            
+    ShowIm(bf(:,:,:,c).*fn(:,:,:,c),ax,nr,nd,n + 2*nd,sett.show.figname_bf,false);
+end
+drawnow
+end
+%==========================================================================
+
+%==========================================================================
 % ShowModel()
 function ShowModel(mu,Objective,sett,N)
-mu = spm_multireg_util('softmaxmu',mu,4); % Gives K + 1 classes    
+mu = spm_multireg_util('softmaxmu',mu,4); % Gives K + 1 classes
 if size(mu,3) > 1
     ShowCat(mu,1,2,3,1,sett.show.figname_model);
     ShowCat(mu,2,2,3,2,sett.show.figname_model);
     ShowCat(mu,3,2,3,3,sett.show.figname_model);
     subplot(2,1,2); plot(Objective,'.-');
-    title(['K=' num2str(size(mu,4)) ', N=' num2str(N)]);
+    nam = ['K=' num2str(size(mu,4)) ', N=' num2str(N) ' (softmaxed)'];
+    title(nam);
 else
     ShowCat(mu,3,1,2,1,sett.show.figname_model);
     title(['K=' num2str(size(mu,4)) ', N=' num2str(N)]);
@@ -95,22 +136,28 @@ for n=1:nd
         
         % Here we get approximate class proportions from the (softmaxed K + 1)
         % tissue template
-        d    = spm_multireg_io('GetSize',dat(n).f);
-        q    = double(dat(n).q);
-        Mn   = dat(n).Mat;
-        psi1 = spm_multireg_io('GetData',dat(n).psi);
-        psi  = spm_multireg_util('Compose',psi1,spm_multireg_util('Affine',d,sett.var.Mmu\spm_dexpm(q,sett.registr.B)*Mn));
-        mu   = spm_multireg_util('Pull1',mu0,psi);        
-        mu   = spm_multireg_util('softmaxmu',mu,4);
-        mu   = reshape(mu,[prod(d(1:3)) size(mu,4)]);
-        mu   = sum(mu,1);
-        mu   = mu./sum(mu);
+        [d,C] = spm_multireg_io('GetSize',dat(n).f);
+        q     = double(dat(n).q);
+        Mn    = dat(n).Mat;
+        psi1  = spm_multireg_io('GetData',dat(n).psi);
+        psi   = spm_multireg_util('Compose',psi1,spm_multireg_util('Affine',d,sett.var.Mmu\spm_dexpm(q,sett.registr.B)*Mn));
+        mu    = spm_multireg_util('Pull1',mu0,psi);        
+        mu    = spm_multireg_util('softmaxmu',mu,4);
+        mu    = reshape(mu,[prod(d(1:3)) size(mu,4)]);
+        mu    = sum(mu,1);
+        mu    = mu./sum(mu);
         
         % Plot GMM fit        
-        f = spm_multireg_io('GetData',dat(n).f);        
-        c = min(sett.show.channel,size(f,4));
-        f = f(:,:,:,c);
-        ShowGMMFit(f,mu,dat(n).mog,nr,nd,n + 2*nd,c);
+        fn = spm_multireg_io('GetData',dat(n).f);        
+        c  = min(sett.show.channel,size(fn,4));
+        fn = fn(:,:,:,c);
+        if sett.do.updt_bf
+            bf = spm_multireg_io('GetBiasField',dat(n).bf.chan,d);
+            bf = reshape(bf,[d C]);
+            bf = bf(:,:,:,min(sett.show.channel,size(fn,4)));
+            fn = bf.*fn;
+        end
+        ShowGMMFit(fn,mu,dat(n).mog,nr,nd,n + 2*nd,c);
     end
 end
 drawnow
@@ -137,12 +184,12 @@ end
     
 nd = min(numel(dat),sett.show.mx_subjects);
 for n=1:nd
-    d    = spm_multireg_io('GetSize',dat(n).f);
-    q    = double(dat(n).q);
-    Mn   = dat(n).Mat;
-    psi1 = spm_multireg_io('GetData',dat(n).psi);
-    psi  = spm_multireg_util('Compose',psi1,spm_multireg_util('Affine',d,sett.var.Mmu\spm_dexpm(q,sett.registr.B)*Mn));
-    mu   = spm_multireg_util('Pull1',mu0,psi);            
+    [d,C] = spm_multireg_io('GetSize',dat(n).f);
+    q     = double(dat(n).q);
+    Mn    = dat(n).Mat;
+    psi1  = spm_multireg_io('GetData',dat(n).psi);
+    psi   = spm_multireg_util('Compose',psi1,spm_multireg_util('Affine',d,sett.var.Mmu\spm_dexpm(q,sett.registr.B)*Mn));
+    mu    = spm_multireg_util('Pull1',mu0,psi);            
     
     fn = spm_multireg_io('GetClasses',dat(n),mu,sett);   
     fn = cat(4,fn,1 - sum(fn,4)); % Gives K + 1 classes
@@ -154,9 +201,16 @@ for n=1:nd
     ShowCat(fn,ax,nr,nd,n + nd,sett.show.figname_subjects);        
     if isfield(dat,'mog')
         % and image (if using GMM)
-        f = spm_multireg_io('GetData',dat(n).f);
-        f = f(:,:,:,min(sett.show.channel,size(f,4)));
-        ShowIm(f,ax,nr,nd,n + 2*nd,sett.show.figname_subjects);
+        fn = spm_multireg_io('GetData',dat(n).f);
+        c  = min(sett.show.channel,size(fn,4));
+        fn = fn(:,:,:,c);
+        if sett.do.updt_bf
+            bf = spm_multireg_io('GetBiasField',dat(n).bf.chan,d);
+            bf = reshape(bf,[d C]);
+            bf = bf(:,:,:,c);
+            fn = bf.*fn;
+        end
+        ShowIm(fn,ax,nr,nd,n + 2*nd,sett.show.figname_subjects);
     end
 end
 drawnow
@@ -215,7 +269,7 @@ if numel(dm) ~= 4
 end
 K   = dm(4);
 pal = hsv(K);
-mid = ceil(dm(1:3).*0.55);
+mid = ceil(dm(1:3).*0.5);
 
 if ax == 1
     in = permute(in(mid(1),:,:,:),[3 2 1 4]);
@@ -307,7 +361,9 @@ end
         
 %==========================================================================
 % ShowIm()
-function ShowIm(in,ax,nr,nc,np,fn)
+function ShowIm(in,ax,nr,nc,np,fn,use_gray)
+if nargin < 7, use_gray = true; end
+
 f  = findobj('Type', 'Figure', 'Name', fn);
 if isempty(f)
     f = figure('Name', fn, 'NumberTitle', 'off');
@@ -318,7 +374,7 @@ subplot(nr,nc,np);
 
 dm  = size(in);
 dm  = [dm 1];
-mid = ceil(dm(1:3).*0.55);
+mid = ceil(dm(1:3).*0.5);
 
 if ax == 1
     in = permute(in(mid(1),:,:,:),[3 2 1 4]);
@@ -329,7 +385,9 @@ else
 end
 
 in = squeeze(in(:,:,:,:));
-imagesc(in); axis off image xy;   
-colormap(gray);
+imagesc(in); axis off image xy;
+if use_gray
+    colormap(gray);
+end
 end 
 %==========================================================================
