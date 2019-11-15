@@ -3,18 +3,18 @@ function varargout = spm_multireg_io(varargin)
 %
 % I/O functions for spm_multireg.
 %
-% FORMAT to       = spm_multireg_io('CopyFields',from,to)
-% FORMAT [P,datn] = spm_multireg_io('GetClasses',datn,mu,sett)
-% FORMAT out      = spm_multireg_io('GetData',in)
-% FORMAT d        = spm_multireg_io('GetDimensions',fn)
-% FORMAT Mat      = spm_multireg_io('GetMat',fin)
-% FORMAT K        = spm_multireg_io('GetK',fn)
-% FORMAT [R,datn] = spm_multireg_io('GetResp'datn,fn,mu,adjust,sett)
-% FORMAT [d,M]    = spm_multireg_io('GetSize',fin)
-% FORMAT is3d     = spm_multireg_io('Is3D',fn)
-% FORMAT psi      = spm_multireg_io('ResavePsiSub',datn,sett)
-% FORMAT dat      = spm_multireg_io('SaveImages',dat,mu,sett)
-% FORMAT fout     = spm_multireg_io('SetData',fin,f)
+% FORMAT zn            = spm_multireg_io('ComputeResponsibilities',datn,fn,mu,code)
+% FORMAT to            = spm_multireg_io('CopyFields',from,to)
+% FORMAT [bfn,lln]     = spm_multireg_io('GetBiasField',chan,d,varargin)
+% FORMAT [P,datn,code] = spm_multireg_io('GetClasses',datn,mu,sett,get_k1)
+% FORMAT out           = spm_multireg_io('GetData',in)
+% FORMAT Mat           = spm_multireg_io('GetMat',fin)
+% FORMAT K             = spm_multireg_io('GetK',fn)
+% FORMAT [d,M]         = spm_multireg_io('GetSize',fin)
+% FORMAT is3d          = spm_multireg_io('Is3D',fn)
+% FORMAT psi           = spm_multireg_io('ResavePsiSub',datn,sett)
+% FORMAT dat           = spm_multireg_io('SaveImages',dat,mu,sett)
+% FORMAT fout          = spm_multireg_io('SetData',fin,f)
 %
 %__________________________________________________________________________
 % Copyright (C) 2019 Wellcome Trust Centre for Neuroimaging
@@ -26,20 +26,20 @@ end
 id = varargin{1};
 varargin = varargin(2:end);
 switch id
+    case 'ComputeResponsibilities'
+        [varargout{1:nargout}] = ComputeResponsibilities(varargin{:});   
     case 'CopyFields'
         [varargout{1:nargout}] = CopyFields(varargin{:});                   
+    case 'GetBiasField'
+        [varargout{1:nargout}] = GetBiasField(varargin{:});                
     case 'GetClasses'
-        [varargout{1:nargout}] = GetClasses(varargin{:});
+        [varargout{1:nargout}] = GetClasses(varargin{:});    
     case 'GetData'
         [varargout{1:nargout}] = GetData(varargin{:});
-    case 'GetDimensions'
-        [varargout{1:nargout}] = GetDimensions(varargin{:});        
     case 'GetK'
         [varargout{1:nargout}] = GetK(varargin{:});            
     case 'GetMat'
-        [varargout{1:nargout}] = GetMat(varargin{:});    
-    case 'GetResp'
-        [varargout{1:nargout}] = GetResp(varargin{:});            
+        [varargout{1:nargout}] = GetMat(varargin{:});             
     case 'GetSize'
         [varargout{1:nargout}] = GetSize(varargin{:});
     case 'Is3D'
@@ -58,6 +58,29 @@ end
 %==========================================================================
 
 %==========================================================================
+% ComputeResponsibilities()
+function zn = ComputeResponsibilities(datn,fn,mu,code)
+
+% Is there missing data?
+L       = unique(code);
+do_miss = numel(L) > 1;
+
+% Posterior
+m = datn.mog.po.m;
+b = datn.mog.po.b;
+V = datn.mog.po.V;
+n = datn.mog.po.n;
+
+if do_miss, const = spm_gmm_lib('Const', {m,b}, {V,n}, L);
+else,       const = spm_gmm_lib('Const', {m,b}, {V,n});
+end
+
+fn = spm_gmm_lib('Marginal', fn, {m,V,n}, const, {code,L});
+zn = spm_gmm_lib('Responsibility', fn, mu);
+end
+%==========================================================================
+
+%==========================================================================
 % CopyFields()
 function to = CopyFields(from,to)
 fn = fieldnames(from);
@@ -68,8 +91,53 @@ end
 %==========================================================================
 
 %==========================================================================
+% GetBiasField()
+function [bfn,lln] = GetBiasField(chan,d,varargin)
+C  = numel(chan);
+I  = prod(d);
+Iz = prod(d(1:2));
+nz = d(3);   
+if numel(varargin) == 0
+    % Compute full bias field (for all channels)
+    bfn = zeros([I C],'single');
+    lln = zeros(1,C);
+    for c=1:C           
+        lln(c) = double(-0.5*chan(c).T(:)'*chan(c).C*chan(c).T(:));    
+
+        for z=1:nz
+            ix = IndexSlice2Vol(z,Iz);
+
+            bf_c     = transf(chan(c).B1,chan(c).B2,chan(c).B3(z,:),chan(c).T);
+            bf_c     = bf_c(:);      
+            bfn(ix,c) = single(exp(bf_c));        
+        end
+    end
+else
+    % Compute just for one channel
+    bfn = varargin{1};
+    c  = varargin{2};
+    lln = varargin{3};
+
+    lln(c) = double(-0.5*chan(c).T(:)'*chan(c).C*chan(c).T(:));    
+
+    for z=1:nz
+        ix = IndexSlice2Vol(z,Iz);
+
+        bf_c     = transf(chan(c).B1,chan(c).B2,chan(c).B3(z,:),chan(c).T);
+        bf_c     = bf_c(:);      
+        bfn(ix,c) = single(exp(bf_c));        
+    end
+end
+
+end
+%==========================================================================
+
+%==========================================================================
 % GetClasses()
-function [P,datn] = GetClasses(datn,mu,sett)
+function [P,datn,code] = GetClasses(datn,mu,sett,get_k1)
+if nargin < 4, get_k1 = false; end
+
+code = [];
 if ~isfield(datn,'mog')
     P = GetData(datn.f);
 
@@ -86,9 +154,9 @@ if ~isfield(datn,'mog')
     end
 else
     if nargout > 1
-        [P,datn] = GetClassesFromGMM(datn,mu,sett);
+        [P,datn,code] = GetClassesFromGMM(datn,mu,sett,get_k1);
     else
-        P = GetClassesFromGMM(datn,mu,sett);
+        P = GetClassesFromGMM(datn,mu,sett,get_k1);
     end
 end
 
@@ -143,32 +211,6 @@ if isa(in,'nifti')
     return
 end
 error('Unknown datatype.');
-end
-%==========================================================================
-
-%==========================================================================
-% GetDimensions()
-function d = GetDimensions(fin)
-if isnumeric(fin)
-    d = size(fin);
-    d = [d 1 1];
-    return
-end
-if isa(fin,'char')
-    fin = nifti(fin);
-end
-if isa(fin,'nifti')
-    M    = numel(fin);
-    d    = size(fin(1).dat,[1 2 3 4 5]);
-    if M>1
-        d(4) = M;
-    else
-        if numel(d)>4 && d(4)==1
-            d = [d(1:3) d(5)];
-        end
-    end
-    return
-end
 end
 %==========================================================================
 
@@ -339,117 +381,149 @@ end
 %==========================================================================
 
 %==========================================================================
-% comp_resp()
-function R = comp_resp(fn,mu,code,datn)
-
-% Is there missing data?
-L       = unique(code);
-do_miss = numel(unique(code)) > 1;
-
-% Posterior
-m = datn.mog.po.m;
-b = datn.mog.po.b;
-V = datn.mog.po.V;
-n = datn.mog.po.n;
-
-if do_miss, const = spm_gmm_lib('Const', {m,b}, {V,n}, L);
-else,       const = spm_gmm_lib('Const', {m,b}, {V,n});
-end
-
-fn = spm_gmm_lib('Marginal', fn, {m,V,n}, const, {code,L});
-R  = spm_gmm_lib('Responsibility', fn, mu);
-end
-%==========================================================================
-
-%==========================================================================
 % GetClassesFromGMM()
-function [R,datn] = GetClassesFromGMM(datn,mu,sett)
-fn = GetData(datn.f);
-d0 = GetDimensions(datn.f);
-C  = d0(4);
-K  = size(mu,4);
-K1 = K + 1;
-fn = reshape(fn,[prod(d0(1:3)) C]);
+function [zn,datn,code] = GetClassesFromGMM(datn,mu,sett,get_k1)
+if nargin < 4, get_k1 = false; end
+
+fn     = GetData(datn.f);
+[d0,C] = GetSize(datn.f);
+fn     = reshape(fn,[prod(d0(1:3)) C]);
+samp   = sett.gen.samp_gmm;
+
+if sett.do.updt_bf, bf = spm_multireg_io('GetBiasField',datn.bf.chan,d0);
+else,               bf = ones(1,C);
+end
 
 % Missing data stuff
-fn      = mask(fn);
+fn      = spm_multireg_util('MaskF',fn);
 code    = spm_gmm_lib('obs2code', fn);
+fn      = bf.*fn;
 L       = unique(code);
-do_miss = numel(unique(code)) > 1;
+do_miss = numel(L) > 1;
 
-% Posterior
+% GMM posterior
 m  = datn.mog.po.m;
 b  = datn.mog.po.b;
 V  = datn.mog.po.V;
 n  = datn.mog.po.n;
 
-% Prior
+% GMM prior
 m0 = datn.mog.pr.m;
 b0 = datn.mog.pr.b;
 V0 = datn.mog.pr.V;
 n0 = datn.mog.pr.n;
 
+% Lower bound
+lb = datn.mog.lb;
+
 % Make softmaxed K + 1 template
-mu = log(spm_multireg_util('softmaxmu',mu,4));
+K1 = numel(b);
+K  = K1 - 1;
+if size(mu,4) < K1
+    mu = log(spm_multireg_util('softmaxmu',mu,4));
+end
 mu = reshape(mu,[prod(d0(1:3)) K1]);
 
 if nargout > 1    
     % Update GMM and get responsibilities
                
-    if sett.gen.samp_gmm > 1
+    if samp > 1
         % Subsample (runs faster)        
         code0    = code;
         code     = reshape(code,[d0(1:3) 1]);
-        [code,d] = spm_multireg_util('SubSample',code,datn.Mat,sett.gen.samp_gmm);       
+        [code,d] = spm_multireg_util('SubSample',code,datn.Mat,samp);       
         code     = reshape(code,[prod(d(1:3)) 1]);
         fn0      = fn;
         fn       = reshape(fn,[d0(1:3) C]);
-        [fn,d]   = spm_multireg_util('SubSample',fn,datn.Mat,sett.gen.samp_gmm);       
+        [fn,d]   = spm_multireg_util('SubSample',fn,datn.Mat,samp);       
         fn       = reshape(fn,[prod(d(1:3)) C]);
         mu0      = mu;
         mu       = reshape(mu,[d0(1:3) K1]);
-        [mu,d]   = spm_multireg_util('SubSample',mu,datn.Mat,sett.gen.samp_gmm);       
-        mu       = reshape(mu,[prod(d(1:3)) K1]);                
+        [mu,d]   = spm_multireg_util('SubSample',mu,datn.Mat,samp);       
+        mu       = reshape(mu,[prod(d(1:3)) K1]);         
+                
+        % Weight data parts of lowerbound with factor based on amount of
+        % downsampling  
+        W = prod(d0(1:3))/prod(d(1:3));
     end        
        
-    [R,mog,~,lb] = spm_gmm_loop(fn,{{m,b},{V,n}},{'LogProp', mu}, ...
-                                'GaussPrior',   {m0,b0,V0,n0}, ...
-                                'Missing',      do_miss, ...
-                                'MissingCode',  {code,L}, ...
-                                'IterMax',      sett.nit.gmm, ...
-                                'Tolerance',    1e-4, ...
-                                'SubIterMax',   sett.nit.gmm_miss, ...
-                                'SubTolerance', 1e-4, ...
-                                'Verbose',      0);
-    clear mu code
-    
+    [zn,mog,~,lb] = spm_gmm_loop(fn,{{m,b},{V,n}},{'LogProp', mu}, ...
+                                 'GaussPrior',   {m0,b0,V0,n0}, ...
+                                 'Missing',      do_miss, ...
+                                 'LowerBound',   lb, ...
+                                 'MissingCode',  {code,L}, ...
+                                 'IterMax',      sett.nit.gmm, ...
+                                 'Tolerance',    1e-4, ...
+                                 'SubIterMax',   sett.nit.gmm_miss, ...
+                                 'SubTolerance', 1e-4, ...
+                                 'Verbose',      0);
+    clear mu fn
+
     % Update datn
     datn.mog.po.m = mog.MU; % GMM posteriors
     datn.mog.po.b = mog.b;
     datn.mog.po.V = mog.V;
     datn.mog.po.n = mog.n;    
+    datn.mog.lb   = lb; % Lower bound            
     datn.E(1)     = -sum(lb.sum(end)); % objective function
     
-    if sett.gen.samp_gmm > 1
+    if samp > 1
         % Compute responsibilities on original data         
-        R = comp_resp(fn0,mu0,code0,datn);
+        zn = ComputeResponsibilities(datn,fn0,mu0,code0);
     end    
 else
     % Just compute responsibilities    
-    R = comp_resp(fn,mu,code,datn);
+    zn = ComputeResponsibilities(datn,fn,mu,code);
 end
 
-% Get 4D versions
-R = reshape(R(:,1:K),[d0(1:3) K]);
+if ~get_k1
+    % Get 4D versions of K1 - 1 classes
+    zn = reshape(zn(:,1:K),[d0(1:3) K]);
+end
 end
 %==========================================================================
 
 %==========================================================================
-% mask()
-function fn = mask(fn)
-C = size(fn,2);
-for c=1:C
-    fn(:,c) = spm_multireg_util('Mask',fn(:,c));
+% GetDimensions()
+function d = GetDimensions(fin)
+if isnumeric(fin)
+    d = size(fin);
+    d = [d 1 1];
+    return
+end
+if isa(fin,'char')
+    fin = nifti(fin);
+end
+if isa(fin,'nifti')
+    M    = numel(fin);
+    d    = size(fin(1).dat,[1 2 3 4 5]);
+    if M>1
+        d(4) = M;
+    else
+        if numel(d)>4 && d(4)==1
+            d = [d(1:3) d(5)];
+        end
+    end
+    return
+end
+end
+%==========================================================================
+
+%==========================================================================
+% IndexSlice2Vol()
+function ix = IndexSlice2Vol(z,Iz)
+ix = ((z - 1)*Iz + 1):z*Iz;
+end
+%==========================================================================
+
+%==========================================================================
+function t = transf(B1,B2,B3,T)
+if ~isempty(T)
+    d2 = [size(T) 1];
+    t1 = reshape(reshape(T, d2(1)*d2(2),d2(3))*B3', d2(1), d2(2));
+    t  = B1*t1*B2';
+else
+    t  = zeros(size(B1,1),size(B2,1));
 end
 end
 %==========================================================================

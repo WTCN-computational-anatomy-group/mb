@@ -56,7 +56,7 @@ N = numel(F); % Number of subjects
 % Init dat (f, M, q, v, psi, E, mog, Mat)
 %------------------
 
-dat = spm_multireg_init('InitDat',F,K,sett);
+dat = spm_multireg_init('InitDat',F,sett);
 clear F
 
 %------------------
@@ -74,9 +74,11 @@ if ~sett.do.zoom, nz = 1; end
 sz       = spm_multireg_par('ZoomSettings',d,Mmu,sett.var.v_settings,sett.var.mu_settings,nz);
 sett.var = spm_multireg_io('CopyFields',sz(end), sett.var);
 dat      = spm_multireg_init('InitDef',dat,sett);
+dat      = spm_multireg_init('InitBiasField',dat,sett);
+dat      = spm_multireg_init('InitGMM',dat,K,sett);
 
 %------------------
-% Start algorithm
+% Start algorithm (Groupwise)
 %------------------
 
 spm_multireg_show('Speak','Groupwise',N,K);
@@ -85,7 +87,6 @@ Objective = [];
 E         = Inf;
 prevt     = Inf;
 mu        = zeros([sett.var.d K],'single'); % Initial template (uniform)
-te        = spm_multireg_energ('TemplateEnergy',mu,sett);
 
 if sett.do.updt_aff
     spm_multireg_show('Speak','Init',sett.nit.init);
@@ -96,12 +97,13 @@ if sett.do.updt_aff
         %------------------
 
         for subit=1:sett.nit.init_mu
-            % Update template and intensity model
+            % Update template, bias field and intensity model
             Eold     = E; tic;
             [mu,dat] = spm_multireg_updt('UpdateMean',dat, mu, sett);
-            dat      = spm_multireg_updt('UpdateIntensity',dat, sett);
-            E        = sum(sum(cat(2,dat.E),2),1) + te; % Cost function after rigid update
             te       = spm_multireg_energ('TemplateEnergy',mu,sett);
+            dat      = spm_multireg_updt('UpdateBiasField',dat,mu,sett);
+            dat      = spm_multireg_updt('UpdateIntensity',dat, sett);
+            E        = sum(sum(cat(2,dat.E),2),1) + te;
             t        = toc;
                                
             % Print stuff
@@ -114,8 +116,8 @@ if sett.do.updt_aff
         % Update affine
         Eold = E; tic;
         dat  = spm_multireg_updt('UpdateSimpleAffines',dat,mu,sett);
-        E    = sum(sum(cat(2,dat.E),2),1)+te;   % Cost function after mean update
-        t    = toc;       
+        E    = sum(sum(cat(2,dat.E),2),1) + te;
+        t    = toc;
         
         % Print stuff
         fprintf('it=%i q  \t%g\t%g\t%g\n', iter, E, t, (Eold-E)/prevt);
@@ -125,12 +127,13 @@ if sett.do.updt_aff
         % Show stuff
         spm_multireg_show('ShowSubjects',dat,mu,sett);
         spm_multireg_show('ShowParameters',dat,mu,sett);
-        spm_multireg_show('ShowModel',mu,Objective,sett,N);        
+        spm_multireg_show('ShowModel',mu,Objective,sett,N);      
+        spm_multireg_show('ShowBiasField',dat,sett);
     end
 end
 
 %------------------
-% Iteratively decrease the template resolution
+% Iteratively decrease the template resolution (Groupwise)
 %------------------
 
 spm_multireg_show('Speak','Iter',numel(sz)); tic;
@@ -141,8 +144,9 @@ for zm=numel(sz):-1:1 % loop over zoom levels
     if zm ~= numel(sz) || zm == 1
         % 
         for i=1:sett.nit.init_mu
-            % Update template and intensity model
+            % Update template, bias field and intensity model
             [mu,dat] = spm_multireg_updt('UpdateMean',dat, mu, sett);
+            dat      = spm_multireg_updt('UpdateBiasField',dat,mu,sett);
             dat      = spm_multireg_updt('UpdateIntensity',dat, sett);                        
         end
         te = spm_multireg_energ('TemplateEnergy',mu,sett);
@@ -156,38 +160,38 @@ for zm=numel(sz):-1:1 % loop over zoom levels
    %done  = false;
     for iter=1:niter
 
-        % Update template and intensity model
+        % Update template, bias field and intensity model
         % Might be an idea to run this multiple times
         [mu,dat] = spm_multireg_updt('UpdateMean',dat, mu, sett);
-        dat      = spm_multireg_updt('UpdateIntensity',dat, sett);
-        E1       = sum(sum(cat(2,dat.E),2),1) + te; % Cost function after diffeo update
         te       = spm_multireg_energ('TemplateEnergy',mu,sett);
+        dat      = spm_multireg_updt('UpdateBiasField',dat,mu,sett);
+        dat      = spm_multireg_updt('UpdateIntensity',dat, sett);
+        E1       = sum(sum(cat(2,dat.E),2),1) + te;        
                            
         % Update affine
         % (Might be an idea to run this less often - currently slow)
         dat      = spm_multireg_updt('UpdateAffines',dat,mu,sett);
-        E2       = sum(sum(cat(2,dat.E),2),1) + te; % Cost function after mean update
+        E2       = sum(sum(cat(2,dat.E),2),1) + te;
 
-        % Update template and intensity model
+        % Update template, bias field and intensity model
         % (Might be an idea to run this multiple times)
         [mu,dat] = spm_multireg_updt('UpdateMean',dat, mu, sett); % An extra mean iteration
-        dat      = spm_multireg_updt('UpdateIntensity',dat, sett);
         te       = spm_multireg_energ('TemplateEnergy',mu,sett);
+        dat      = spm_multireg_updt('UpdateBiasField',dat,mu,sett);
+        dat      = spm_multireg_updt('UpdateIntensity',dat, sett);        
                     
         [mu,dat] = spm_multireg_updt('UpdateMean',dat, mu, sett);
-        dat      = spm_multireg_updt('UpdateIntensity',dat, sett);
-        E3       = sum(sum(cat(2,dat.E),2),1) + te; % Cost function after rigid update
         te       = spm_multireg_energ('TemplateEnergy',mu,sett);
-
-        % Update intensity model
-        dat = spm_multireg_updt('UpdateIntensity',dat, sett);
+        dat      = spm_multireg_updt('UpdateBiasField',dat,mu,sett);
+        dat      = spm_multireg_updt('UpdateIntensity',dat, sett);
+        E3       = sum(sum(cat(2,dat.E),2),1) + te;
             
         % Update velocities
         dat      = spm_multireg_energ('VelocityEnergy',dat,sett);
         dat      = spm_multireg_updt('UpdateVelocities',dat,mu,sett);
-        E4old    = E4;
-        E4       = sum(sum(cat(2,dat.E),2),1) + te; % Cost function after mean update
         dat      = spm_multireg_energ('VelocityEnergy',dat,sett);
+        E4old    = E4;
+        E4       = sum(sum(cat(2,dat.E),2),1) + te;       
 
 %       if (E4old-E4)/E4 < 3.5e-4, done = true; end
        %if (iter==niter || done) && zm>1
@@ -198,11 +202,10 @@ for zm=numel(sz):-1:1 % loop over zoom levels
         end
 
         % Update deformations
-        dat = spm_multireg_updt('UpdateWarps',dat,sett);
-
+        dat = spm_multireg_updt('UpdateWarps',dat,sett);  
+        
         % Print stuff
-        fprintf('zm=%i it=%i\t%g\t%g\t%g\t%g\t%g\n', zm, iter, E0, E1, E2, E3, E4);
-        Objective = [Objective; E4];     
+        fprintf('zm=%i it=%i\t%g\t%g\t%g\t%g\t%g\n', zm, iter, E0, E1, E2, E3, E4);        
         
         % Save stuff
         save(fullfile(sett.write.dir_res,'results_Groupwise.mat'),'dat','mu','sett')
@@ -210,7 +213,8 @@ for zm=numel(sz):-1:1 % loop over zoom levels
         % Show stuff
         spm_multireg_show('ShowSubjects',dat,mu,sett);
         spm_multireg_show('ShowParameters',dat,mu,sett);           
-        spm_multireg_show('ShowModel',mu,Objective,sett,N);        
+        spm_multireg_show('ShowModel',mu,Objective,sett,N);
+        spm_multireg_show('ShowBiasField',dat,sett);
 
        %if done, break; end
     end
@@ -267,9 +271,11 @@ sett.var = spm_multireg_io('CopyFields',sz(end), sett.var);
 % Init dat (f, M, q, v, psi, E, mog, Mat)
 %------------------
 
-dat = spm_multireg_init('InitDat',F,K,sett);
+dat = spm_multireg_init('InitDat',F,sett);
 clear F
 dat = spm_multireg_init('InitDef',dat,sett);
+dat = spm_multireg_init('InitBiasField',dat,sett);
+dat = spm_multireg_init('InitGMM',dat,K,sett);
 
 %------------------
 % Shrink template
@@ -278,7 +284,7 @@ dat = spm_multireg_init('InitDef',dat,sett);
 mu = spm_multireg_util('ShrinkTemplate',mu0,Mmu,sett);
 
 %------------------
-% Start algorithm
+% Start algorithm (Register)
 %------------------
 
 spm_multireg_show('Speak','Register',N,K);
@@ -301,23 +307,35 @@ if sett.do.updt_aff
         E         = sum(sum(cat(2,dat.E),2),1);                           % Cost function after affine update
         t         = toc;
         Objective = [Objective; E];
-
+        
         % Print stuff
         fprintf('it=%i q \t%g\t%g\t%g\n', iter, E, t, (Eold-E)/prevt);        
         prevt = t;
 
+        % Update bias field
+        Eold = E; tic;                
+        dat  = spm_multireg_updt('UpdateBiasField',dat,mu,sett);                        
+        E    = sum(sum(cat(2,dat.E),2),1) + te;
+        t    = toc;
+        
+        % Print stuff
+        fprintf('it=%i bf \t%g\t%g\t%g\n', iter, E, t, (Eold-E)/prevt);
+        prevt = t;
+        Objective = [Objective; E];
+        
         % Finished?
         if (Eold-E)/prod(d) < 1e-4, break; end        
 
         % Show stuff
         spm_multireg_show('ShowSubjects',dat,mu,sett);   
         spm_multireg_show('ShowParameters',dat,mu,sett);
-        spm_multireg_show('ShowModel',mu,Objective,sett,N);   
+        spm_multireg_show('ShowModel',mu,Objective,sett,N);
+        spm_multireg_show('ShowBiasField',dat,sett);
     end
 end
 
 %------------------
-% Iteratively decrease the template resolution
+% Iteratively decrease the template resolution (Register)
 %------------------
 
 spm_multireg_show('Speak','Iter',numel(sz)); tic;
@@ -368,6 +386,11 @@ for zm=numel(sz):-1:1 % loop over zoom levels
         
         % Update deformations
         dat = spm_multireg_updt('UpdateWarps',dat,sett);
+        
+        % Update bias field        
+        dat  = spm_multireg_updt('UpdateBiasField',dat,mu,sett);                        
+        E    = sum(sum(cat(2,dat.E),2),1) + te;  
+        
         t   = toc;
         
         % Print stuff
@@ -382,7 +405,8 @@ for zm=numel(sz):-1:1 % loop over zoom levels
         % Show stuff
         spm_multireg_show('ShowSubjects',dat,mu,sett);        
         spm_multireg_show('ShowParameters',dat,mu,sett);
-        spm_multireg_show('ShowModel',mu,Objective,sett,N);  
+        spm_multireg_show('ShowModel',mu,Objective,sett,N);
+        spm_multireg_show('ShowBiasField',dat,sett);
 
         % Finished?
         if done, break; end

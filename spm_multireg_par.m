@@ -99,11 +99,28 @@ end
 function sett = Settings(sett)
 
 %------------------
+% .bf (bias field related)
+%------------------
+
+if ~isfield(sett,'bf')
+    sett.bf = struct;
+end
+if ~isfield(sett.bf,'reg')
+    sett.bf.reg = 1e6;
+end
+if ~isfield(sett.bf,'fwhm')
+    sett.bf.fwhm = 60;
+end
+
+%------------------
 % .do (enable/disable functionality)
 %------------------
 
 if ~isfield(sett,'do')
     sett.do = struct;
+end
+if ~isfield(sett.do,'bf_norm')
+    sett.do.bf_norm = true;
 end
 if ~isfield(sett.do,'gmm')
     sett.do.gmm = true;
@@ -111,11 +128,22 @@ end
 if ~isfield(sett.do,'updt_aff')
     sett.do.updt_aff = true;
 end
+if ~isfield(sett.do,'updt_bf')
+    sett.do.updt_bf = true;
+end
 if ~isfield(sett.do,'updt_vel')
     sett.do.updt_vel = true;
 end
 if ~isfield(sett.do,'zoom')
     sett.do.zoom = true;
+end
+
+% Depending on what is disabled, disable other stuff too
+if ~sett.do.gmm
+    sett.do.updt_bf = false;
+end
+if ~sett.do.updt_bf
+    sett.do.bf_norm = false;
 end
 
 %------------------
@@ -163,8 +191,11 @@ end
 if ~isfield(sett,'nit')
     sett.nit = struct;
 end
+if ~isfield(sett.nit,'bf')   
+    sett.nit.bf = 1;
+end
 if ~isfield(sett.nit,'gmm')   
-    sett.nit.gmm = 20;
+    sett.nit.gmm = 10;
 end
 if ~isfield(sett.nit,'init')
     % The number of iterations, at largest zoom level.
@@ -175,7 +206,7 @@ if ~isfield(sett.nit,'init_mu')
     sett.nit.init_mu = 3;
 end
 if ~isfield(sett.nit,'miss')   
-    sett.nit.gmm_miss = 32;
+    sett.nit.gmm_miss = 10;
 end
 if ~isfield(sett.nit,'zm')
     % The number of iterations, for updating all model parameters, at each zoom
@@ -191,9 +222,17 @@ end
 if ~isfield(sett,'optim')
     sett.optim = struct;
 end
-if ~isfield(sett.model,'scal')
-     % Scaling of GN updates
-    sett.optim.scal = 1.0;
+if ~isfield(sett.optim,'nls_bf')
+     % Scaling of q GN updates
+    sett.optim.nls_bf = 6;
+end
+if ~isfield(sett.optim,'scal_q')
+     % Scaling of q GN updates
+    sett.optim.scal_q = 1.0;
+end
+if ~isfield(sett.optim,'scal_v')
+     % Scaling of v GN updates
+    sett.optim.scal_v = 1.0;
 end
 
 %------------------
@@ -223,6 +262,9 @@ if ~isfield(sett.show,'axis_3d')
 end
 if ~isfield(sett.show,'channel')
     sett.show.channel = 1; % 1, ..., C
+end
+if ~isfield(sett.show,'figname_bf')
+    sett.show.figname_bf = '(spm_multireg) Bias fields';
 end
 if ~isfield(sett.show,'figname_int')
     sett.show.figname_int = '(spm_multireg) Intensity model';
@@ -268,9 +310,9 @@ if ~isfield(sett.var,'mu_settings')
 end
 if ~isfield(sett.var,'v_settings')
     if sett.do.updt_aff
-        sett.var.v_settings = [0 0 0.2 0.05 0.2]*2;
+        sett.var.v_settings = [0 0 0.2 0.05 0.2]*4;
     else
-        sett.var.v_settings = [1e-4 0 0.2 0.05 0.2]*2;
+        sett.var.v_settings = [1e-4 0 0.2 0.05 0.2]*4;
     end
 end
 %------------------

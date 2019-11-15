@@ -3,6 +3,8 @@ function varargout = spm_multireg_energ(varargin)
 %
 % Energy functions for spm_multireg.
 %
+% FORMAT lb  = spm_multireg_energ('LowerBound',type,varargin)
+% FORMAT lb  = spm_multireg_energ('SumLowerBound',lb)
 % FORMAT E   = spm_multireg_energ('TemplateEnergy',mu,sett)
 % FORMAT dat = spm_multireg_energ('VelocityEnergy',dat,sett)
 %
@@ -16,6 +18,10 @@ end
 id = varargin{1};
 varargin = varargin(2:end);
 switch id 
+    case 'LowerBound'
+        [varargout{1:nargout}] = LowerBound(varargin{:});       
+    case 'SumLowerBound'
+        [varargout{1:nargout}] = SumLowerBound(varargin{:});            
     case 'TemplateEnergy'
         [varargout{1:nargout}] = TemplateEnergy(varargin{:});         
     case 'VelocityEnergy'
@@ -23,6 +29,45 @@ switch id
     otherwise
         help spm_multireg_energ
         error('Unknown function %s. Type ''help spm_multireg_energ'' for help.', id)
+end
+end
+%==========================================================================
+
+%==========================================================================
+% LowerBound()
+function lb = LowerBound(type,varargin)
+if strcmpi(type,'XB')    
+    bf = varargin{1};
+    
+    bf(isnan(bf)) = 1;        
+    bf            = log(prod(bf,2)); 
+    lb            = sum(double(bf));
+elseif strcmpi(type,'X')    
+    fn   = varargin{1};
+    zn   = varargin{2};
+    code = varargin{3};
+    mean = varargin{4};
+    prec = varargin{5};
+    L    = unique(code);
+    
+    [lSS0,lSS1,lSS2] = spm_gmm_lib('SuffStat', 'base', fn, zn, 1, {code,L});
+    lb               = spm_gmm_lib('MarginalSum', lSS0, lSS1, lSS2, mean, prec, L);
+else
+    error('Undefined type!');
+end
+end
+%==========================================================================
+
+%==========================================================================
+% SumLowerBound()
+function lb = SumLowerBound(lb)
+fields          = fieldnames(lb);
+lb.sum(end + 1) = 0;
+for i=1:numel(fields)
+    field = fields{i};
+    if ~any(strcmpi(field, {'sum' 'last'})) && ~isempty(lb.(field)) && ~isnan(lb.(field)(end))
+        lb.sum(end) = lb.sum(end) + sum(lb.(field)(:,end));
+    end
 end
 end
 %==========================================================================
