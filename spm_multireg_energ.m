@@ -75,8 +75,12 @@ end
 %==========================================================================
 % TemplateEnergy()
 function E = TemplateEnergy(mu,sett)
+
+% Parse function settings
+mu_settings = sett.var.mu_settings;
+
 spm_multireg_util('SetBoundCond');
-g    = spm_field('vel2mom', mu, sett.var.mu_settings);
+g    = spm_field('vel2mom', mu, mu_settings);
 E    = 0.5*mu(:)'*g(:);
 end
 %==========================================================================
@@ -84,12 +88,16 @@ end
 %==========================================================================
 % VelocityEnergy()
 function dat = VelocityEnergy(dat,sett)
-spm_multireg_util('SetBoundCond');
+
+% Parse function settings
+threads    = sett.gen.threads;
 v_settings = sett.var.v_settings;
-if sett.gen.threads>1 && numel(dat)>1
+
+spm_multireg_util('SetBoundCond');
+if threads>1 && numel(dat)>1
     % Memory  = 4*2*3*prod(GetSize(dat(1).v));
     % nthread = min(sett.gen.threads,floor(sett.maxmem/Memory));
-    parfor(n=1:numel(dat),sett.gen.threads) % PARFOR
+    parfor(n=1:numel(dat),threads) % PARFOR
         spm_multireg_util('SetBoundCond');
         v           = spm_multireg_io('GetData',dat(n).v);
         u0          = spm_diffeo('vel2mom', v, v_settings); % Initial momentum

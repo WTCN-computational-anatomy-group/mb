@@ -52,14 +52,20 @@ end
 % UpdateAffines()
 function dat = UpdateAffines(dat,mu,sett)
 
-if ~sett.do.updt_aff, return; end
+% Parse function settings
+B           = sett.registr.B;
+do_updt_aff = sett.do.updt_aff;
+groupwise   = sett.model.groupwise;
+threads     = sett.gen.threads;
+
+if ~do_updt_aff, return; end
 
 % Update the affine parameters
 spm_multireg_util('SetBoundCond');
-if ~isempty(sett.registr.B)
-    if sett.gen.threads>1 && numel(dat)>1
+if ~isempty(B)
+    if threads>1 && numel(dat)>1
         % Memory = loads
-        parfor(n=1:numel(dat),sett.gen.threads) % PARFOR
+        parfor(n=1:numel(dat),threads) % PARFOR
             spm_multireg_util('SetBoundCond');
             dat(n) = UpdateAffinesSub(dat(n),mu,sett);
         end
@@ -69,7 +75,7 @@ if ~isempty(sett.registr.B)
         end
     end
 
-    if sett.model.groupwise
+    if groupwise
         % Zero-mean the affine parameters
         mq = sum(cat(2,dat(:).q),2)/numel(dat);
         for n=1:numel(dat)
@@ -84,10 +90,15 @@ end
 % UpdateBiasField()
 function dat = UpdateBiasField(dat,mu,sett)
 
-if ~sett.do.updt_bf, return; end
+% Parse function settings
+do_bf_norm = sett.do.bf_norm;
+do_updt_bf = sett.do.updt_aff;
+threads    = sett.gen.threads;
 
-if sett.gen.threads>1 && numel(dat)>1    
-    parfor(n=1:numel(dat),sett.gen.threads) % PARFOR
+if ~do_updt_bf, return; end
+
+if threads>1 && numel(dat)>1    
+    parfor(n=1:numel(dat),threads) % PARFOR
         spm_multireg_util('SetBoundCond');
         dat(n) = UpdateBiasFieldSub(dat(n),mu,sett);
     end
@@ -97,7 +108,7 @@ else
     end
 end    
 
-if sett.do.bf_norm
+if do_bf_norm
     % Zero-mean the field DC component
     dat = ZeroMeanDC(dat,mu,sett);
     
@@ -110,8 +121,12 @@ end
 %==========================================================================
 % UpdateGMM()
 function dat = UpdateGMM(dat,mu,sett)
-if sett.gen.threads>1 && numel(dat)>1    
-    parfor(n=1:numel(dat),sett.gen.threads) % PARFOR
+
+% Parse function settings
+threads = sett.gen.threads;
+
+if threads>1 && numel(dat)>1    
+    parfor(n=1:numel(dat),threads) % PARFOR
         spm_multireg_util('SetBoundCond');
         dat(n) = UpdateGMMSub(dat(n),mu,sett);
     end
@@ -126,6 +141,10 @@ end
 %==========================================================================
 % UpdateIntensity()
 function dat = UpdateIntensity(dat, sett)
+
+% Parse function settings
+fig_name = sett.show.figname_int;
+
 if ~isfield(dat(1),'mog'), return; end
 
 N  = numel(dat);
@@ -140,7 +159,7 @@ pr = dat(1).mog.pr;
 pr = {pr.m,pr.b,pr.V,pr.n};
 pr = spm_gmm_lib('updatehyperpars',po,pr,...
                  'verbose', true, ...
-                 'figname', sett.show.figname_int);
+                 'figname', fig_name);
 for n=1:N
     dat(n).mog.pr.m = pr{1};
     dat(n).mog.pr.b = pr{2};
@@ -153,14 +172,21 @@ end
 %==========================================================================
 % UpdateMean()
 function [mu,dat] = UpdateMean(dat, mu, sett)
+
+% Parse function settings
+accel       = sett.gen.accel;
+mu_settings = sett.var.mu_settings;
+s_settings  = sett.shoot.s_settings;
+threads     = sett.gen.threads;
+
 spm_multireg_util('SetBoundCond');
-g  = spm_field('vel2mom', mu, sett.var.mu_settings);
+g  = spm_field('vel2mom', mu, mu_settings);
 M  = size(mu,4);
 H  = zeros([sett.var.d M*(M+1)/2],'single');
-H0 = spm_multireg_der('AppearanceHessian',mu,sett.gen.accel);
-if sett.gen.threads>1 && numel(dat)>1
+H0 = spm_multireg_der('AppearanceHessian',mu,accel);
+if threads>1 && numel(dat)>1
     % Memory = 4*prod(sett.var.d)*2*(M*(M+1)/2 + M) + max(prod(sett.var.d)*3+3*prod(dn)*2,(3+4*M)*prod(dn))); % Needs more work
-    parfor(n=1:numel(dat),sett.gen.threads) % PARFOR
+    parfor(n=1:numel(dat),threads) % PARFOR
         spm_multireg_util('SetBoundCond');
         [gn,Hn,dat(n)] = UpdateMeanSub(dat(n),mu,H0,sett);
         g              = g + gn;
@@ -173,7 +199,7 @@ else
         H              = H + Hn;
     end
 end
-mu = mu - spm_field(H, g, [sett.var.mu_settings sett.shoot.s_settings]);  
+mu = mu - spm_field(H, g, [mu_settings s_settings]);  
 end
 %==========================================================================
 
@@ -181,16 +207,23 @@ end
 % UpdateSimpleAffines()
 function dat = UpdateSimpleAffines(dat,mu,sett)
 
-if ~sett.do.updt_aff, return; end
+% Parse function settings
+accel       = sett.gen.accel;
+B           = sett.registr.B;
+do_updt_aff = sett.do.updt_aff;
+groupwise   = sett.model.groupwise;
+threads     = sett.gen.threads;
+
+if ~do_updt_aff, return; end
 
 % Update the affine parameters
 G  = spm_diffeo('grad',mu);
-H0 = spm_multireg_der('VelocityHessian',mu,G,sett.gen.accel);
+H0 = spm_multireg_der('VelocityHessian',mu,G,accel);
 
-if ~isempty(sett.registr.B)
-    if sett.gen.threads>1 && numel(dat)>1
+if ~isempty(B)
+    if threads>1 && numel(dat)>1
         % Memory = loads
-        parfor(n=1:numel(dat),sett.gen.threads) % PARFOR
+        parfor(n=1:numel(dat),threads) % PARFOR
             dat(n) = UpdateSimpleAffinesSub(dat(n),mu,G,H0,sett);
         end
     else
@@ -199,7 +232,7 @@ if ~isempty(sett.registr.B)
         end
     end
 
-    if sett.model.groupwise
+    if groupwise
         % Zero-mean the affine parameters
         mq = sum(cat(2,dat(:).q),2)/numel(dat);
         for n=1:numel(dat)
@@ -213,12 +246,19 @@ end
 %==========================================================================
 % UpdateSimpleMean()
 function [mu,dat] = UpdateSimpleMean(dat, mu, sett)
+
+% Parse function settings
+accel       = sett.gen.accel;
+mu_settings = sett.var.mu_settings;
+s_settings  = sett.shoot.s_settings;
+threads     = sett.gen.threads;
+
 spm_multireg_util('SetBoundCond');
 w  = zeros(sett.var.d,'single');
 gf = zeros(size(mu),'single');
-if sett.gen.threads>1 && numel(dat)>1
+if threads>1 && numel(dat)>1
     % Memory = loads
-    parfor(n=1:numel(dat),sett.gen.threads) % PARFOR
+    parfor(n=1:numel(dat),threads) % PARFOR
         [gn,wn,dat(n)] = UpdateSimpleMeanSub(dat(n),mu,sett);
         gf             = gf + gn;
         w              = w  + wn;
@@ -231,10 +271,10 @@ else
     end
 end
 for it=1:ceil(4+2*log2(numel(dat)))
-    H  = w.*spm_multireg_der('AppearanceHessian',mu,sett.gen.accel);
+    H  = w.*spm_multireg_der('AppearanceHessian',mu,accel);
     g  = w.*spm_multireg_util('softmax',mu,4) - gf;
-    g  = g  + spm_field('vel2mom', mu, sett.var.mu_settings);
-    mu = mu - spm_field(H, g, [sett.var.mu_settings sett.shoot.s_settings]);
+    g  = g  + spm_field('vel2mom', mu, mu_settings);
+    mu = mu - spm_field(H, g, [mu_settings s_settings]);
 end
 end
 %==========================================================================
@@ -243,18 +283,23 @@ end
 % UpdateVelocities()
 function dat = UpdateVelocities(dat,mu,sett)
 
-if ~sett.do.updt_vel, return; end
+% Parse function settings
+accel       = sett.gen.accel;
+do_updt_vel = sett.do.updt_vel;
+threads     = sett.gen.threads;
+
+if ~do_updt_vel, return; end
 
 spm_multireg_util('SetBoundCond');
 G  = spm_diffeo('grad',mu);
-H0 = spm_multireg_der('VelocityHessian',mu,G,sett.gen.accel);
+H0 = spm_multireg_der('VelocityHessian',mu,G,accel);
 if size(G,3) == 1
     % Data is 2D
     H0(:,:,:,3) = H0(:,:,:,3) + mean(reshape(H0(:,:,:,[1 2]),[],1));
 end
-if sett.gen.threads>1 && numel(dat)>1
+if threads>1 && numel(dat)>1
     % Memory = loads
-    parfor(n=1:numel(dat),sett.gen.threads) % PARFOR
+    parfor(n=1:numel(dat),threads) % PARFOR
         spm_multireg_util('SetBoundCond');
         dat(n) = UpdateVelocitiesSub(dat(n),mu,G,H0,sett);
     end
@@ -269,7 +314,13 @@ end
 %==========================================================================
 % UpdateWarps()
 function dat = UpdateWarps(dat,sett)
-if sett.model.groupwise
+
+% Parse function settings
+groupwise  = sett.model.groupwise;
+threads    = sett.gen.threads;
+v_settings = sett.var.v_settings;
+
+if groupwise
     % Total initial velocity should be zero (Khan & Beg)
     avg_v = single(0);
     for n=1:numel(dat)
@@ -281,10 +332,10 @@ else
     avg_v = [];
     d     = spm_multireg_io('GetSize',dat(1).v);
 end
-kernel = spm_multireg_util('Shoot',d,sett.var.v_settings);
-if sett.gen.threads>1 && numel(dat)>1
+kernel = spm_multireg_util('Shoot',d,v_settings);
+if threads>1 && numel(dat)>1
     % Memory = loads
-    parfor(n=1:numel(dat),sett.gen.threads) % PARFOR
+    parfor(n=1:numel(dat),threads) % PARFOR
         dat(n) = UpdateWarpsSub(dat(n),avg_v,sett,kernel);
     end
 else
@@ -311,6 +362,10 @@ end
 
 %==========================================================================
 function dat = ZeroMeanDC(dat,mu,sett)
+
+% Parse function settings
+threads = sett.gen.threads;
+
 % Get correction factor
 sm_dc_ln  = 0;
 sm_dc_int = 0;
@@ -341,8 +396,8 @@ for n=1:numel(dat)
 end
    
 % Correct GMM posterior parameters and lower bound/objective
-if sett.gen.threads>1 && numel(dat)>1    
-    parfor(n=1:numel(dat),sett.gen.threads) % PARFOR
+if threads>1 && numel(dat)>1    
+    parfor(n=1:numel(dat),threads) % PARFOR
         spm_multireg_util('SetBoundCond');
         dat(n) = ZeroMeanDCSub(dat(n),mu,scl,sett);
     end
@@ -356,6 +411,11 @@ end
 
 %==========================================================================
 function datn = ZeroMeanDCSub(datn,mu,scl,sett)
+
+% Parse function settings
+B   = sett.registr.B;
+Mmu = sett.var.Mmu;
+
 L     = datn.bf.L;
 [d,C] = spm_multireg_io('GetSize',datn.f);
 
@@ -403,9 +463,9 @@ datn.mog.po.n = n;
 % Get subject-space template (softmaxed K + 1)
 q    = double(datn.q);
 Mn   = datn.Mat;
-Mr   = spm_dexpm(q,sett.registr.B);
+Mr   = spm_dexpm(q,B);
 psi1 = spm_multireg_io('GetData',datn.psi);
-psi0 = spm_multireg_util('Affine',d,sett.var.Mmu\Mr*Mn);
+psi0 = spm_multireg_util('Affine',d,Mmu\Mr*Mn);
 psi  = spm_multireg_util('Compose',psi1,psi0);
 clear psi0 psi1
 mu   = spm_multireg_util('Pull1',mu,psi);
@@ -461,27 +521,35 @@ end
 % UpdateAffinesSub()
 function datn = UpdateAffinesSub(datn,mu,sett)
 % This could be made more efficient.
-d    = spm_multireg_io('GetSize',datn.f);
+
+% Parse function settings
+accel = sett.gen.accel;
+B     = sett.registr.B;
+d     = sett.var.d;
+Mmu   = sett.var.Mmu;
+scal  = sett.optim.scal_q;
+
+df   = spm_multireg_io('GetSize',datn.f);
 q    = double(datn.q);
 Mn   = datn.Mat;
-[Mr,dM3] = spm_dexpm(q,sett.registr.B);
-dM   = zeros(12,size(sett.registr.B,3));
-for m=1:size(sett.registr.B,3)
-    tmp     = sett.var.Mmu\dM3(:,:,m)*Mn;
+[Mr,dM3] = spm_dexpm(q,B);
+dM   = zeros(12,size(B,3));
+for m=1:size(B,3)
+    tmp     = Mmu\dM3(:,:,m)*Mn;
     dM(:,m) = reshape(tmp(1:3,:),12,1);
 end
 
 psi1 = spm_multireg_io('GetData',datn.psi);
-psi0 = spm_multireg_util('Affine',d,sett.var.Mmu\Mr*Mn);
+psi0 = spm_multireg_util('Affine',df,Mmu\Mr*Mn);
 J    = spm_diffeo('jacobian',psi1);
-J    = reshape(spm_multireg_util('Pull1',reshape(J,[sett.var.d 3*3]),psi0),[d 3 3]);
+J    = reshape(spm_multireg_util('Pull1',reshape(J,[d 3*3]),psi0),[df 3 3]);
 psi  = spm_multireg_util('Compose',psi1,psi0);
 clear psi0 psi1
 
 mu1  = spm_multireg_util('Pull1',mu,psi);
 [f,datn] = spm_multireg_io('GetClasses',datn,mu1,sett);
 M    = size(mu,4);
-G    = zeros([d M 3],'single');
+G    = zeros([df M 3],'single');
 for m=1:M
     [~,Gm{1},Gm{2},Gm{3}] = spm_diffeo('bsplins',mu(:,:,:,m),psi,[1 1 1  0 0 0]);
     for i1=1:3
@@ -498,11 +566,11 @@ clear J mu
 
 msk       = all(isfinite(f),4);
 a         = Mask(f - spm_multireg_util('softmax',mu1,4),msk);
-[H,g]     = spm_multireg_der('AffineHessian',mu1,G,a,single(msk),sett.gen.accel);
+[H,g]     = spm_multireg_der('AffineHessian',mu1,G,a,single(msk),accel);
 g         = double(dM'*g);
 H         = dM'*H*dM;
 H         = H + eye(numel(q))*(norm(H)*1e-6 + 0.1);
-q         = q + sett.optim.scal_q*(H\g);
+q         = q + scal*(H\g);
 datn.q    = q;
 end
 %==========================================================================
@@ -510,18 +578,25 @@ end
 %==========================================================================
 % UpdateBiasFieldSub()
 function datn = UpdateBiasFieldSub(datn,mu,sett)
-[d,C] = spm_multireg_io('GetSize',datn.f);
+
+% Parse function settings
+B          = sett.registr.B;
+do_bf_norm = sett.do.bf_norm;
+Mmu        = sett.var.Mmu;
+nit_bf     = sett.nit.bf;
+nit_ls     = sett.optim.nls_bf;
 
 % Get subject-space template (softmaxed K + 1)
-q    = double(datn.q);
-Mn   = datn.Mat;
-Mr   = spm_dexpm(q,sett.registr.B);
-psi1 = spm_multireg_io('GetData',datn.psi);
-psi0 = spm_multireg_util('Affine',d,sett.var.Mmu\Mr*Mn);
-psi  = spm_multireg_util('Compose',psi1,psi0);
+[d,C] = spm_multireg_io('GetSize',datn.f);
+q     = double(datn.q);
+Mn    = datn.Mat;
+Mr    = spm_dexpm(q,B);
+psi1  = spm_multireg_io('GetData',datn.psi);
+psi0  = spm_multireg_util('Affine',d,Mmu\Mr*Mn);
+psi   = spm_multireg_util('Compose',psi1,psi0);
 clear psi0 psi1
-mu   = spm_multireg_util('Pull1',mu,psi);
-mu   = log(spm_multireg_util('softmaxmu',mu,4));
+mu    = spm_multireg_util('Pull1',mu,psi);
+mu    = log(spm_multireg_util('softmaxmu',mu,4));
 clear psi
 
 % Get bias field
@@ -546,12 +621,12 @@ V  = datn.mog.po.V;
 n  = datn.mog.po.n;
 K1 = size(m,2);
 
-lx  = datn.mog.lb.X(end);
-lxb = datn.mog.lb.XB(end);
-
+lx  = spm_multireg_energ('LowerBound','X',bf.*fn,zn,code,{m,b},{V,n});
+lxb = spm_multireg_energ('LowerBound','XB',bf);
+            
 % -----------------------------------------------------------------
 % Update bias field parameters
-for it=1:sett.nit.bf
+for it=1:nit_bf
     
     % -----------------------------------------------------------------
     % Update bias field parameters for each channel separately
@@ -643,11 +718,6 @@ for it=1:sett.nit.bf
             gr = gr + kron(b3,spm_krutil(gr_l(:,:,z),double(chan(c).B1),double(chan(c).B2),0));
             H  = H  + kron(b3*b3',spm_krutil(H_l(:,:,z),double(chan(c).B1),double(chan(c).B2),1));
         end
-        if 0
-            b3 = double(chan(c).B3');
-            gr1 = kron(b3, spm_krutil(gr_l,double(chan(c).B1), double(chan(c).B2),0));
-            H1  = kron(b3*double(b3)', spm_krutil(H_l,double(chan(c).B1), double(chan(c).B2),1));
-        end
         clear b3                       
 
         % -------------------------------------------------------------
@@ -657,8 +727,7 @@ for it=1:sett.nit.bf
 
         % Line-search
         %------------------------------------------------------------------    
-        armijo = 1;
-        nls    = sett.optim.nls_bf;
+        armijo = 1;        
 
         % Old parameters
         oT     = chan(c).T;       
@@ -667,7 +736,7 @@ for it=1:sett.nit.bf
         olxb   = lxb;   
         olx    = lx;
 
-        for ls=1:nls
+        for ls=1:nit_ls
 
             % Update bias-field parameters
             chan(c).T = chan(c).T - armijo*Update;
@@ -691,7 +760,7 @@ for it=1:sett.nit.bf
                 armijo    = armijo*0.5;
                 chan(c).T = oT;
 
-                if ls == nls                  
+                if ls == nit_ls                  
                     bf    = obf;         
                     pr_bf = opr_bf;
                     zn    = spm_multireg_io('ComputeResponsibilities',datn,bf.*fn,mu,code);
@@ -708,7 +777,7 @@ datn.mog.lb  = spm_multireg_energ('SumLowerBound',datn.mog.lb);
 datn.E(1)    = -datn.mog.lb.sum(end);
 datn.E(3)    = -sum(pr_bf);
 
-if sett.do.bf_norm
+if do_bf_norm
     [lSS0,lSS1,lSS2] = spm_gmm_lib('SuffStat', 'base', bf.*fn, zn, 1, {code,L});   
     datn.bf.lSS0     = lSS0;
     datn.bf.lSS1     = lSS1;
@@ -725,7 +794,7 @@ if sett.do.bf_norm
     datn.bf.dc = dc;
 end
 
-if 1
+if 0
     % Show stuff    
     z  = ceil(d(3).*0.5);
     fn = reshape(fn,[d(1:3) C]);
@@ -753,14 +822,18 @@ end
 %==========================================================================
 % UpdateGMMSub()
 function datn = UpdateGMMSub(datn,mu,sett)
-d = spm_multireg_io('GetSize',datn.f);
+
+% Parse function settings
+B   = sett.registr.B;
+Mmu = sett.var.Mmu;
 
 % Get subject-space template (softmaxed K + 1)
+d    = spm_multireg_io('GetSize',datn.f);
 q    = double(datn.q);
 Mn   = datn.Mat;
-Mr   = spm_dexpm(q,sett.registr.B);
+Mr   = spm_dexpm(q,B);
 psi1 = spm_multireg_io('GetData',datn.psi);
-psi0 = spm_multireg_util('Affine',d,sett.var.Mmu\Mr*Mn);
+psi0 = spm_multireg_util('Affine',d,Mmu\Mr*Mn);
 psi  = spm_multireg_util('Compose',psi1,psi0);
 clear psi0 psi1
 mu   = spm_multireg_util('Pull1',mu,psi);
@@ -774,20 +847,28 @@ end
 %==========================================================================
 % UpdateMeanSub()
 function [g,H,datn] = UpdateMeanSub(datn,mu,H0,sett)
-d   = spm_multireg_io('GetSize',datn.f);
+
+% Parse function settings
+accel = sett.gen.accel;
+B     = sett.registr.B;
+d     = sett.var.d;
+Mmu   = sett.var.Mmu;
+
+df  = spm_multireg_io('GetSize',datn.f);
 q   = double(datn.q);
 Mn  = datn.Mat;
-psi = spm_multireg_util('Compose',spm_multireg_io('GetData',datn.psi), spm_multireg_util('Affine',d, sett.var.Mmu\spm_dexpm(q,sett.registr.B)*Mn));
+psi = spm_multireg_util('Compose',spm_multireg_io('GetData',datn.psi), ...
+                                  spm_multireg_util('Affine',df, Mmu\spm_dexpm(q,B)*Mn));
 mu  = spm_multireg_util('Pull1',mu,psi);
 [f,datn] = spm_multireg_io('GetClasses',datn,mu,sett);
 if isempty(H0)
-    g     = spm_multireg_util('Push1',spm_multireg_util('softmax',mu,4) - f,psi,sett.var.d);
-    H     = spm_multireg_util('Push1',spm_multireg_der('AppearanceHessian',mu,sett.gen.accel),psi,sett.var.d);
+    g     = spm_multireg_util('Push1',spm_multireg_util('softmax',mu,4) - f,psi,d);
+    H     = spm_multireg_util('Push1',spm_multireg_der('AppearanceHessian',mu,accel),psi,d);
 else
     % Faster approximation - but might be unstable
     % If there are problems, then revert to the slow
     % way.
-    [g,w] = spm_multireg_util('Push1',spm_multireg_util('softmax',mu,4) - f,psi,sett.var.d);
+    [g,w] = spm_multireg_util('Push1',spm_multireg_util('softmax',mu,4) - f,psi,d);
     H     = w.*H0;
 end
 end
@@ -796,28 +877,35 @@ end
 %==========================================================================
 % UpdateSimpleAffinesSub()
 function datn = UpdateSimpleAffinesSub(datn,mu,G,H0,sett)
-d    = spm_multireg_io('GetSize',datn.f);
+
+% Parse function settings
+B    = sett.registr.B;
+d    = sett.var.d;
+Mmu  = sett.var.Mmu;
+scal = sett.optim.scal_q;
+
+df   = spm_multireg_io('GetSize',datn.f);
 q    = double(datn.q);
 Mn   = datn.Mat;
-[Mr,dM3] = spm_dexpm(q,sett.registr.B);
-dM   = zeros(12,size(sett.registr.B,3));
-for m=1:size(sett.registr.B,3)
-    tmp     = sett.var.Mmu\dM3(:,:,m)*sett.var.Mmu;
+[Mr,dM3] = spm_dexpm(q,B);
+dM   = zeros(12,size(B,3));
+for m=1:size(B,3)
+    tmp     = Mmu\dM3(:,:,m)*Mmu;
     dM(:,m) = reshape(tmp(1:3,:),12,1);
 end
 
-psi      = spm_multireg_util('Affine',d,sett.var.Mmu\Mr*Mn);
+psi      = spm_multireg_util('Affine',df,Mmu\Mr*Mn);
 mu1      = spm_multireg_util('Pull1',mu,psi);
 [f,datn] = spm_multireg_io('GetClasses',datn,mu1,sett);
 
-[a,w]     = spm_multireg_util('Push1',f - spm_multireg_util('softmax',mu1,4),psi,sett.var.d);
+[a,w]     = spm_multireg_util('Push1',f - spm_multireg_util('softmax',mu1,4),psi,d);
 clear mu1 psi f
 
 [H,g]     = spm_multireg_der('SimpleAffineHessian',mu,G,H0,a,w);
 g         = double(dM'*g);
 H         = dM'*H*dM;
 H         = H + eye(numel(q))*(norm(H)*1e-6 + 0.1);
-q         = q + sett.optim.scal_q*(H\g);
+q         = q + scal*(H\g);
 datn.q    = q;
 end
 %==========================================================================
@@ -825,41 +913,57 @@ end
 %==========================================================================
 % UpdateSimpleMeanSub()
 function [g,w,datn] = UpdateSimpleMeanSub(datn,mu,sett)
-d     = spm_multireg_io('GetSize',datn.f);
+
+% Parse function settings
+B   = sett.registr.B;
+d   = sett.var.d;
+Mmu = sett.var.Mmu;
+
+df    = spm_multireg_io('GetSize',datn.f);
 q     = double(datn.q);
 Mn    = datn.Mat;
-psi   = spm_multireg_util('Compose',spm_multireg_io('Affine',datn.psi), spm_multireg_util('affine',d, sett.var.Mmu\spm_dexpm(q,sett.registr.B)*Mn));
+psi   = spm_multireg_util('Compose',spm_multireg_io('Affine',datn.psi), ...
+                                    spm_multireg_util('affine',df, Mmu\spm_dexpm(q,B)*Mn));
 mu    = spm_multireg_util('Pull1',mu,psi);
 [f,datn] = spm_multireg_io('GetClasses',datn,mu,sett);
-[g,w] = spm_multireg_util('Push1',f,psi,sett.var.d);
+[g,w] = spm_multireg_util('Push1',f,psi,d);
 end
 %==========================================================================
 
 %==========================================================================
 % UpdateVelocitiesSub()
 function datn = UpdateVelocitiesSub(datn,mu,G,H0,sett)
+
+% Parse function settings
+B          = sett.registr.B;
+d          = sett.var.d;
+Mmu        = sett.var.Mmu;
+s_settings = sett.shoot.s_settings;
+scal       = sett.optim.scal_v;
+v_settings = sett.var.v_settings;
+
 v         = spm_multireg_io('GetData',datn.v);
 q         = datn.q;
 Mn        = datn.Mat;
-Mr        = spm_dexpm(q,sett.registr.B);
-Mat       = sett.var.Mmu\Mr*Mn;
-d         = spm_multireg_io('GetSize',datn.f);
-psi       = spm_multireg_util('Compose',spm_multireg_io('GetData',datn.psi), spm_multireg_util('Affine',d,Mat));
+Mr        = spm_dexpm(q,B);
+Mat       = Mmu\Mr*Mn;
+df        = spm_multireg_io('GetSize',datn.f);
+psi       = spm_multireg_util('Compose',spm_multireg_io('GetData',datn.psi), spm_multireg_util('Affine',df,Mat));
 mu        = spm_multireg_util('Pull1',mu,psi);
 [f,datn]  = spm_multireg_io('GetClasses',datn,mu,sett);
-[a,w]     = spm_multireg_util('Push1',f - spm_multireg_util('softmax',mu,4),psi,sett.var.d);
+[a,w]     = spm_multireg_util('Push1',f - spm_multireg_util('softmax',mu,4),psi,d);
 clear psi f mu
 
-g         = reshape(sum(a.*G,4),[sett.var.d 3]);
+g         = reshape(sum(a.*G,4),[d 3]);
 H         = w.*H0;
 clear a w
 
-u0        = spm_diffeo('vel2mom', v, sett.var.v_settings);                                                % Initial momentum
-datn.E(2) = 0.5*sum(u0(:).*v(:));                                                                         % Prior term
-v         = v - sett.optim.scal_v*spm_diffeo('fmg',H, g + u0, [sett.var.v_settings sett.shoot.s_settings]); % Gauss-Newton update
+u0        = spm_diffeo('vel2mom', v, v_settings);                          % Initial momentum
+datn.E(2) = 0.5*sum(u0(:).*v(:));                                          % Prior term
+v         = v - scal*spm_diffeo('fmg',H, g + u0, [v_settings s_settings]); % Gauss-Newton update
 
-if sett.var.d(3)==1, v(:,:,:,3) = 0; end % If 2D
-if sett.var.v_settings(1)==0             % Mean displacement should be 0
+if d(3)==1, v(:,:,:,3) = 0; end % If 2D
+if v_settings(1)==0             % Mean displacement should be 0
     avg = mean(mean(mean(v,1),2),3);
     v   = v - avg;
 end

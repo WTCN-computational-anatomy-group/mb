@@ -37,15 +37,17 @@ end
 % InitBiasField()
 function dat = InitBiasField(dat,sett)
 
-if ~sett.do.updt_bf, return; end
+% Parse function settings
+do_bf_norm = sett.do.bf_norm;
+fwhm       = sett.bf.fwhm;
+reg        = sett.bf.reg;
+updt_bf    = sett.do.updt_bf;
 
-% Parameters
-reg  = sett.bf.reg;
-fwhm = sett.bf.fwhm;
+if ~updt_bf, return; end
 
 for n=1:numel(dat)    
     [d,C]          = spm_multireg_io('GetSize',dat(n).f);
-    if sett.do.bf_norm
+    if do_bf_norm
         val = 1e3;            
         fn  = spm_multireg_io('GetData',dat(n).f);                    
         fn  = reshape(fn,[prod(d(1:3)) C]);                      
@@ -103,16 +105,20 @@ end
 %==========================================================================
 % InitDat()
 function dat = InitDat(F,sett)
-M0  = eye(4);
+
+% Parse function settings
+run2d = sett.gen.run2d;
+
+M0 = eye(4);
 for n=1:numel(F)
     
     % Init datn.f
     if iscell(F(n)) && isnumeric(F{n})
         % Input F is numeric -> store as numeric
         
-        if sett.gen.run2d            
+        if run2d            
             % Get 2D slice from 3D data
-            dat(n).f = get_slice(F{n},sett.gen.run2d);
+            dat(n).f = get_slice(F{n},run2d);
         else
             dat(n).f = single(F{n});
         end
@@ -133,10 +139,10 @@ for n=1:numel(F)
             end
         end
         
-        if sett.gen.run2d
+        if run2d
             % Get 2D slice from 3D data
             fn       = spm_multireg_io('GetData',dat(n).f);
-            dat(n).f = get_slice(fn,sett.gen.run2d);
+            dat(n).f = get_slice(fn,run2d);
         end
     end
     
@@ -150,7 +156,7 @@ for n=1:numel(F)
                      
     % Orientation matrix (image voxel-to-world)
     dat(n).Mat = eye(4); % Should really do this better           
-    if isa(dat(n).f,'nifti') && ~sett.gen.run2d
+    if isa(dat(n).f,'nifti') && ~run2d
         dat(n).Mat = dat(n).f(1).mat;        
     end
 end
@@ -160,23 +166,31 @@ end
 %==========================================================================
 % InitDef()
 function dat = InitDef(dat,sett)
-v    = zeros([sett.var.d,3],'single');
-psi1 = spm_multireg_util('Identity',sett.var.d);
+
+% Parse function settings
+B       = sett.registr.B;
+d       = sett.var.d;
+dir_res = sett.write.dir_res;
+Mmu     = sett.var.Mmu;
+
+v    = zeros([d,3],'single');
+psi1 = spm_multireg_util('Identity',d);
 for n=1:numel(dat)
-    dat(n).q = zeros(size(sett.registr.B,3),1);
+    dat(n).q = zeros(size(B,3),1);
     if isnumeric(dat(n).f)
         dat(n).v   = v;
         dat(n).psi = psi1;
     else
         if isa(dat(n).f,'nifti')
             [~,nam,~] = fileparts(dat(n).f(1).dat.fname);
-            vname    = fullfile(sett.write.dir_res,['v_' nam '.nii']);
-            pname    = fullfile(sett.write.dir_res,['psi_' nam '.nii']);
-            fa       = file_array(vname,[sett.var.d(1:3) 1 3],'float32',0);
+            vname    = fullfile(dir_res,['v_' nam '.nii']);
+            pname    = fullfile(dir_res,['psi_' nam '.nii']);
+            
+            fa       = file_array(vname,[d(1:3) 1 3],'float32',0);
             nii      = nifti;
             nii.dat  = fa;
-            nii.mat  = sett.var.Mmu;
-            nii.mat0 = sett.var.Mmu;
+            nii.mat  = Mmu;
+            nii.mat0 = Mmu;
             nii.descrip = 'Velocity';
             create(nii);
             nii.dat(:,:,:,:) = v;
@@ -196,7 +210,12 @@ end
 %==========================================================================
 % InitGMM()
 function dat = InitGMM(dat,K,sett)
-if ~sett.do.gmm, return; end
+
+% Parse function settings
+do_gmm  = sett.do.gmm;
+updt_bf = sett.do.updt_bf;
+
+if ~do_gmm, return; end
     
 K1 = K + 1;
 lb = struct('sum', NaN, 'X', [], 'XB', [], ...
@@ -210,7 +229,7 @@ for n=1:numel(dat)
     fn    = spm_multireg_util('MaskF',fn);
     
     % Modulate with bias field
-    if sett.do.updt_bf
+    if updt_bf
         bf    = spm_multireg_io('GetBiasField',dat(n).bf.chan,d);
         lb.XB = spm_multireg_energ('LowerBound','XB',bf);
     else

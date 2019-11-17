@@ -3,15 +3,13 @@ function varargout = spm_multireg_io(varargin)
 %
 % I/O functions for spm_multireg.
 %
-% FORMAT zn            = spm_multireg_io('ComputeResponsibilities',datn,fn,mu,code)
+% FORMAT [zn,lx,lz]    = spm_multireg_io('ComputeResponsibilities',datn,fn,mu,code)
 % FORMAT to            = spm_multireg_io('CopyFields',from,to)
 % FORMAT [bfn,lln]     = spm_multireg_io('GetBiasField',chan,d,varargin)
 % FORMAT [P,datn,code] = spm_multireg_io('GetClasses',datn,mu,sett,get_k1)
 % FORMAT out           = spm_multireg_io('GetData',in)
 % FORMAT Mat           = spm_multireg_io('GetMat',fin)
-% FORMAT K             = spm_multireg_io('GetK',fn)
 % FORMAT [d,M]         = spm_multireg_io('GetSize',fin)
-% FORMAT is3d          = spm_multireg_io('Is3D',fn)
 % FORMAT psi           = spm_multireg_io('ResavePsiSub',datn,sett)
 % FORMAT dat           = spm_multireg_io('SaveImages',dat,mu,sett)
 % FORMAT fout          = spm_multireg_io('SetData',fin,f)
@@ -35,15 +33,11 @@ switch id
     case 'GetClasses'
         [varargout{1:nargout}] = GetClasses(varargin{:});    
     case 'GetData'
-        [varargout{1:nargout}] = GetData(varargin{:});
-    case 'GetK'
-        [varargout{1:nargout}] = GetK(varargin{:});            
+        [varargout{1:nargout}] = GetData(varargin{:});            
     case 'GetMat'
         [varargout{1:nargout}] = GetMat(varargin{:});             
     case 'GetSize'
-        [varargout{1:nargout}] = GetSize(varargin{:});
-    case 'Is3D'
-        [varargout{1:nargout}] = Is3D(varargin{:});        
+        [varargout{1:nargout}] = GetSize(varargin{:});    
     case 'ResavePsiSub'
         [varargout{1:nargout}] = ResavePsiSub(varargin{:});    
     case 'SaveImages'
@@ -59,7 +53,7 @@ end
 
 %==========================================================================
 % ComputeResponsibilities()
-function zn = ComputeResponsibilities(datn,fn,mu,code)
+function [zn,lx,lz] = ComputeResponsibilities(datn,fn,mu,code)
 
 % Is there missing data?
 L       = unique(code);
@@ -77,6 +71,11 @@ end
 
 fn = spm_gmm_lib('Marginal', fn, {m,V,n}, const, {code,L});
 zn = spm_gmm_lib('Responsibility', fn, mu);
+
+if nargout > 1
+    lx = spm_multireg_energ('LowerBound','X',fn,zn,code,{m,b},{V,n}); 
+    lz = spm_gmm_lib('KL', 'Categorical', zn, 1, mu);
+end
 end
 %==========================================================================
 
@@ -215,18 +214,6 @@ end
 %==========================================================================
 
 %==========================================================================
-% GetK()
-function K = GetK(fn)
-if iscell(fn(1))
-    fn = GetData(fn{1});
-else
-    fn = GetData(fn(1));
-end
-K = size(fn,4);
-end
-%==========================================================================
-
-%==========================================================================
 % GetMat()
 function Mat = GetMat(fin)
 if isnumeric(fin)
@@ -245,33 +232,6 @@ end
 %==========================================================================
 
 %==========================================================================
-% GetResp()
-function [R,datn] = GetResp(datn,fn,mu,adjust,sett)
-K   = size(mu,2);
-mog = datn.mog;
-R   = zeros([numel(fn),K+1],'single');
-for k=1:(K+1)
-    R(:,k) = -((fn - mog.mu(k)).^2)/(2*mog.sig2(k)+eps) - 0.5*log(2*pi*mog.sig2(k)+eps);
-    if k<=K, R(:,k) = R(:,k) + mu(:,k); end
-end
-pmx = max(R,[],2);
-R   = R - pmx;
-R   = exp(R);
-sR  = sum(R,2);
-
-% Negative log-likelihood
-if isempty(adjust)
-    maxmu  = max(max(mu,[],2),0);
-    adjust = sum(log(sum(exp(mu-maxmu),2) + exp(-maxmu))+maxmu);
-end
-datn.E(1) = -sum(log(sR) + pmx,1) + adjust; % doesn't account for priors (so can increase)
-%fprintf(' %g\n', datn.E(1));
-
-R = R./sR;
-end
-%==========================================================================
-
-%==========================================================================
 % GetSize()
 function [d,M] = GetSize(fin)
 d = [GetDimensions(fin) 1 1 1];
@@ -281,31 +241,24 @@ end
 %==========================================================================
 
 %==========================================================================
-% Is3D()
-function is3d = Is3D(fn)
-if iscell(fn(1))
-    fn = GetData(fn{1});
-else
-    fn = GetData(fn(1));
-end
-d    = GetSize(fn);
-is3d = d(3) > 1;
-end
-%==========================================================================
-
-%==========================================================================
 % ResavePsiSub()
 function psi = ResavePsiSub(datn,sett)
+
+% Parse function settings
+B       = sett.registr.B;
+dir_res = sett.write.dir_res;
+Mmu     = sett.var.Mmu;
+
 d    = GetSize(datn.f);
 q    = double(datn.q);
 Mn   = datn.Mat;
 psi1 = GetData(datn.psi);
-psi  = spm_multireg_util('Compose',psi1,spm_multireg_util('Affine',d,sett.var.Mmu\spm_dexpm(q,sett.registr.B)*Mn));
-psi  = reshape(reshape(psi,[prod(d) 3])*sett.var.Mmu(1:3,1:3)' + sett.var.Mmu(1:3,4)',[d 1 3]);
+psi  = spm_multireg_util('Compose',psi1,spm_multireg_util('Affine',d,Mmu\spm_dexpm(q,B)*Mn));
+psi  = reshape(reshape(psi,[prod(d) 3])*Mmu(1:3,1:3)' + Mmu(1:3,4)',[d 1 3]);
 if isa(datn.psi(1),'nifti')
     to_delete = datn.psi(1).dat.fname;
     [~,nam,~] = fileparts(datn.f(1).dat.fname);
-    datn.psi(1).dat.fname = fullfile(sett.write.dir_res,['y_' nam '.nii']);
+    datn.psi(1).dat.fname = fullfile(dir_res,['y_' nam '.nii']);
     datn.psi(1).dat.dim = [d 1 3];
     datn.psi(1).mat = datn.f(1).mat0; % For working with "imported" images;
    %datn.psi(1).mat = Mn;
@@ -320,28 +273,33 @@ end
 %==========================================================================
 % SaveImages()
 function dat = SaveImages(dat,mu,sett)
+
+% Parse function settings
+dir_res = sett.write.dir_res;
+Mmu     = sett.var.Mmu;
+
 for n=1:numel(dat)
     dat(n).psi = ResavePsiSub(dat(n),sett);
 end
 
 if ~isempty(mu)
     % Save mu (log)
-    fa       = file_array(fullfile(sett.write.dir_res ,'mu_log.nii'),size(mu),'float32',0);
+    fa       = file_array(fullfile(dir_res ,'mu_log.nii'),size(mu),'float32',0);
     Nmu      = nifti;
     Nmu.dat  = fa;
-    Nmu.mat  = sett.var.Mmu;
-    Nmu.mat0 = sett.var.Mmu;
+    Nmu.mat  = Mmu;
+    Nmu.mat0 = Mmu;
     Nmu.descrip = 'Mean parameters (log)';
     create(Nmu);
     Nmu.dat(:,:,:,:) = mu;
     
     % Save mu (softmax)    
     mu       = spm_multireg_util('softmaxmu',mu,4);    
-    fa       = file_array(fullfile(sett.write.dir_res ,'mu_softmax.nii'),size(mu),'float32',0);
+    fa       = file_array(fullfile(dir_res ,'mu_softmax.nii'),size(mu),'float32',0);
     Nmu      = nifti;
     Nmu.dat  = fa;
-    Nmu.mat  = sett.var.Mmu;
-    Nmu.mat0 = sett.var.Mmu;
+    Nmu.mat  = Mmu;
+    Nmu.mat0 = Mmu;
     Nmu.descrip = 'Mean parameters (softmax)';
     create(Nmu);
     Nmu.dat(:,:,:,:) = mu;
@@ -385,13 +343,20 @@ end
 function [zn,datn,code] = GetClassesFromGMM(datn,mu,sett,get_k1)
 if nargin < 4, get_k1 = false; end
 
+% Parse function settings
+nit_gmm      = sett.nit.gmm;
+nit_gmm_miss = sett.nit.gmm_miss;
+samp         = sett.gen.samp_gmm;
+updt_bf      = sett.do.updt_bf;
+
 fn     = GetData(datn.f);
 [d0,C] = GetSize(datn.f);
 fn     = reshape(fn,[prod(d0(1:3)) C]);
-samp   = sett.gen.samp_gmm;
+vx     = sqrt(sum(datn.Mat(1:3,1:3).^2));
+W      = 1;
 
-if sett.do.updt_bf, bf = spm_multireg_io('GetBiasField',datn.bf.chan,d0);
-else,               bf = ones(1,C);
+if updt_bf, bf = spm_multireg_io('GetBiasField',datn.bf.chan,d0);
+else,       bf = ones(1,C);
 end
 
 % Missing data stuff
@@ -428,33 +393,18 @@ if nargout > 1
     % Update GMM and get responsibilities
                
     if samp > 1
-        % Subsample (runs faster)        
-        code0    = code;
-        code     = reshape(code,[d0(1:3) 1]);
-        [code,d] = spm_multireg_util('SubSample',code,datn.Mat,samp);       
-        code     = reshape(code,[prod(d(1:3)) 1]);
-        fn0      = fn;
-        fn       = reshape(fn,[d0(1:3) C]);
-        [fn,d]   = spm_multireg_util('SubSample',fn,datn.Mat,samp);       
-        fn       = reshape(fn,[prod(d(1:3)) C]);
-        mu0      = mu;
-        mu       = reshape(mu,[d0(1:3) K1]);
-        [mu,d]   = spm_multireg_util('SubSample',mu,datn.Mat,samp);       
-        mu       = reshape(mu,[prod(d(1:3)) K1]);         
-                
-        % Weight data parts of lowerbound with factor based on amount of
-        % downsampling  
-        W = prod(d0(1:3))/prod(d(1:3));
+        % Subsample (runs faster, lower bound is corrected by scalar W)              
+        [code0,code,fn0,fn,mu0,mu,W] = spm_multireg_util('SubSample',samp,vx,d0,code,fn,mu);
     end        
        
-    [zn,mog,~,lb] = spm_gmm_loop(fn,{{m,b},{V,n}},{'LogProp', mu}, ...
+    [zn,mog,~,lb] = spm_gmm_loop({fn,W},{{m,b},{V,n}},{'LogProp', mu}, ...
                                  'GaussPrior',   {m0,b0,V0,n0}, ...
                                  'Missing',      do_miss, ...
                                  'LowerBound',   lb, ...
                                  'MissingCode',  {code,L}, ...
-                                 'IterMax',      sett.nit.gmm, ...
+                                 'IterMax',      nit_gmm, ...
                                  'Tolerance',    1e-4, ...
-                                 'SubIterMax',   sett.nit.gmm_miss, ...
+                                 'SubIterMax',   nit_gmm_miss, ...
                                  'SubTolerance', 1e-4, ...
                                  'Verbose',      0);
     clear mu fn
@@ -463,14 +413,15 @@ if nargout > 1
     datn.mog.po.m = mog.MU; % GMM posteriors
     datn.mog.po.b = mog.b;
     datn.mog.po.V = mog.V;
-    datn.mog.po.n = mog.n;    
-    datn.mog.lb   = lb; % Lower bound            
-    datn.E(1)     = -sum(lb.sum(end)); % objective function
+    datn.mog.po.n = mog.n;        
     
     if samp > 1
         % Compute responsibilities on original data         
         zn = ComputeResponsibilities(datn,fn0,mu0,code0);
     end    
+        
+    datn.mog.lb = lb; % Lower bound            
+    datn.E(1)   = -sum(lb.sum(end)); % objective function
 else
     % Just compute responsibilities    
     zn = ComputeResponsibilities(datn,fn,mu,code);

@@ -17,7 +17,7 @@ function varargout = spm_multireg_util(varargin)
 % FORMAT P         = spm_multireg_util('softmax',mu,dr)
 % FORMAT P         = spm_multireg_util('softmaxmu',mu,dr)
 % FORMAT [Mmu,d]   = spm_multireg_util('SpecifyMean',dat,vx)
-% FORMAT [f,d]     = spm_multireg_util('SubSample',f,Mat,samp)
+% FORMAT varargout = spm_multireg_util('SubSample',samp,vx,d0,varargin)
 % FORMAT [dat,mu]  = spm_multireg_util('ZoomVolumes',dat,mu,sett,oMmu)
 %
 %__________________________________________________________________________
@@ -399,14 +399,18 @@ end
 %==========================================================================
 % ShrinkTemplate()
 function mu1 = ShrinkTemplate(mu,oMmu,sett)
-d       = [size(mu,1) size(mu,2) size(mu,3)];
-Mmu     = sett.var.Mmu;
+
+% Parse function settings
+d   = sett.var.d;
+Mmu = sett.var.Mmu;
+
+d0      = [size(mu,1) size(mu,2) size(mu,3)];
 Mzoom   = Mmu\oMmu;
-if norm(Mzoom-eye(4))<1e-4 && all(d==sett.var.d)
+if norm(Mzoom-eye(4))<1e-4 && all(d0==d)
     mu1 = mu;
 else
-    y       = reshape(reshape(Identity(d),[prod(d),3])*Mzoom(1:3,1:3)'+Mzoom(1:3,4)',[d 3]);
-    [mu1,c] = Push1(mu,y,sett.var.d);
+    y       = reshape(reshape(Identity(d0),[prod(d0),3])*Mzoom(1:3,1:3)'+Mzoom(1:3,4)',[d0 3]);
+    [mu1,c] = Push1(mu,y,d);
     mu1     = mu1./(c+eps);
 end
 end
@@ -480,35 +484,53 @@ end
 
 %==========================================================================
 % SubSample()
-function [f,d] = SubSample(f,Mat,samp)
+function varargout = SubSample(samp,vx,d0,varargin)
 samp = repmat(samp,[1 3]);
-samp = samp(1:3);
-vx   = sqrt(sum(Mat(1:3,1:3).^2));        
-samp = round(samp ./ vx);
-samp = max(samp, 1);        
-f    = f(1:samp:end,1:samp:end,1:samp:end,:);
-d    = size(f);
-d    = [d 1];
+samp = round(samp(1:3)./vx);
+samp = max(samp(1:3), 1);        
+
+N         = numel(varargin);
+varargout = cell(1,2*N + 1);
+cnt       = 1;
+for n=1:N
+    f              = varargin{n};
+    varargout{cnt} = f; cnt = cnt + 1;
+    C              = size(f,2);    
+    f              = reshape(f,[d0(1:3) C]);    
+    f              = f(1:samp:end,1:samp:end,1:samp:end,:);
+    d              = size(f); d = [d 1];
+    varargout{cnt} = reshape(f,[prod(d(1:3)) C]); cnt = cnt + 1;
+end
+
+% For weighting data parts of lowerbound with factor based on amount of
+% downsampling  
+W              = prod(d0(1:3))/prod(d(1:3));
+varargout{end} = W;
 end
 %==========================================================================
 
 %==========================================================================
 % ZoomVolumes()
 function [dat,mu] = ZoomVolumes(dat,mu,sett,oMmu)
+
+% Parse function settings
+d       = sett.var.d;
+Mmu     = sett.var.Mmu;
+threads = sett.gen.threads;
+
 SetBoundCond;
-d     = sett.var.d;
+
 d0    = [size(mu,1) size(mu,2) size(mu,3)];
-Mmu   = sett.var.Mmu;
 z     = single(reshape(d./d0,[1 1 1 3]));
 Mzoom = oMmu\Mmu;
 y     = reshape(reshape(Identity(d),[prod(d),3])*Mzoom(1:3,1:3)' + Mzoom(1:3,4)',[d 3]);
 mu    = spm_diffeo('pullc',mu,y);
 
-if sett.gen.threads>1 && numel(dat)>1
+if threads>1 && numel(dat)>1
     % Should attempt to change number of threads accrding to how much memory
     % each one requires
     % Memory = 4*(prod(d)*(3+3)+prod(d0)*(3+3));
-    parfor(n=1:numel(dat),sett.gen.threads) % PARFOR
+    parfor(n=1:numel(dat),threads) % PARFOR
         v          = spm_multireg_io('GetData',dat(n).v);
         v          = spm_diffeo('pullc',v.*z,y);
         dat(n).v   = ResizeFile(dat(n).v  ,d,Mmu);

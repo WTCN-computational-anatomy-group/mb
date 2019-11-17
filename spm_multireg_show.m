@@ -3,8 +3,9 @@ function varargout = spm_multireg_show(varargin)
 %
 % Visualisation functions for spm_multireg.
 %
+% FORMAT spm_multireg_show('ShowAll',dat,mu,Objective,N,sett)
 % FORMAT spm_multireg_show('ShowBiasField',dat,sett)
-% FORMAT spm_multireg_show('ShowModel',mu,Objective,sett,N)
+% FORMAT spm_multireg_show('ShowModel',mu,Objective,N,sett)
 % FORMAT spm_multireg_show('ShowParameters',dat,mu,sett)
 % FORMAT spm_multireg_show('ShowSubjects',dat,mu,sett)
 % FORMAT spm_multireg_show('Speak',nam,varargin)
@@ -19,6 +20,8 @@ end
 id = varargin{1};
 varargin = varargin(2:end);
 switch id
+    case 'ShowAll'
+        [varargout{1:nargout}] = ShowAll(varargin{:});
     case 'ShowBiasField'
         [varargout{1:nargout}] = ShowBiasField(varargin{:});    
     case 'ShowModel'
@@ -37,37 +40,46 @@ end
 %==========================================================================
 
 %==========================================================================
+% ShowAll()
+function ShowAll(dat,mu,Objective,N,sett)
+ShowSubjects(dat,mu,sett);
+ShowParameters(dat,mu,sett);
+ShowModel(mu,Objective,N,sett);
+ShowBiasField(dat,sett);
+end
+%==========================================================================
+
+%==========================================================================
 % ShowBiasField()
 function ShowBiasField(dat,sett)
 
-if ~sett.do.updt_bf, return; end
+% Parse function settings
+axis_3d  = sett.show.axis_3d;
+c        = sett.show.channel;
+fig_name = sett.show.figname_bf;
+mx_subj  = sett.show.mx_subjects;
+updt_bf  = sett.do.updt_bf;
 
-fg = findobj('Type', 'Figure', 'Name', sett.show.figname_bf);
-if isempty(fg)
-    fg = figure('Name', sett.show.figname_bf, 'NumberTitle', 'off');
-else
-    clf(fg);
-end
-set(0, 'CurrentFigure', fg);   
+if ~updt_bf, return; end
 
 [d,C] = spm_multireg_io('GetSize',dat(1).f);
 nr = 3;
 if d(3) == 1, ax = 3;
-else,         ax = sett.show.axis_3d;   
+else,         ax = axis_3d;   
 end
     
-nd = min(numel(dat),sett.show.mx_subjects);
+nd = min(numel(dat),mx_subj);
 for n=1:nd
     d  = spm_multireg_io('GetSize',dat(n).f);
     fn = spm_multireg_io('GetData',dat(n).f);   
     bf = spm_multireg_io('GetBiasField',dat(n).bf.chan,d);
     bf = reshape(bf,[d C]);
-    c  = min(sett.show.channel,size(fn,4));
+    c  = min(c,C);
     
     % Show stuff
-    ShowIm(fn(:,:,:,c),ax,nr,nd,n,sett.show.figname_bf,false);
-    ShowIm(bf(:,:,:,c),ax,nr,nd,n + nd,sett.show.figname_bf,false);            
-    ShowIm(bf(:,:,:,c).*fn(:,:,:,c),ax,nr,nd,n + 2*nd,sett.show.figname_bf,false);
+    ShowIm(fn(:,:,:,c),ax,nr,nd,n,fig_name,false);
+    ShowIm(bf(:,:,:,c),ax,nr,nd,n + nd,fig_name,false);            
+    ShowIm(bf(:,:,:,c).*fn(:,:,:,c),ax,nr,nd,n + 2*nd,fig_name,false);
 end
 drawnow
 end
@@ -75,19 +87,26 @@ end
 
 %==========================================================================
 % ShowModel()
-function ShowModel(mu,Objective,sett,N)
-mu = spm_multireg_util('softmaxmu',mu,4); % Gives K + 1 classes
+function ShowModel(mu,Objective,N,sett)
+
+% Parse function settings
+fig_name = sett.show.figname_model;
+
+mu  = spm_multireg_util('softmaxmu',mu,4); % Gives K + 1 classes
+nam = ['K=' num2str(size(mu,4)) ', N=' num2str(N) ' (softmaxed)'];
 if size(mu,3) > 1
-    ShowCat(mu,1,2,3,1,sett.show.figname_model);
-    ShowCat(mu,2,2,3,2,sett.show.figname_model);
-    ShowCat(mu,3,2,3,3,sett.show.figname_model);
-    subplot(2,1,2); plot(Objective,'.-');
-    nam = ['K=' num2str(size(mu,4)) ', N=' num2str(N) ' (softmaxed)'];
+    ShowCat(mu,1,2,3,1,fig_name);
+    ShowCat(mu,2,2,3,2,fig_name);
+    ShowCat(mu,3,2,3,3,fig_name);
     title(nam);
+    subplot(2,1,2); 
+    plot(Objective,'.-');        
+    title('Negative log-likelihood')
 else
-    ShowCat(mu,3,1,2,1,sett.show.figname_model);
-    title(['K=' num2str(size(mu,4)) ', N=' num2str(N)]);
-    subplot(1,2,2); plot(Objective,'.-');    
+    ShowCat(mu,3,1,2,1,fig_name);
+    title(nam);
+    subplot(1,2,2); 
+    plot(Objective,'.-');    
     title('Negative log-likelihood')
 end
 drawnow
@@ -97,15 +116,24 @@ end
 %==========================================================================
 % ShowParameters()
 function ShowParameters(dat,mu0,sett)
-fg = findobj('Type', 'Figure', 'Name', sett.show.figname_parameters);
+
+% Parse function settings
+B        = sett.registr.B;
+c        = sett.show.channel;
+fig_name = sett.show.figname_parameters;
+Mmu      = sett.var.Mmu;
+mx_subj  = sett.show.mx_subjects;
+updt_bf  = sett.do.updt_bf;
+
+fg = findobj('Type', 'Figure', 'Name', fig_name);
 if isempty(fg)
-    fg = figure('Name', sett.show.figname_parameters, 'NumberTitle', 'off');
+    fg = figure('Name', fig_name, 'NumberTitle', 'off');
 else
     clf(fg);
 end
-set(0, 'CurrentFigure', fg);  
+set(0, 'CurrentFigure', fg);   
 
-nd = min(numel(dat),sett.show.mx_subjects);
+nd = min(numel(dat),mx_subj);
 nr = 3;
 if ~isfield(dat,'mog')
     nr = nr - 1;
@@ -113,7 +141,7 @@ end
 for n=1:nd              
     % Affine parameters
     q    = double(dat(n).q);
-    M    = spm_dexpm(q,sett.registr.B);
+    M    = spm_dexpm(q,B);
     q    = spm_imatrix(M);            
     q    = q([1 2 6]);
     q(3) = 180/pi*q(3);
@@ -129,7 +157,7 @@ for n=1:nd
     
     % Velocities (x)
     v = spm_multireg_io('GetData',dat(n).v);
-    ShowIm(v(:,:,:,1),3,nr,nd,n + 1*nd,sett.show.figname_parameters)
+    ShowIm(v(:,:,:,1),3,nr,nd,n + 1*nd,fig_name)
     
     if isfield(dat,'mog')
         % Intensity histogram
@@ -140,7 +168,7 @@ for n=1:nd
         q     = double(dat(n).q);
         Mn    = dat(n).Mat;
         psi1  = spm_multireg_io('GetData',dat(n).psi);
-        psi   = spm_multireg_util('Compose',psi1,spm_multireg_util('Affine',d,sett.var.Mmu\spm_dexpm(q,sett.registr.B)*Mn));
+        psi   = spm_multireg_util('Compose',psi1,spm_multireg_util('Affine',d,Mmu\spm_dexpm(q,B)*Mn));
         mu    = spm_multireg_util('Pull1',mu0,psi);        
         mu    = spm_multireg_util('softmaxmu',mu,4);
         mu    = reshape(mu,[prod(d(1:3)) size(mu,4)]);
@@ -149,12 +177,12 @@ for n=1:nd
         
         % Plot GMM fit        
         fn = spm_multireg_io('GetData',dat(n).f);        
-        c  = min(sett.show.channel,size(fn,4));
+        c  = min(c,size(fn,4));
         fn = fn(:,:,:,c);
-        if sett.do.updt_bf
+        if updt_bf
             bf = spm_multireg_io('GetBiasField',dat(n).bf.chan,d);
             bf = reshape(bf,[d C]);
-            bf = bf(:,:,:,min(sett.show.channel,size(fn,4)));
+            bf = bf(:,:,:,c);
             fn = bf.*fn;
         end
         ShowGMMFit(fn,mu,dat(n).mog,nr,nd,n + 2*nd,c);
@@ -167,28 +195,30 @@ end
 %==========================================================================
 % ShowSubjects()
 function ShowSubjects(dat,mu0,sett)
-fg = findobj('Type', 'Figure', 'Name', sett.show.figname_subjects);
-if isempty(fg)
-    fg = figure('Name', sett.show.figname_subjects, 'NumberTitle', 'off');
-else
-    clf(fg);
-end
-set(0, 'CurrentFigure', fg);   
+
+% Parse function settings
+axis_3d  = sett.show.axis_3d;
+B        = sett.registr.B;
+c        = sett.show.channel;
+fig_name = sett.show.figname_subjects;
+Mmu      = sett.var.Mmu;
+mx_subj  = sett.show.mx_subjects;
+updt_bf  = sett.do.updt_bf;
 
 if isfield(dat,'mog'), nr = 3;
 else,                  nr = 2;
 end
 if size(mu0,3) == 1, ax = 3;
-else,                ax = sett.show.axis_3d;   
+else,                ax = axis_3d;   
 end
     
-nd = min(numel(dat),sett.show.mx_subjects);
+nd = min(numel(dat),mx_subj);
 for n=1:nd
     [d,C] = spm_multireg_io('GetSize',dat(n).f);
     q     = double(dat(n).q);
     Mn    = dat(n).Mat;
     psi1  = spm_multireg_io('GetData',dat(n).psi);
-    psi   = spm_multireg_util('Compose',psi1,spm_multireg_util('Affine',d,sett.var.Mmu\spm_dexpm(q,sett.registr.B)*Mn));
+    psi   = spm_multireg_util('Compose',psi1,spm_multireg_util('Affine',d,Mmu\spm_dexpm(q,B)*Mn));
     mu    = spm_multireg_util('Pull1',mu0,psi);            
     
     fn = spm_multireg_io('GetClasses',dat(n),mu,sett);   
@@ -197,20 +227,20 @@ for n=1:nd
     mu = spm_multireg_util('softmaxmu',mu,4); % Gives K + 1 classes
     
     % Show template, segmentation
-    ShowCat(mu,ax,nr,nd,n,sett.show.figname_subjects);
-    ShowCat(fn,ax,nr,nd,n + nd,sett.show.figname_subjects);        
+    ShowCat(mu,ax,nr,nd,n,fig_name);
+    ShowCat(fn,ax,nr,nd,n + nd,fig_name);        
     if isfield(dat,'mog')
         % and image (if using GMM)
         fn = spm_multireg_io('GetData',dat(n).f);
-        c  = min(sett.show.channel,size(fn,4));
+        c  = min(c,C);
         fn = fn(:,:,:,c);
-        if sett.do.updt_bf
+        if updt_bf
             bf = spm_multireg_io('GetBiasField',dat(n).bf.chan,d);
             bf = reshape(bf,[d C]);
             bf = bf(:,:,:,c);
             fn = bf.*fn;
         end
-        ShowIm(fn,ax,nr,nd,n + 2*nd,sett.show.figname_subjects);
+        ShowIm(fn,ax,nr,nd,n + 2*nd,fig_name);
     end
 end
 drawnow
