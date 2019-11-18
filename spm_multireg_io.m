@@ -404,7 +404,7 @@ updt_bf      = sett.do.updt_bf;
 fn     = GetData(datn.f);
 [d0,C] = GetSize(datn.f);
 fn     = reshape(fn,[prod(d0(1:3)) C]);
-vx     = sqrt(sum(datn.Mat(1:3,1:3).^2));
+Mat    = datn.Mat;
 W      = 1;
 
 if updt_bf, bf = spm_multireg_io('GetBiasField',datn.bf.chan,d0);
@@ -446,9 +446,9 @@ if nargout > 1
                
     if samp > 1
         % Subsample (runs faster, lower bound is corrected by scalar W)              
-        [code0,code,fn0,fn,mu0,mu,W] = spm_multireg_util('SubSample',samp,vx,d0,code,fn,mu);
+        [code0,code,fn0,fn,mu0,mu,W] = spm_multireg_util('SubSample',samp,Mat,d0,code,fn,mu);
     end        
-       
+    
     [zn,mog,~,lb] = spm_gmm_loop({fn,W},{{m,b},{V,n}},{'LogProp', mu}, ...
                                  'GaussPrior',   {m0,b0,V0,n0}, ...
                                  'Missing',      do_miss, ...

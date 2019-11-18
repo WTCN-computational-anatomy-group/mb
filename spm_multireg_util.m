@@ -17,7 +17,7 @@ function varargout = spm_multireg_util(varargin)
 % FORMAT P         = spm_multireg_util('softmax',mu,dr)
 % FORMAT P         = spm_multireg_util('softmaxmu',mu,dr)
 % FORMAT [Mmu,d]   = spm_multireg_util('SpecifyMean',dat,vx)
-% FORMAT varargout = spm_multireg_util('SubSample',samp,vx,d0,varargin)
+% FORMAT varargout = spm_multireg_util('SubSample',samp,Mat,d0,varargin)
 % FORMAT [dat,mu]  = spm_multireg_util('ZoomVolumes',dat,mu,sett,oMmu)
 %
 %__________________________________________________________________________
@@ -484,28 +484,40 @@ end
 
 %==========================================================================
 % SubSample()
-function varargout = SubSample(samp,vx,d0,varargin)
-samp = repmat(samp,[1 3]);
-samp = round(samp(1:3)./vx);
-samp = max(samp(1:3), 1);        
-
+function varargout = SubSample(samp,Mat,d0,varargin)
+vx        = sqrt(sum(Mat(1:3,1:3).^2));
+samp      = max([1 1 1],round(samp*[1 1 1]./vx));
 N         = numel(varargin);
 varargout = cell(1,2*N + 1);
 cnt       = 1;
 for n=1:N
-    f              = varargin{n};
-    varargout{cnt} = f; cnt = cnt + 1;
-    C              = size(f,2);    
-    f              = reshape(f,[d0(1:3) C]);    
-    f              = f(1:samp:end,1:samp:end,1:samp:end,:);
-    d              = size(f); d = [d 1];
-    varargout{cnt} = reshape(f,[prod(d(1:3)) C]); cnt = cnt + 1;
+    f              = varargin{n};    
+    varargout{cnt} = f; 
+    cnt            = cnt + 1;
+    
+    if d0 > 0
+        C = size(f,2);    
+        f = reshape(f,[d0(1:3) C]);    
+    end
+    
+    f = f(1:samp:end,1:samp:end,1:samp:end,:);
+    d = size(f); 
+    d = [d 1];
+    
+    if d0 > 0
+        varargout{cnt} = reshape(f,[prod(d(1:3)) C]); 
+    else
+        varargout{cnt} = f; 
+    end
+    cnt = cnt + 1;
 end
 
-% For weighting data parts of lowerbound with factor based on amount of
-% downsampling  
-W              = prod(d0(1:3))/prod(d(1:3));
-varargout{end} = W;
+if d0 > 0
+    % For weighting data parts of lowerbound with factor based on amount of
+    % downsampling  
+    W              = prod(d0(1:3))/prod(d(1:3));
+    varargout{end} = W;
+end
 end
 %==========================================================================
 
