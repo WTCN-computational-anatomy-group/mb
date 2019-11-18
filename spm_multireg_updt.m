@@ -92,7 +92,7 @@ function dat = UpdateBiasField(dat,mu,sett)
 
 % Parse function settings
 do_bf_norm = sett.do.bf_norm;
-do_updt_bf = sett.do.updt_aff;
+do_updt_bf = sett.do.updt_bf;
 threads    = sett.gen.threads;
 
 if ~do_updt_bf, return; end
