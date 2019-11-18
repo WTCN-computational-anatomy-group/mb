@@ -106,7 +106,7 @@ if ~isfield(sett,'bf')
     sett.bf = struct;
 end
 if ~isfield(sett.bf,'reg')
-    sett.bf.reg = 1e4;
+    sett.bf.reg = 1e0;
 end
 if ~isfield(sett.bf,'fwhm')
     sett.bf.fwhm = 60;
