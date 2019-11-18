@@ -278,6 +278,9 @@ end
 if ~isfield(sett.show,'figname_subjects')
     sett.show.figname_subjects = '(spm_multireg) Segmentations';
 end
+if ~isfield(sett.show,'level')
+    sett.show.level = 1;
+end
 if ~isfield(sett.show,'mx_subjects')
     sett.show.mx_subjects = 8;
 end

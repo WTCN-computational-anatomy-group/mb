@@ -42,10 +42,14 @@ end
 %==========================================================================
 % ShowAll()
 function ShowAll(dat,mu,Objective,N,sett)
-ShowSubjects(dat,mu,sett);
-ShowParameters(dat,mu,sett);
-ShowModel(mu,Objective,N,sett);
-ShowBiasField(dat,sett);
+if sett.show.level >= 1
+    ShowModel(mu,Objective,N,sett);
+end
+if sett.show.level >= 2
+    ShowSubjects(dat,mu,sett);
+    ShowParameters(dat,mu,sett);
+    ShowBiasField(dat,sett);
+end
 end
 %==========================================================================
 

@@ -144,6 +144,8 @@ function dat = UpdateIntensity(dat, sett)
 
 % Parse function settings
 fig_name = sett.show.figname_int;
+level    = sett.show_level;
+verbose  = level >= 2;
 
 if ~isfield(dat(1),'mog'), return; end
 
@@ -158,7 +160,7 @@ end
 pr = dat(1).mog.pr;
 pr = {pr.m,pr.b,pr.V,pr.n};
 pr = spm_gmm_lib('updatehyperpars',po,pr,...
-                 'verbose', true, ...
+                 'verbose', verbose, ...
                  'figname', fig_name);
 for n=1:N
     dat(n).mog.pr.m = pr{1};
