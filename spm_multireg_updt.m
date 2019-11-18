@@ -631,7 +631,6 @@ else
 end
 kron       = @(a,b) spm_krutil(a,b);
 [bf,pr_bf] = spm_multireg_io('GetBiasField',chan,d);
-pr_bf      = W*pr_bf;
 
 % Get image(s)
 fn = spm_multireg_io('GetData',datn.f);
@@ -768,8 +767,7 @@ for it=1:nit_bf
             chan(c).T = chan(c).T - armijo*Update;
 
             % Compute new bias-field (only for channel c)
-            [bf,pr_bf] = spm_multireg_io('GetBiasField',chan,d,obf,c,opr_bf);
-            pr_bf      = W*pr_bf;
+            [bf,pr_bf] = spm_multireg_io('GetBiasField',chan,d,obf,c,opr_bf);            
             
             % Recompute responsibilities (with updated bias field)
             zn = spm_multireg_io('ComputeResponsibilities',datn,bf.*fn,mu,code);
