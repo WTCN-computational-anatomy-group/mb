@@ -56,48 +56,15 @@ for n=1:numel(dat)
     else        
         scl = ones(1,C);
     end
-    cl             = cell(C,1);    
-    args           = {'C',cl,'B1',cl,'B2',cl,'B3',cl,'T',cl,'ll',cl};
-    dat(n).bf.chan = struct(args{:});
     
-    vx = sqrt(sum(dat(n).Mat(1:3,1:3).^2));                     
-    sd = vx(1)*d(1)/fwhm; d3(1) = ceil(sd*2);
-    sd = vx(2)*d(2)/fwhm; d3(2) = ceil(sd*2);
-    sd = vx(3)*d(3)/fwhm; d3(3) = ceil(sd*2);
-    
-    % Precision (inverse covariance) of Gaussian prior on bias field parameters
-    ICO = spm_bias_lib('regulariser','bending',d,d3,vx);
-    ICO = single(ICO*reg);
-    
-    [x0,y0,~] = ndgrid(single(1:d(1)),single(1:d(2)),1);
-    z0        = single(1:d(3));
-
-    for c=1:C
-        % GAUSSIAN REGULARISATION for bias correction                        
-        dat(n).bf.chan(c).C = ICO;
-
-        % Basis functions for bias correction
-        dat(n).bf.chan(c).B3  = single(spm_dctmtx(d(3),d3(3),z0));
-        dat(n).bf.chan(c).B2  = single(spm_dctmtx(d(2),d3(2),y0(1,:)'));
-        dat(n).bf.chan(c).B1  = single(spm_dctmtx(d(1),d3(1),x0(:,1)));
-
-        % Initial parameterisation of bias field
-        dat(n).bf.chan(c).T = zeros(d3,'single');
-
-        % Change DC component of bias field to make intensities more
-        % simillar between MR images.
-        b1 = dat(n).bf.chan(c).B1(1,1);
-        b2 = dat(n).bf.chan(c).B2(1,1);
-        b3 = dat(n).bf.chan(c).B3(1,1);
-
-        dat(n).bf.chan(c).T(1,1,1) = 1/(b1*b2*b3)*log(scl(c));
-    end    
+    % Get bias field parameterisation struct
+    dat(n).bf.chan = spm_multireg_io('GetBiasFieldStruct',C,d,dat(n).Mat,reg,fwhm,scl);
     
     % struct used for rescaling images using DC component of bias fields
-    dc           = struct;
-    dc.int       = zeros(1,C);
-    dc.ln        = zeros(1,C);
-    dat(n).bf.dc = dc;
+    dc            = struct;
+    dc.int        = zeros(1,C);
+    dc.ln         = zeros(1,C);
+    dat(n).bf.dc  = dc;
 end
 end
 %==========================================================================
@@ -230,8 +197,7 @@ for n=1:numel(dat)
     
     % Modulate with bias field
     if updt_bf
-        bf    = spm_multireg_io('GetBiasField',dat(n).bf.chan,d);
-        lb.XB = spm_multireg_energ('LowerBound','XB',bf);
+        bf = spm_multireg_io('GetBiasField',dat(n).bf.chan,d);        
     else
         bf = ones(1,C);
     end

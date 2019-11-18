@@ -6,6 +6,7 @@ function varargout = spm_multireg_io(varargin)
 % FORMAT [zn,lx,lz]    = spm_multireg_io('ComputeResponsibilities',datn,fn,mu,code)
 % FORMAT to            = spm_multireg_io('CopyFields',from,to)
 % FORMAT [bfn,lln]     = spm_multireg_io('GetBiasField',chan,d,varargin)
+% FORMAT chan          = spm_multireg_io('GetBiasFieldStruct',C,d,Mat,reg,fwhm,scl,T)
 % FORMAT [P,datn,code] = spm_multireg_io('GetClasses',datn,mu,sett,get_k1)
 % FORMAT out           = spm_multireg_io('GetData',in)
 % FORMAT Mat           = spm_multireg_io('GetMat',fin)
@@ -29,7 +30,9 @@ switch id
     case 'CopyFields'
         [varargout{1:nargout}] = CopyFields(varargin{:});                   
     case 'GetBiasField'
-        [varargout{1:nargout}] = GetBiasField(varargin{:});                
+        [varargout{1:nargout}] = GetBiasField(varargin{:});  
+    case 'GetBiasFieldStruct'
+        [varargout{1:nargout}] = GetBiasFieldStruct(varargin{:});  
     case 'GetClasses'
         [varargout{1:nargout}] = GetClasses(varargin{:});    
     case 'GetData'
@@ -104,32 +107,81 @@ if numel(varargin) == 0
         lln(c) = double(-0.5*chan(c).T(:)'*chan(c).C*chan(c).T(:));    
 
         for z=1:nz
-            ix = IndexSlice2Vol(z,Iz);
-
-            bf_c     = transf(chan(c).B1,chan(c).B2,chan(c).B3(z,:),chan(c).T);
-            bf_c     = bf_c(:);      
+            ix        = IndexSlice2Vol(z,Iz);
+            bf_c      = transf(chan(c).B1,chan(c).B2,chan(c).B3(z,:),chan(c).T);
+            bf_c      = bf_c(:);      
             bfn(ix,c) = single(exp(bf_c));        
         end
     end
 else
     % Compute just for one channel
     bfn = varargin{1};
-    c  = varargin{2};
+    c   = varargin{2};
     lln = varargin{3};
 
     lln(c) = double(-0.5*chan(c).T(:)'*chan(c).C*chan(c).T(:));    
 
     for z=1:nz
-        ix = IndexSlice2Vol(z,Iz);
-
-        bf_c     = transf(chan(c).B1,chan(c).B2,chan(c).B3(z,:),chan(c).T);
-        bf_c     = bf_c(:);      
+        ix        = IndexSlice2Vol(z,Iz);
+        bf_c      = transf(chan(c).B1,chan(c).B2,chan(c).B3(z,:),chan(c).T);
+        bf_c      = bf_c(:);      
         bfn(ix,c) = single(exp(bf_c));        
     end
 end
-
 end
 %==========================================================================
+
+%==========================================================================
+% GetBiasFieldStruct()
+function chan = GetBiasFieldStruct(C,d,Mat,reg,fwhm,scl,T,samp)
+if nargin < 7, T    = {}; end
+if nargin < 8, samp = 1; end
+
+cl   = cell(C,1);    
+args = {'C',cl,'B1',cl,'B2',cl,'B3',cl,'T',cl,'ll',cl};
+chan = struct(args{:});
+
+vx = sqrt(sum(Mat(1:3,1:3).^2));                     
+sd = vx(1)*d(1)/fwhm; d3(1) = ceil(sd*2);
+sd = vx(2)*d(2)/fwhm; d3(2) = ceil(sd*2);
+sd = vx(3)*d(3)/fwhm; d3(3) = ceil(sd*2);
+
+% Precision (inverse covariance) of Gaussian prior on bias field parameters
+ICO = spm_bias_lib('regulariser','bending',d,d3,vx);
+ICO = single(ICO*reg);
+
+samp      = max([1 1 1],round(samp*[1 1 1]./vx));
+[x0,y0,~] = ndgrid(single(1:samp(1):d(1)),single(1:samp(2):d(2)),1);
+z0        = single(1:samp(3):d(3));
+
+for c=1:C
+    % GAUSSIAN REGULARISATION for bias correction                        
+    chan(c).C = ICO;
+
+    % Basis functions for bias correction
+    chan(c).B3 = single(spm_dctmtx(d(3),d3(3),z0));
+    chan(c).B2 = single(spm_dctmtx(d(2),d3(2),y0(1,:)'));
+    chan(c).B1 = single(spm_dctmtx(d(1),d3(1),x0(:,1)));
+
+    if isempty(T)
+        % Initial parameterisation of bias field
+        chan(c).T = zeros(d3,'single');
+    else
+        % Parameterisation given
+        chan(c).T = T{c};
+    end
+
+    if ~isempty(scl)
+        % Change DC component of bias field to make intensities more
+        % simillar between MR images.
+        b1               = chan(c).B1(1,1);
+        b2               = chan(c).B2(1,1);
+        b3               = chan(c).B3(1,1);
+        chan(c).T(1,1,1) = 1/(b1*b2*b3)*log(scl(c));
+    end
+end   
+end
+%========================================================================== 
 
 %==========================================================================
 % GetClasses()
