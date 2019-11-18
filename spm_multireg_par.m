@@ -202,8 +202,8 @@ if ~isfield(sett.nit,'init')
     sett.nit.init = 3;
 end
 if ~isfield(sett.nit,'init_mu')
-    % The number of template update iterations, at largest zoom level.
-    sett.nit.init_mu = 3;
+    % The number of template update iterations
+    sett.nit.init_mu = 2;
 end
 if ~isfield(sett.nit,'miss')   
     sett.nit.gmm_miss = 10;
