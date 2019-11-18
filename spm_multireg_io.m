@@ -425,6 +425,7 @@ if nargout > 1
 else
     % Just compute responsibilities    
     zn = ComputeResponsibilities(datn,fn,mu,code);
+    
 end
 
 if ~get_k1

@@ -144,7 +144,7 @@ function dat = UpdateIntensity(dat, sett)
 
 % Parse function settings
 fig_name = sett.show.figname_int;
-level    = sett.show_level;
+level    = sett.show.level;
 verbose  = level >= 2;
 
 if ~isfield(dat(1),'mog'), return; end
