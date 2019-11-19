@@ -106,7 +106,7 @@ if ~isfield(sett,'bf')
     sett.bf = struct;
 end
 if ~isfield(sett.bf,'reg')
-    sett.bf.reg = 1e4;
+    sett.bf.reg = 1e5;
 end
 if ~isfield(sett.bf,'fwhm')
     sett.bf.fwhm = 60;
@@ -195,11 +195,11 @@ if ~isfield(sett.nit,'bf')
     sett.nit.bf = 1;
 end
 if ~isfield(sett.nit,'gmm')   
-    sett.nit.gmm = 10;
+    sett.nit.gmm = 32;
 end
 if ~isfield(sett.nit,'init')
     % The number of iterations, at largest zoom level.
-    sett.nit.init = 6;
+    sett.nit.init = 3;
 end
 if ~isfield(sett.nit,'init_mu')
     % The number of template update iterations
