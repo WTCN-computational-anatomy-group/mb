@@ -686,8 +686,8 @@ for it=1:nit_bf
 
         % -----------------------------------------------------------------
         % Compute gradient and Hessian    
-        gr_l = zeros(d(1:3));
-        H_l  = zeros(d(1:3));
+        gr_l = zeros(d(1:3),'single');
+        H_l  = zeros(d(1:3),'single');
 
         % -----------------------------------------------------------------
         % For each combination of missing voxels
@@ -724,7 +724,7 @@ for it=1:nit_bf
                 Vmm = V(missing_channels,missing_channels,k);
                 Vmo = V(missing_channels,observed_channels,k);
                 Ao  = Voo - Vom*(Vmm\Vmo);
-                Ao  = (n(k)-nb_channels_missing) * Ao;
+                Ao  = (n(k) - nb_channels_missing) * Ao;
                 MUo = m(observed_channels,k);
 
                 % ---------------------------------------------------------
@@ -767,8 +767,8 @@ for it=1:nit_bf
         gr = zeros(d3,1);      
         for z=1:d(3)
             b3 = double(chan(c).B3(z,:)');
-            gr = gr + kron(b3,spm_krutil(gr_l(:,:,z),double(chan(c).B1),double(chan(c).B2),0));
-            H  = H  + kron(b3*b3',spm_krutil(H_l(:,:,z),double(chan(c).B1),double(chan(c).B2),1));
+            gr = gr + kron(b3,spm_krutil(double(gr_l(:,:,z)),double(chan(c).B1),double(chan(c).B2),0));
+            H  = H  + kron(b3*b3',spm_krutil(double(H_l(:,:,z)),double(chan(c).B1),double(chan(c).B2),1));
         end
         clear b3                       
 
