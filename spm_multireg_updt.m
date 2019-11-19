@@ -415,11 +415,14 @@ end
 function datn = ZeroMeanDCSub(datn,mu,scl,sett)
 
 % Parse function settings
-B   = sett.registr.B;
-Mmu = sett.var.Mmu;
+B    = sett.registr.B;
+fwhm = sett.bf.fwhm;
+Mmu  = sett.var.Mmu;
+reg  = sett.bf.reg;
+samp = sett.gen.samp_gmm;
 
-L     = datn.bf.L;
-[d,C] = spm_multireg_io('GetSize',datn.f);
+L      = datn.bf.L;
+[df,C] = spm_multireg_io('GetSize',datn.f);
 
 % GMM posterior
 m = datn.mog.po.m;
@@ -459,47 +462,71 @@ datn.mog.po.b = b;
 datn.mog.po.V = V;
 datn.mog.po.n = n;
 
-% % Update lower bound/objective
-% %--------------------------------------------------------------------------
-% 
-% % Get subject-space template (softmaxed K + 1)
-% q    = double(datn.q);
-% Mn   = datn.Mat;
-% Mr   = spm_dexpm(q,B);
-% psi1 = spm_multireg_io('GetData',datn.psi);
-% psi0 = spm_multireg_util('Affine',d,Mmu\Mr*Mn);
-% psi  = spm_multireg_util('Compose',psi1,psi0);
-% clear psi0 psi1
-% mu   = spm_multireg_util('Pull1',mu,psi);
-% mu   = log(spm_multireg_util('softmaxmu',mu,4));
-% clear psi
-% mu   = reshape(mu,[prod(d(1:3)) size(mu,4)]);
-% 
-% % Get bias field
-% [bf,pr_bf] = spm_multireg_io('GetBiasField',datn.bf.chan,d);
-% 
-% % Get image(s)
-% fn = spm_multireg_io('GetData',datn.f);
-% fn = reshape(fn,[prod(d(1:3)) C]);
-% 
-% % Get responsibilities
-% fn   = spm_multireg_util('MaskF',fn);
-% code = spm_gmm_lib('obs2code', fn);
-% zn   = spm_multireg_io('ComputeResponsibilities',datn,bf.*fn,mu,code);
-% clear mu
-% 
-% lx  = spm_multireg_energ('LowerBound','X',bf.*fn,zn,code,{m,b},{V,n});
-% clear zn fn
-% 
-% lxb = spm_multireg_energ('LowerBound','XB',bf);
-% clear bf
-% 
-% datn.mog.lb.XB(end + 1) = lxb;
-% datn.mog.lb.X(end  + 1) = lx;
-% datn.mog.lb             = spm_multireg_energ('SumLowerBound',datn.mog.lb);
-% 
-% datn.E(1) = -datn.mog.lb.sum(end);
-% datn.E(3) = -sum(pr_bf);
+% -----------------------------------------------------------------
+% Update lower bound/objective
+
+% Get subject-space template (softmaxed K + 1)
+Mat    = datn.Mat;
+q      = double(datn.q);
+Mn     = datn.Mat;
+W      = 1;
+Mr     = spm_dexpm(q,B);
+psi1   = spm_multireg_io('GetData',datn.psi);
+psi0   = spm_multireg_util('Affine',df,Mmu\Mr*Mn);
+psi    = spm_multireg_util('Compose',psi1,psi0);
+clear psi0 psi1
+mu     = spm_multireg_util('Pull1',mu,psi);
+clear psi
+
+if samp > 1      
+    [~,mu] = spm_multireg_util('SubSample',samp,Mat,0,mu);
+    d      = size(mu);
+    d      = d(1:3);    
+    W      = prod(df(1:3))/prod(d(1:3));
+else
+    d      = df;
+end
+
+mu = log(spm_multireg_util('softmaxmu',mu,4));
+mu = reshape(mu,[prod(d(1:3)) size(mu,4)]);
+
+% Get bias field
+if samp > 1
+    T    = {datn.bf.chan(:).T};
+    chan = spm_multireg_io('GetBiasFieldStruct',C,df,Mat,reg,fwhm,[],T,samp); clear T
+else
+    chan = datn.bf.chan;    
+end
+[bf,pr_bf] = spm_multireg_io('GetBiasField',chan,d);
+
+% Get image(s)
+fn = spm_multireg_io('GetData',datn.f);
+if samp > 1      
+    [~,fn] = spm_multireg_util('SubSample',samp,Mat,0,fn);
+end
+fn = reshape(fn,[prod(d(1:3)) C]);
+
+% Get responsibilities
+fn   = spm_multireg_util('MaskF',fn);
+code = spm_gmm_lib('obs2code', fn);
+zn   = spm_multireg_io('ComputeResponsibilities',datn,bf.*fn,mu,code);
+clear mu
+
+% GMM posterior
+m  = datn.mog.po.m;
+b  = datn.mog.po.b;
+V  = datn.mog.po.V;
+n  = datn.mog.po.n;
+
+lx  = W*spm_multireg_energ('LowerBound','X',bf.*fn,zn,code,{m,b},{V,n});
+lxb = W*spm_multireg_energ('LowerBound','XB',bf);
+
+datn.mog.lb.XB(end + 1) = lxb;
+datn.mog.lb.X(end  + 1) = lx;
+datn.mog.lb             = spm_multireg_energ('SumLowerBound',datn.mog.lb);
+
+datn.E(1) = -datn.mog.lb.sum(end);
+datn.E(3) = -sum(pr_bf);
 end
 %==========================================================================
 
