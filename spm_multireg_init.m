@@ -188,6 +188,10 @@ K1 = K + 1;
 lb = struct('sum', NaN, 'X', [], 'XB', [], ...
             'Z', [], 'P', [], 'MU', [], 'A', []);
 
+[~,C] = spm_multireg_io('GetSize',dat(1).f);
+mx    = zeros(C,numel(dat));
+mn    = zeros(C,numel(dat));
+vr    = zeros(C,numel(dat));
 for n=1:numel(dat)            
     % GMM        
     [d,C] = spm_multireg_io('GetSize',dat(n).f);
@@ -203,11 +207,21 @@ for n=1:numel(dat)
     end
     fn = bf.*fn;
 
-    % Initial means and precisions from image channel max
-    mog    = init_gmm(fn,K1);        
+    % Init GMM posterior
+    [po,mx(:,n),mn(:,n),vr(:,n)] = init_gmm_po(fn,K1);        
+    
+    mog.po = po;
+    
+    % Init lower bound struct
     mog.lb = lb;
     
     dat(n).mog = mog;
+end
+
+% Init GMM empirical prior
+pr = init_gmm_pr(mx,mn,vr,K1);
+for n=1:numel(dat)                
+    dat(n).mog.pr = pr;
 end
 end
 %==========================================================================
@@ -244,29 +258,68 @@ end
 %==========================================================================    
 
 %==========================================================================    
-% init_gmm()
-function mog = init_gmm(fn,K)
-C = size(fn,2);
-
-% Posterior
+% init_gmm_po()
+function [po,mx,mn,vr] = init_gmm_po(fn,K)
+C  = size(fn,2);
+mx = zeros(1,C);
+mn = zeros(1,C);
+vr = zeros(1,C);
 mu = zeros(C,K);
-A  = zeros(C,C,K);        
+A  = zeros(C,C,K);  
+n  = 3;
 for c=1:C
-    mx       = nanmax(fn(:,c));                            
-    mu(c,:)  = (0:(K - 1))'*mx/(1.5*K);
-    A(c,c,:) = mx/K;        
+    mx(c)    = nanmax(fn(:,c));                         
+    mn(c)    = nanmean(fn(:,c));
+    vr(c)    = nanvar(fn(:,c));
+    mu(c,:)  = (0:(K - 1))'*mx(c)/(1.5*K);
+    A(c,c,:) = mx(c)/(1.5*K);      
+%     vrc      = vr(c)/(K + 1);
+%     mnc      = 1.0*mn(c);
+%     sd       = sqrt(vrc);
+%     mu(c,:)  = abs(linspace(mnc - n*sd,mnc + n*sd,K));    
+%     A(c,c,:) = vrc;
     A(c,c,:) = 1/A(c,c,:);
 end   
 
-mog.po.m = mu;
-mog.po.b = ones(1,K);
-mog.po.n = C*ones(1,K);
-mog.po.V = bsxfun(@times, A, reshape(mog.po.n, [1 1 K])); % Expected precision
-
-% Prior (uninformative)
-mog.pr.m = zeros(C,K);
-mog.pr.b = ones(1,K);
-mog.pr.n = C*ones(1,K);
-mog.pr.V = bsxfun(@times, repmat(eye(C),[1 1 K]), reshape(mog.pr.n, [1 1 K]));
+po   = struct('m',[],'b',[],'n',[],'V',[]);
+po.m = mu;
+po.b = ones(1,K);
+po.n = C*ones(1,K);
+po.V = bsxfun(@times, A, reshape(po.n, [1 1 K])); % Expected precision
 end
-%==========================================================================            
+%==========================================================================      
+
+%==========================================================================    
+% init_gmm_pr()
+function pr = init_gmm_pr(mx,mn,vr,K)
+C   = size(mx,1);
+mmx = max(mx,[],2);
+mmn = mean(mn,2);
+mvr = mean(vr,2);
+
+% pr   = struct('m',[],'b',[],'n',[],'V',[]);
+% pr.m = zeros(C,K);
+% pr.b = ones(1,K);
+% pr.n = C*ones(1,K);
+% pr.V = bsxfun(@times, repmat(eye(C),[1 1 K]), reshape(pr.n, [1 1 K]));
+mu = zeros(C,K);
+A  = zeros(C,C,K);        
+n  = 3;
+for c=1:C         
+    mu(c,:)  = (0:(K - 1))'*mmx(c)/(1.5*K);
+    A(c,c,:) = mmx(c)/(1.5*K);    
+%     vrc      = mvr(c)/(K + 1);
+%     mnc      = 1.0*mn(c);
+%     sd       = sqrt(vrc);
+%     mu(c,:)  = abs(linspace(mnc - n*sd,mnc + n*sd,K));    
+%     A(c,c,:) = vrc;        
+    A(c,c,:) = 1/A(c,c,:);
+end   
+
+pr   = struct('m',[],'b',[],'n',[],'V',[]);
+pr.m = mu;
+pr.b = ones(1,K);
+pr.n = C*ones(1,K);
+pr.V = bsxfun(@times, A, reshape(pr.n, [1 1 K])); % Expected precision
+end
+%==========================================================================   
