@@ -235,6 +235,9 @@ end
 % Save template
 dat = spm_multireg_io('SaveImages',dat,mu,sett);
 
+% Write results in normalised space
+spm_multireg_io('WriteNormalised',dat,mu,sett);
+
 % Print total runtime
 spm_multireg_show('Speak','Finished',toc(t0));
 

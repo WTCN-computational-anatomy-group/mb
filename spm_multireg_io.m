@@ -13,7 +13,8 @@ function varargout = spm_multireg_io(varargin)
 % FORMAT [d,M]         = spm_multireg_io('GetSize',fin)
 % FORMAT psi           = spm_multireg_io('ResavePsiSub',datn,sett)
 % FORMAT dat           = spm_multireg_io('SaveImages',dat,mu,sett)
-% FORMAT fout          = spm_multireg_io('SetData',fin,f)
+% FORMAT fout          = spm_multireg_io('SetData',fin,f) 
+% FORMAT                 spm_multireg_io('WriteNormalised',dat,mu,sett)
 %
 %__________________________________________________________________________
 % Copyright (C) 2019 Wellcome Trust Centre for Neuroimaging
@@ -47,6 +48,8 @@ switch id
         [varargout{1:nargout}] = SaveImages(varargin{:});    
     case 'SetData'
         [varargout{1:nargout}] = SetData(varargin{:});        
+    case 'WriteNormalised'
+        [varargout{1:nargout}] = WriteNormalised(varargin{:});            
     otherwise
         help spm_multireg_io
         error('Unknown function %s. Type ''help spm_multireg_io'' for help.', id)
@@ -383,6 +386,13 @@ if isa(fin,'nifti')
     end
     return
 end
+end
+%==========================================================================
+
+%==========================================================================
+% WriteNormalised()
+function WriteNormalised(dat,mu,sett)
+
 end
 %==========================================================================
 
