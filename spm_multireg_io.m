@@ -336,7 +336,8 @@ end
 
 if ~isempty(mu)
     % Save mu (log)
-    fa       = file_array(fullfile(dir_res ,'mu_log.nii'),size(mu),'float32',0);
+    f        = fullfile(dir_res ,'mu_log.nii');
+    fa       = file_array(f,size(mu),'float32',0);
     Nmu      = nifti;
     Nmu.dat  = fa;
     Nmu.mat  = Mmu;
@@ -346,8 +347,9 @@ if ~isempty(mu)
     Nmu.dat(:,:,:,:) = mu;
     
     % Save mu (softmax)    
-    mu       = spm_multireg_util('softmaxmu',mu,4);    
-    fa       = file_array(fullfile(dir_res ,'mu_softmax.nii'),size(mu),'float32',0);
+    mu       = spm_multireg_util('softmaxmu',mu,4);
+    f        = fullfile(dir_res ,'mu_softmax.nii');        
+    fa       = file_array(f,size(mu),'float32',0);
     Nmu      = nifti;
     Nmu.dat  = fa;
     Nmu.mat  = Mmu;

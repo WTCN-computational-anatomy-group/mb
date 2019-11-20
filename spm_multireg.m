@@ -139,6 +139,9 @@ if do_updt_aff
         prevt = t;
         Objective = [Objective; E];
 
+        % Save stuff
+        save(fullfile(dir_res,'results_Groupwise.mat'),'dat','mu','sett')
+        
         % Show stuff
         spm_multireg_show('ShowAll',dat,mu,Objective,N,sett);
     end
@@ -229,7 +232,7 @@ end
 % Final mean update
 [mu,dat] = spm_multireg_updt('UpdateMean',dat, mu, sett);
 
-% Save stuff
+% Save template
 dat = spm_multireg_io('SaveImages',dat,mu,sett);
 
 % Print total runtime
