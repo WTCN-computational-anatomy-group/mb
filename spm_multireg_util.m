@@ -19,6 +19,7 @@ function varargout = spm_multireg_util(varargin)
 % FORMAT [Mmu,d]   = spm_multireg_util('SpecifyMean',dat,vx)
 % FORMAT varargout = spm_multireg_util('SubSample',samp,Mat,d0,varargin)
 % FORMAT [dat,mu]  = spm_multireg_util('ZoomVolumes',dat,mu,sett,oMmu)
+% FORMAT             spm_multireg_util('WriteNii',f,img,Mmu,descrip);
 %
 %__________________________________________________________________________
 % Copyright (C) 2019 Wellcome Trust Centre for Neuroimaging
@@ -62,6 +63,8 @@ switch id
         [varargout{1:nargout}] = SubSample(varargin{:});               
     case 'ZoomVolumes'
         [varargout{1:nargout}] = ZoomVolumes(varargin{:});        
+    case 'WriteNii'
+        [varargout{1:nargout}] = WriteNii(varargin{:});            
     otherwise
         help spm_multireg_util
         error('Unknown function %s. Type ''help spm_multireg_util'' for help.', id)
@@ -558,6 +561,20 @@ else
         dat(n).v   = spm_multireg_io('SetData',dat(n).v,v);
     end
 end
+end
+%==========================================================================
+
+%==========================================================================
+% WriteNii()
+function WriteNii(f,img,M,descrip)
+fa       = file_array(f,size(img),'float32',0);
+Nii      = nifti;
+Nii.dat  = fa;
+Nii.mat  = M;
+Nii.mat0 = M;
+Nii.descrip = descrip;
+create(Nii);
+Nii.dat(:,:,:,:) = img;
 end
 %==========================================================================
 
