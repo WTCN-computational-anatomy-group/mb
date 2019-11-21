@@ -393,7 +393,7 @@ end
 scl = (1./mn_dc_int)';
 for n=1:numel(dat)
     for c=1:C
-        dat(n).bf.chan(c).T(1,1,1) = dat(n).bf.chan(c).T(1,1,1) - mn_dc_ln(c);
+        dat(n).bf.T{c}(1,1,1) = dat(n).bf.T{c}(1,1,1) - mn_dc_ln(c);
     end
 end
    
@@ -491,12 +491,7 @@ mu = log(spm_multireg_util('softmaxmu',mu,4));
 mu = reshape(mu,[prod(d(1:3)) size(mu,4)]);
 
 % Get bias field
-if samp > 1
-    T    = {datn.bf.chan(:).T};
-    chan = spm_multireg_io('GetBiasFieldStruct',C,df,Mat,reg,fwhm,[],T,samp); clear T
-else
-    chan = datn.bf.chan;    
-end
+chan       = spm_multireg_io('GetBiasFieldStruct',C,df,Mat,reg,fwhm,[],datn.bf.T,samp);
 [bf,pr_bf] = spm_multireg_io('GetBiasField',chan,d);
 
 % Get image(s)
@@ -650,12 +645,7 @@ mu = log(spm_multireg_util('softmaxmu',mu,4));
 mu = reshape(mu,[prod(d(1:3)) size(mu,4)]);
     
 % Get bias field
-if samp > 1
-    T    = {datn.bf.chan(:).T};
-    chan = spm_multireg_io('GetBiasFieldStruct',C,df,Mat,reg,fwhm,[],T,samp); clear T
-else
-    chan = datn.bf.chan;    
-end
+chan       = spm_multireg_io('GetBiasFieldStruct',C,df,Mat,reg,fwhm,[],datn.bf.T,samp);
 kron       = @(a,b) spm_krutil(a,b);
 [bf,pr_bf] = spm_multireg_io('GetBiasField',chan,d);
 
@@ -824,14 +814,10 @@ for it=1:nit_bf
 end
 
 % Set output (update datn)
-if samp > 1
-    T    = {chan(:).T};
-    chan = spm_multireg_io('GetBiasFieldStruct',C,df,datn.Mat,reg,fwhm,[],T); clear T
-end
-datn.bf.chan = chan;
-datn.mog.lb  = spm_multireg_energ('SumLowerBound',datn.mog.lb);
-datn.E(1)    = -datn.mog.lb.sum(end);
-datn.E(3)    = -sum(pr_bf);
+datn.bf.T   = {chan(:).T};
+datn.mog.lb = spm_multireg_energ('SumLowerBound',datn.mog.lb);
+datn.E(1)   = -datn.mog.lb.sum(end);
+datn.E(3)   = -sum(pr_bf);
 
 if do_bf_norm
     [lSS0,lSS1,lSS2] = spm_gmm_lib('SuffStat', 'base', bf.*fn, zn, 1, {code,L});   

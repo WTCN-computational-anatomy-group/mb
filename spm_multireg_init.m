@@ -58,7 +58,8 @@ for n=1:numel(dat)
     end
     
     % Get bias field parameterisation struct
-    dat(n).bf.chan = spm_multireg_io('GetBiasFieldStruct',C,d,dat(n).Mat,reg,fwhm,scl);
+    chan        = spm_multireg_io('GetBiasFieldStruct',C,d,dat(n).Mat,reg,fwhm,scl);
+    dat(n).bf.T = {chan(:).T};
     
     % struct used for rescaling images using DC component of bias fields
     dc            = struct;
@@ -180,6 +181,8 @@ function dat = InitGMM(dat,K,sett)
 
 % Parse function settings
 do_gmm  = sett.do.gmm;
+fwhm    = sett.bf.fwhm;
+reg     = sett.bf.reg;
 updt_bf = sett.do.updt_bf;
 
 if ~do_gmm, return; end
@@ -194,14 +197,15 @@ mn    = zeros(C,numel(dat));
 vr    = zeros(C,numel(dat));
 for n=1:numel(dat)            
     % GMM        
-    [d,C] = spm_multireg_io('GetSize',dat(n).f);
-    fn    = spm_multireg_io('GetData',dat(n).f);                    
-    fn    = reshape(fn,[prod(d(1:3)) C]);                      
-    fn    = spm_multireg_util('MaskF',fn);
+    [df,C] = spm_multireg_io('GetSize',dat(n).f);
+    fn     = spm_multireg_io('GetData',dat(n).f);                    
+    fn     = reshape(fn,[prod(df(1:3)) C]);                      
+    fn     = spm_multireg_util('MaskF',fn);
     
     % Modulate with bias field
     if updt_bf
-        bf = spm_multireg_io('GetBiasField',dat(n).bf.chan,d);        
+        chan = spm_multireg_io('GetBiasFieldStruct',C,df,dat(n).Mat,reg,fwhm,[],dat(n).bf.T);
+        bf   = spm_multireg_io('GetBiasField',chan,df);        
     else
         bf = ones(1,C);
     end

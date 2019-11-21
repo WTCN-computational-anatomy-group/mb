@@ -408,19 +408,24 @@ function [zn,datn,code] = GetClassesFromGMM(datn,mu,sett,get_k1)
 if nargin < 4, get_k1 = false; end
 
 % Parse function settings
+fwhm         = sett.bf.fwhm;
 nit_gmm      = sett.nit.gmm;
 nit_gmm_miss = sett.nit.gmm_miss;
+reg          = sett.bf.reg;
 samp         = sett.gen.samp_gmm;
 updt_bf      = sett.do.updt_bf;
 
 fn     = GetData(datn.f);
-[d0,C] = GetSize(datn.f);
-fn     = reshape(fn,[prod(d0(1:3)) C]);
+[df,C] = GetSize(datn.f);
+fn     = reshape(fn,[prod(df(1:3)) C]);
 Mat    = datn.Mat;
 W      = 1;
 
-if updt_bf, bf = spm_multireg_io('GetBiasField',datn.bf.chan,d0);
-else,       bf = ones(1,C);
+if updt_bf 
+    chan = spm_multireg_io('GetBiasFieldStruct',C,df,Mat,reg,fwhm,[],datn.bf.T);
+    bf   = spm_multireg_io('GetBiasField',chan,df);
+else 
+    bf = ones(1,C);
 end
 
 % Missing data stuff
@@ -451,14 +456,14 @@ K  = K1 - 1;
 if size(mu,4) < K1
     mu = log(spm_multireg_util('softmaxmu',mu,4));
 end
-mu = reshape(mu,[prod(d0(1:3)) K1]);
+mu = reshape(mu,[prod(df(1:3)) K1]);
 
 if nargout > 1    
     % Update GMM and get responsibilities
                
     if samp > 1
         % Subsample (runs faster, lower bound is corrected by scalar W)              
-        [code0,code,fn0,fn,mu0,mu,W] = spm_multireg_util('SubSample',samp,Mat,d0,code,fn,mu);
+        [code0,code,fn0,fn,mu0,mu,W] = spm_multireg_util('SubSample',samp,Mat,df,code,fn,mu);
     end        
     
     [zn,mog,~,lb] = spm_gmm_loop({fn,W},{{m,b},{V,n}},{'LogProp', mu}, ...
@@ -494,7 +499,7 @@ end
 
 if ~get_k1
     % Get 4D versions of K1 - 1 classes
-    zn = reshape(zn(:,1:K),[d0(1:3) K]);
+    zn = reshape(zn(:,1:K),[df(1:3) K]);
 end
 end
 %==========================================================================

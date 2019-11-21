@@ -61,24 +61,27 @@ function ShowBiasField(dat,sett)
 axis_3d  = sett.show.axis_3d;
 c        = sett.show.channel;
 fig_name = sett.show.figname_bf;
+fwhm     = sett.bf.fwhm;
 mx_subj  = sett.show.mx_subjects;
+reg      = sett.bf.reg;
 updt_bf  = sett.do.updt_bf;
 
 if ~updt_bf, return; end
 
-[d,C] = spm_multireg_io('GetSize',dat(1).f);
+[df,C] = spm_multireg_io('GetSize',dat(1).f);
 nr = 3;
-if d(3) == 1, ax = 3;
+if df(3) == 1, ax = 3;
 else,         ax = axis_3d;   
 end
     
 nd = min(numel(dat),mx_subj);
 for n=1:nd
-    d  = spm_multireg_io('GetSize',dat(n).f);
-    fn = spm_multireg_io('GetData',dat(n).f);   
-    bf = spm_multireg_io('GetBiasField',dat(n).bf.chan,d);
-    bf = reshape(bf,[d C]);
-    c  = min(c,C);
+    df   = spm_multireg_io('GetSize',dat(n).f);
+    fn   = spm_multireg_io('GetData',dat(n).f);   
+    chan = spm_multireg_io('GetBiasFieldStruct',C,df,dat(n).Mat,reg,fwhm,[],dat(n).bf.T);
+    bf   = spm_multireg_io('GetBiasField',chan,df);
+    bf   = reshape(bf,[df C]);
+    c    = min(c,C);
     
     % Show stuff
     ShowIm(fn(:,:,:,c),ax,nr,nd,n,fig_name,false);
@@ -125,8 +128,10 @@ function ShowParameters(dat,mu0,sett)
 B        = sett.registr.B;
 c        = sett.show.channel;
 fig_name = sett.show.figname_parameters;
+fwhm     = sett.bf.fwhm;
 Mmu      = sett.var.Mmu;
 mx_subj  = sett.show.mx_subjects;
+reg      = sett.bf.reg;
 updt_bf  = sett.do.updt_bf;
 
 fg = findobj('Type', 'Figure', 'Name', fig_name);
@@ -168,26 +173,27 @@ for n=1:nd
         
         % Here we get approximate class proportions from the (softmaxed K + 1)
         % tissue template
-        [d,C] = spm_multireg_io('GetSize',dat(n).f);
-        q     = double(dat(n).q);
-        Mn    = dat(n).Mat;
-        psi1  = spm_multireg_io('GetData',dat(n).psi);
-        psi   = spm_multireg_util('Compose',psi1,spm_multireg_util('Affine',d,Mmu\spm_dexpm(q,B)*Mn));
-        mu    = spm_multireg_util('Pull1',mu0,psi);        
-        mu    = spm_multireg_util('softmaxmu',mu,4);
-        mu    = reshape(mu,[prod(d(1:3)) size(mu,4)]);
-        mu    = sum(mu,1);
-        mu    = mu./sum(mu);
+        [df,C] = spm_multireg_io('GetSize',dat(n).f);
+        q      = double(dat(n).q);
+        Mn     = dat(n).Mat;
+        psi1   = spm_multireg_io('GetData',dat(n).psi);
+        psi    = spm_multireg_util('Compose',psi1,spm_multireg_util('Affine',df,Mmu\spm_dexpm(q,B)*Mn));
+        mu     = spm_multireg_util('Pull1',mu0,psi);        
+        mu     = spm_multireg_util('softmaxmu',mu,4);
+        mu     = reshape(mu,[prod(df(1:3)) size(mu,4)]);
+        mu     = sum(mu,1);
+        mu     = mu./sum(mu);
         
         % Plot GMM fit        
         fn = spm_multireg_io('GetData',dat(n).f);        
         c  = min(c,size(fn,4));
         fn = fn(:,:,:,c);
         if updt_bf
-            bf = spm_multireg_io('GetBiasField',dat(n).bf.chan,d);
-            bf = reshape(bf,[d C]);
-            bf = bf(:,:,:,c);
-            fn = bf.*fn;
+            chan = spm_multireg_io('GetBiasFieldStruct',C,df,dat(n).Mat,reg,fwhm,[],dat(n).bf.T);
+            bf   = spm_multireg_io('GetBiasField',chan,df);
+            bf   = reshape(bf,[df C]);
+            bf   = bf(:,:,:,c);
+            fn   = bf.*fn;
         end
         ShowGMMFit(fn,mu,dat(n).mog,nr,nd,n + 2*nd,c);
     end
@@ -205,8 +211,10 @@ axis_3d  = sett.show.axis_3d;
 B        = sett.registr.B;
 c        = sett.show.channel;
 fig_name = sett.show.figname_subjects;
+fwhm     = sett.bf.fwhm;
 Mmu      = sett.var.Mmu;
 mx_subj  = sett.show.mx_subjects;
+reg      = sett.bf.reg;
 updt_bf  = sett.do.updt_bf;
 
 if isfield(dat,'mog'), nr = 3;
@@ -218,12 +226,12 @@ end
     
 nd = min(numel(dat),mx_subj);
 for n=1:nd
-    [d,C] = spm_multireg_io('GetSize',dat(n).f);
-    q     = double(dat(n).q);
-    Mn    = dat(n).Mat;
-    psi1  = spm_multireg_io('GetData',dat(n).psi);
-    psi   = spm_multireg_util('Compose',psi1,spm_multireg_util('Affine',d,Mmu\spm_dexpm(q,B)*Mn));
-    mu    = spm_multireg_util('Pull1',mu0,psi);            
+    [df,C] = spm_multireg_io('GetSize',dat(n).f);
+    q      = double(dat(n).q);
+    Mn     = dat(n).Mat;
+    psi1   = spm_multireg_io('GetData',dat(n).psi);
+    psi    = spm_multireg_util('Compose',psi1,spm_multireg_util('Affine',df,Mmu\spm_dexpm(q,B)*Mn));
+    mu     = spm_multireg_util('Pull1',mu0,psi);            
     
     fn = spm_multireg_io('GetClasses',dat(n),mu,sett);   
     fn = cat(4,fn,1 - sum(fn,4)); % Gives K + 1 classes
@@ -239,10 +247,11 @@ for n=1:nd
         c  = min(c,C);
         fn = fn(:,:,:,c);
         if updt_bf
-            bf = spm_multireg_io('GetBiasField',dat(n).bf.chan,d);
-            bf = reshape(bf,[d C]);
-            bf = bf(:,:,:,c);
-            fn = bf.*fn;
+            chan = spm_multireg_io('GetBiasFieldStruct',C,df,dat(n).Mat,reg,fwhm,[],dat(n).bf.T);
+            bf   = spm_multireg_io('GetBiasField',chan,df);
+            bf   = reshape(bf,[df C]);
+            bf   = bf(:,:,:,c);
+            fn   = bf.*fn;
         end
         ShowIm(fn,ax,nr,nd,n + 2*nd,fig_name);
     end
