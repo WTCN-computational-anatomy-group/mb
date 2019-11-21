@@ -5,6 +5,7 @@ function varargout = spm_multireg(varargin)
 %
 % FORMAT [dat,mu,sett] = spm_multireg('Groupwise',F,sett)
 % FORMAT [dat,mu,sett] = spm_multireg('Register',F,mu,sett)
+% FORMAT                 spm_multireg('WriteNormalised',dat,mu,sett)
 %__________________________________________________________________________
 % Copyright (C) 2019 Wellcome Trust Centre for Neuroimaging
 
@@ -26,6 +27,8 @@ switch id
         [varargout{1:nargout}] = Groupwise(varargin{:});   
     case 'Register'
         [varargout{1:nargout}] = Register(varargin{:});           
+    case 'WriteNormalised'
+        [varargout{1:nargout}] = WriteNormalised(varargin{:});        
     otherwise
         help spm_multireg
         error('Unknown function %s. Type ''help spm_multireg'' for help.', id)
@@ -412,5 +415,127 @@ end
 % Print total runtime
 spm_multireg_show('Speak','Finished',toc(t0));
 
+end
+%==========================================================================
+
+%==========================================================================
+% WriteNormalised()
+function WriteNormalised(dat,mu0,sett)
+
+% Parse function settings
+B        = sett.registr.B;
+dmu      = sett.var.d;
+dir_res  = sett.write.dir_res;
+do_infer = sett.do.infer;
+fwhm     = sett.bf.fwhm;
+Mmu      = sett.var.Mmu;
+reg      = sett.bf.reg;
+
+for n=1:numel(dat)
+    
+    % Get parameters
+    [df,C] = spm_multireg_io('GetSize',dat(n).f);
+    q      = double(dat(n).q);
+    Mr     = spm_dexpm(q,B);
+    Mn     = dat(n).Mat;        
+    if isa(dat(n).f(1),'nifti')
+        [~,namn] = fileparts(dat(n).f(1).dat.fname);                
+    else
+        namn     = ['n' num2str(n)];
+    end
+           
+    if isfield(dat(n),'mog')   
+        % Get subject-space template (softmaxed K + 1)
+        psi1 = spm_multireg_io('GetData',dat(n).psi);
+        psi0 = spm_multireg_util('Affine',df,Mmu\Mr*Mn);
+        psi  = spm_multireg_util('Compose',psi1,psi0);
+        clear psi0 psi1
+        
+        mu = spm_multireg_util('Pull1',mu0,psi);
+        clear psi
+        
+        mu = log(spm_multireg_util('softmaxmu',mu,4));
+        mu = reshape(mu,[prod(df(1:3)) size(mu,4)]);
+
+        % Get bias field
+        chan = spm_multireg_io('GetBiasFieldStruct',C,df,Mn,reg,fwhm,[],dat(n).bf.T);
+        bf   = spm_multireg_io('GetBiasField',chan,df);
+        
+        % Get image(s)
+        fn   = spm_multireg_io('GetData',dat(n).f);
+        fn   = reshape(fn,[prod(df(1:3)) C]);
+        fn   = spm_multireg_util('MaskF',fn);
+        code = spm_gmm_lib('obs2code', fn);
+        
+        % Get responsibilities
+        zn = spm_multireg_io('ComputeResponsibilities',dat(n),bf.*fn,mu,code); clear mu
+        K1 = size(zn,2);
+                
+        % Get bias field modulated image data
+        fn = bf.*fn; clear bf
+        if do_infer
+            % Inger missing values
+            sample_post = do_infer > 1;
+            MU = dat(n).mog.po.m;    
+            A  = bsxfun(@times, dat(n).mog.po.V, reshape(dat(n).mog.po.n, [1 1 K1]));            
+            fn = spm_gmm_lib('InferMissing',fn,zn,{MU,A},{code,unique(code)},sample_post);        
+        end
+        clear code
+        
+         % Make 3D        
+        zn = reshape(zn,[df(1:3) K1]);
+        fn = reshape(fn,[df(1:3) C]);
+        
+        % Write segmentations
+        descrip = 'Tissue (';
+        for k=1:K1           
+            nam  = ['c' num2str(k) namn '.nii'];
+            fpth = fullfile(dir_res,nam);            
+            spm_multireg_util('WriteNii',fpth,zn(:,:,:,k),Mn,[descrip 'k=' num2str(k) ')']);
+        end  
+    end
+    
+    % Get inverse deformation
+    psi = spm_multireg_io('GetData',dat(n).psi);    
+    psi = spm_diffeo('invdef',psi,dmu(1:3),eye(4),eye(4));    
+%     psi = spm_extrapolate_def(psi,Mmu);
+    M   = inv(Mmu\Mr*Mn);
+    psi = reshape(reshape(psi,[prod(dmu) 3])*M(1:3,1:3)' + M(1:3,4)',[dmu 3]);        
+    
+    % Trilinear resampling in template space    
+    if isfield(dat(n),'mog')    
+        % Input data are intensity images        
+        descrip = 'Normalised image (';
+        for c=1:C
+            nam = ['ic' num2str(c) namn '.nii'];
+            fpth   = fullfile(dir_res,nam);            
+            img = single(spm_diffeo('bsplins',fn(:,:,:,c),psi,[1 1 1 0 0 0]));
+            spm_multireg_util('WriteNii',fpth,img,Mmu,[descrip 'k=' num2str(c) ')']);            
+        end
+        
+        descrip = 'Normalised tissue (';
+        for k=1:K1           
+            nam = ['wc' num2str(k) namn '.nii'];
+            fpth   = fullfile(dir_res,nam);            
+            img = single(spm_diffeo('bsplins',zn(:,:,:,k),psi,[1 1 1 0 0 0]));
+            spm_multireg_util('WriteNii',fpth,img,Mmu,[descrip 'k=' num2str(k) ')']);            
+        end        
+    else       
+        % Input data are segmentations
+        descrip = 'Normalised tissue (';
+        fn      = spm_multireg_io('GetData',dat(n).f);
+        for k=1:C            
+            nam = ['wc' num2str(k) namn '.nii'];
+            fpth   = fullfile(dir_res,nam);            
+            img = single(spm_diffeo('bsplins',fn(:,:,:,k),psi,[1 1 1 0 0 0]));
+            spm_multireg_util('WriteNii',fpth,img,Mmu,[descrip 'k=' num2str(k) ')']);            
+        end        
+        nam = ['wc' num2str(k + 1) namn '.nii'];
+        fpth   = fullfile(dir_res,nam);
+        img = 1 - sum(img,4);
+        img = single(spm_diffeo('bsplins',img,psi,[1 1 1 0 0 0]));
+        spm_multireg_util('WriteNii',fpth,img,Mmu,[descrip 'k=' num2str(k) ')']);
+    end        
+end
 end
 %==========================================================================

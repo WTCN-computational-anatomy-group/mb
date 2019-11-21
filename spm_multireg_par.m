@@ -125,6 +125,9 @@ end
 if ~isfield(sett.do,'gmm')
     sett.do.gmm = true;
 end
+if ~isfield(sett.do,'infer')    
+    sett.do.infer = 1; % 0, 1, 2
+end
 if ~isfield(sett.do,'updt_aff')
     sett.do.updt_aff = true;
 end
