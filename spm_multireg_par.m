@@ -192,10 +192,10 @@ if ~isfield(sett,'nit')
     sett.nit = struct;
 end
 if ~isfield(sett.nit,'bf')   
-    sett.nit.bf = 1;
+    sett.nit.bf = 3;
 end
 if ~isfield(sett.nit,'gmm')   
-    sett.nit.gmm = 32;
+    sett.nit.gmm = 10;
 end
 if ~isfield(sett.nit,'init')
     % The number of iterations, at largest zoom level.
