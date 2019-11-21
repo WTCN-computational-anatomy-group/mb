@@ -11,10 +11,9 @@ function varargout = spm_multireg_io(varargin)
 % FORMAT out           = spm_multireg_io('GetData',in)
 % FORMAT Mat           = spm_multireg_io('GetMat',fin)
 % FORMAT [d,M]         = spm_multireg_io('GetSize',fin)
-% FORMAT psi           = spm_multireg_io('ResavePsiSub',datn,sett)
-% FORMAT dat           = spm_multireg_io('SaveImages',dat,mu,sett)
+% FORMAT psi           = spm_multireg_io('SavePsiSub',datn,sett) 
+% FORMAT dat           = spm_multireg_io('SaveTemplate',dat,mu,sett)
 % FORMAT fout          = spm_multireg_io('SetData',fin,f) 
-% FORMAT                 spm_multireg_io('WriteNormalised',dat,mu,sett)
 %
 %__________________________________________________________________________
 % Copyright (C) 2019 Wellcome Trust Centre for Neuroimaging
@@ -42,14 +41,12 @@ switch id
         [varargout{1:nargout}] = GetMat(varargin{:});             
     case 'GetSize'
         [varargout{1:nargout}] = GetSize(varargin{:});    
-    case 'ResavePsiSub'
-        [varargout{1:nargout}] = ResavePsiSub(varargin{:});    
-    case 'SaveImages'
-        [varargout{1:nargout}] = SaveImages(varargin{:});    
+    case 'ResavePsiSub' 
+        [varargout{1:nargout}] = SavePsiSub(varargin{:});           
+    case 'SaveTemplate'
+        [varargout{1:nargout}] = SaveTemplate(varargin{:});    
     case 'SetData'
-        [varargout{1:nargout}] = SetData(varargin{:});        
-    case 'WriteNormalised'
-        [varargout{1:nargout}] = WriteNormalised(varargin{:});            
+        [varargout{1:nargout}] = SetData(varargin{:});                
     otherwise
         help spm_multireg_io
         error('Unknown function %s. Type ''help spm_multireg_io'' for help.', id)
@@ -296,8 +293,8 @@ end
 %==========================================================================
 
 %==========================================================================
-% ResavePsiSub()
-function psi = ResavePsiSub(datn,sett)
+% SavePsiSub()
+function psi = SavePsiSub(datn,sett)
 
 % Parse function settings
 B       = sett.registr.B;
@@ -326,16 +323,12 @@ end
 %==========================================================================
 
 %==========================================================================
-% SaveImages()
-function dat = SaveImages(dat,mu,sett)
+% SaveTemplate()
+function dat = SaveTemplate(dat,mu,sett)
 
 % Parse function settings
 dir_res = sett.write.dir_res;
 Mmu     = sett.var.Mmu;
-
-for n=1:numel(dat)
-    dat(n).psi = ResavePsiSub(dat(n),sett);
-end
 
 if ~isempty(mu)
     % Save mu (log)
@@ -386,13 +379,6 @@ if isa(fin,'nifti')
     end
     return
 end
-end
-%==========================================================================
-
-%==========================================================================
-% WriteNormalised()
-function WriteNormalised(dat,mu,sett)
-
 end
 %==========================================================================
 
@@ -538,6 +524,7 @@ end
 %==========================================================================
 
 %==========================================================================
+% transf()
 function t = transf(B1,B2,B3,T)
 if ~isempty(T)
     d2 = [size(T) 1];

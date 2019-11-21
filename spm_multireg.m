@@ -3,8 +3,8 @@ function varargout = spm_multireg(varargin)
 %
 % Subject- or population-level image segmentation + normalisation.
 %
-% FORMAT [dat,mu] = spm_multireg('Groupwise',F,sett)
-% FORMAT dat      = spm_multireg('Register',F,mu,sett)
+% FORMAT [dat,mu,sett] = spm_multireg('Groupwise',F,sett)
+% FORMAT [dat,mu,sett] = spm_multireg('Register',F,mu,sett)
 %__________________________________________________________________________
 % Copyright (C) 2019 Wellcome Trust Centre for Neuroimaging
 
@@ -34,7 +34,8 @@ end
 %==========================================================================
 
 %==========================================================================
-function [dat,mu] = Groupwise(F,sett)
+% Groupwise()
+function [dat,mu,sett] = Groupwise(F,sett)
 if nargin < 2, sett = struct; end
 
 t0 = tic;
@@ -113,8 +114,6 @@ if do_updt_aff
             % Update template, bias field and intensity model
             Eold     = E; tic;
             [mu,dat] = spm_multireg_updt('UpdateMean',dat, mu, sett);
-            dat      = spm_multireg_updt('UpdateBiasField',dat,mu,sett);
-            dat      = spm_multireg_updt('UpdateIntensity',dat, sett);
             te       = spm_multireg_energ('TemplateEnergy',mu,sett);
             E        = sum(sum(cat(2,dat.E),2),1) + te;
             t        = toc;
@@ -233,10 +232,7 @@ end
 [mu,dat] = spm_multireg_updt('UpdateMean',dat, mu, sett);
 
 % Save template
-dat = spm_multireg_io('SaveImages',dat,mu,sett);
-
-% Write results in normalised space
-spm_multireg_io('WriteNormalised',dat,mu,sett);
+dat = spm_multireg_io('SaveTemplate',dat,mu,sett);
 
 % Print total runtime
 spm_multireg_show('Speak','Finished',toc(t0));
@@ -245,7 +241,8 @@ end
 %==========================================================================
 
 %==========================================================================
-function dat = Register(F,mu,sett)
+% Register()
+function [dat,mu,sett] = Register(F,mu,sett)
 if nargin < 3, sett = struct; end
 
 t0 = tic;
@@ -256,6 +253,7 @@ t0 = tic;
 
 sett                 = spm_multireg_par('Settings',sett);
 sett.model.groupwise = false;
+sett.gen.threads     = 0;
 
 %------------------
 % Get template
