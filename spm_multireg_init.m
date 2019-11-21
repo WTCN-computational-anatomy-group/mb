@@ -94,15 +94,18 @@ for n=1:numel(F)
         % Input F is nifti (path or object) -> store as nifti
                        
         if isa(F(n),'nifti')
-            dat(n).f = F(n);        
+            Nii      = F(n);
+            dat(n).f = Nii;        
         elseif iscell(F(n)) 
             if isa(F{n},'char')
-                dat(n).f = nifti(F{n});        
-            elseif isa(F{n},'nifti')
+                Nii      = nifti(F{n});
+                dat(n).f = Nii;        
+            elseif isa(F{n},'nifti')                
+                Nii      = F{n};
+                C        = numel(Nii);
                 dat(n).f = nifti;
-                C        = numel(F{n});
                 for c=1:C
-                    dat(n).f(c) = F{n}(c);
+                    dat(n).f(c) = Nii(c);
                 end
             end
         end
@@ -122,10 +125,16 @@ for n=1:numel(F)
     dat(n).E   = [0 0 0]; % Px Pv Pbf
     dat(n).bf  = [];
                      
-    % Orientation matrix (image voxel-to-world)
+    % Orientation matrix (image voxel-to-world)    
     dat(n).Mat = eye(4); % Should really do this better           
-    if isa(dat(n).f,'nifti') && ~run2d
-        dat(n).Mat = dat(n).f(1).mat;        
+    if isa(F(n),'nifti') || (iscell(F(n)) && (isa(F{n},'char') || isa(F{n},'nifti')))
+        Mat = Nii(1).mat;
+        vx  = sqrt(sum(Mat(1:3,1:3).^2));    
+        if run2d
+            dat(n).Mat = diag([vx 1]);
+        else
+            dat(n).Mat = Nii(1).mat;        
+        end
     end
 end
 end
