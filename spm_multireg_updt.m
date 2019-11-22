@@ -3,15 +3,15 @@ function varargout = spm_multireg_updt(varargin)
 %
 % Update functions for spm_multireg.
 %
-% FORMAT dat      = spm_multireg_updt('UpdateAffines',dat,mu,sett)
-% FORMAT dat      = spm_multireg_updt('UpdateBiasField',dat,mu,sett)
-% FORMAT dat      = spm_multireg_updt('UpdateGMM',dat,mu,sett)
-% FORMAT dat      = spm_multireg_updt('UpdateIntensity',dat, sett)
-% FORMAT [mu,dat] = spm_multireg_updt('UpdateMean',dat, mu, sett)
-% FORMAT dat      = spm_multireg_updt('UpdateSimpleAffines',dat,mu,sett)
-% FORMAT [mu,dat] = spm_multireg_updt('UpdateSimpleMean',dat, mu, sett)
-% FORMAT dat      = spm_multireg_updt('UpdateVelocities',dat,mu,sett)
-% FORMAT dat      = spm_multireg_updt('UpdateWarps',dat,sett)
+% FORMAT dat            = spm_multireg_updt('UpdateAffines',dat,mu,sett)
+% FORMAT dat            = spm_multireg_updt('UpdateBiasField',dat,mu,sett)
+% FORMAT [zn,datn,code] = spm_multireg_updt('UpdateGMM',datn,mu,sett,get_k1)
+% FORMAT dat            = spm_multireg_updt('UpdateIntensity',dat, sett)
+% FORMAT [mu,dat]       = spm_multireg_updt('UpdateMean',dat, mu, sett)
+% FORMAT dat            = spm_multireg_updt('UpdateSimpleAffines',dat,mu,sett)
+% FORMAT [mu,dat]       = spm_multireg_updt('UpdateSimpleMean',dat, mu, sett)
+% FORMAT dat            = spm_multireg_updt('UpdateVelocities',dat,mu,sett)
+% FORMAT dat            = spm_multireg_updt('UpdateWarps',dat,sett)
 %
 %__________________________________________________________________________
 % Copyright (C) 2019 Wellcome Trust Centre for Neuroimaging
@@ -117,21 +117,103 @@ end
 
 %==========================================================================
 % UpdateGMM()
-function dat = UpdateGMM(dat,mu,sett)
+function [zn,datn,code] = UpdateGMM(datn,mu,sett,get_k1)
+if nargin < 4, get_k1 = false; end
 
 % Parse function settings
-threads = sett.gen.threads;
+fwhm         = sett.bf.fwhm;
+nit_gmm      = sett.nit.gmm;
+nit_gmm_miss = sett.nit.gmm_miss;
+reg          = sett.bf.reg;
+samp         = sett.gen.samp;
+updt_bf      = sett.do.updt_bf;
 
-if threads>1 && numel(dat)>1    
-    parfor(n=1:numel(dat),threads) % PARFOR
-        spm_multireg_util('SetBoundCond');
-        dat(n) = UpdateGMMSub(dat(n),mu,sett);
-    end
+fn     = spm_multireg_io('GetData',datn.f);
+[df,C] = spm_multireg_io('GetSize',datn.f);
+fn     = reshape(fn,[prod(df(1:3)) C]);
+Mat    = datn.Mat;
+W      = 1;
+
+if updt_bf 
+    chan = spm_multireg_io('GetBiasFieldStruct',C,df,Mat,reg,fwhm,[],datn.bf.T);
+    bf   = spm_multireg_io('GetBiasField',chan,df);
+else 
+    bf = ones(1,C);
+end
+
+% Missing data stuff
+fn      = spm_multireg_util('MaskF',fn);
+code    = spm_gmm_lib('obs2code', fn);
+fn      = bf.*fn;
+L       = unique(code);
+do_miss = numel(L) > 1;
+
+% GMM posterior
+m  = datn.mog.po.m;
+b  = datn.mog.po.b;
+V  = datn.mog.po.V;
+n  = datn.mog.po.n;
+
+% GMM prior
+m0 = datn.mog.pr.m;
+b0 = datn.mog.pr.b;
+V0 = datn.mog.pr.V;
+n0 = datn.mog.pr.n;
+
+% Lower bound
+lb = datn.mog.lb;
+
+% Make softmaxed K + 1 template
+K1 = numel(b);
+K  = K1 - 1;
+if size(mu,4) < K1
+    mu = log(spm_multireg_util('softmaxmu',mu,4));
+end
+mu = reshape(mu,[prod(df(1:3)) K1]);
+
+if nargout > 1    
+    % Update GMM and get responsibilities
+               
+    if samp > 1
+        % Subsample (runs faster, lower bound is corrected by scalar W)              
+        [code0,code,fn0,fn,mu0,mu,W] = spm_multireg_util('SubSample',samp,Mat,df,code,fn,mu);
+    end        
+    
+    [zn,mog,~,lb] = spm_gmm_loop({fn,W},{{m,b},{V,n}},{'LogProp', mu}, ...
+                                 'GaussPrior',   {m0,b0,V0,n0}, ...
+                                 'Missing',      do_miss, ...
+                                 'LowerBound',   lb, ...
+                                 'MissingCode',  {code,L}, ...
+                                 'IterMax',      nit_gmm, ...
+                                 'Tolerance',    1e-4, ...
+                                 'SubIterMax',   nit_gmm_miss, ...
+                                 'SubTolerance', 1e-4, ...
+                                 'Verbose',      0);
+    mu = []; fn = [];
+
+    % Update datn
+    datn.mog.po.m = mog.MU; % GMM posteriors
+    datn.mog.po.b = mog.b;
+    datn.mog.po.V = mog.V;
+    datn.mog.po.n = mog.n;        
+    
+    if samp > 1
+        % Compute responsibilities on original data         
+        zn = spm_multireg_io('ComputeResponsibilities',datn,fn0,mu0,code0);
+    end    
+        
+    datn.mog.lb = lb; % Lower bound            
+    datn.E(1)   = -sum(lb.sum(end)); % objective function
 else
-    for n=1:numel(dat)
-        dat(n) = UpdateGMMSub(dat(n),mu,sett);
-    end
-end 
+    % Just compute responsibilities    
+    zn = spm_multireg_io('ComputeResponsibilities',datn,fn,mu,code);
+    
+end
+
+if ~get_k1
+    % Get 4D versions of K1 - 1 classes
+    zn = reshape(zn(:,1:K),[df(1:3) K]);
+end
 end
 %==========================================================================
 
@@ -855,31 +937,6 @@ if 0
     end
 end
 
-end
-%==========================================================================
-
-%==========================================================================
-% UpdateGMMSub()
-function datn = UpdateGMMSub(datn,mu,sett)
-
-% Parse function settings
-B   = sett.registr.B;
-Mmu = sett.var.Mmu;
-
-% Get subject-space template (softmaxed K + 1)
-d    = spm_multireg_io('GetSize',datn.f);
-q    = double(datn.q);
-Mn   = datn.Mat;
-Mr   = spm_dexpm(q,B);
-psi1 = spm_multireg_io('GetData',datn.psi);
-psi0 = spm_multireg_util('Affine',d,Mmu\Mr*Mn);
-psi  = spm_multireg_util('Compose',psi1,psi0);
-psi0 = []; psi1 = [];  
-mu   = spm_multireg_util('Pull1',mu,psi);
-psi  = [];
-
-% Update GMM parameters
-[~,datn] = spm_multireg_io('GetClasses',datn,mu,sett);
 end
 %==========================================================================
 

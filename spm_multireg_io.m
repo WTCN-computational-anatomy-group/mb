@@ -205,9 +205,9 @@ if ~isfield(datn,'mog')
     end
 else
     if nargout > 1
-        [P,datn,code] = GetClassesFromGMM(datn,mu,sett,get_k1);
+        [P,datn,code] = spm_multireg_updt('UpdateGMM',datn,mu,sett,get_k1);        
     else
-        P = GetClassesFromGMM(datn,mu,sett,get_k1);
+        P = spm_multireg_updt('UpdateGMM',datn,mu,sett,get_k1);
     end
 end
 
@@ -388,108 +388,6 @@ end
 %
 % Utility functions
 %
-%==========================================================================
-
-%==========================================================================
-% GetClassesFromGMM()
-function [zn,datn,code] = GetClassesFromGMM(datn,mu,sett,get_k1)
-if nargin < 4, get_k1 = false; end
-
-% Parse function settings
-fwhm         = sett.bf.fwhm;
-nit_gmm      = sett.nit.gmm;
-nit_gmm_miss = sett.nit.gmm_miss;
-reg          = sett.bf.reg;
-samp         = sett.gen.samp;
-updt_bf      = sett.do.updt_bf;
-
-fn     = GetData(datn.f);
-[df,C] = GetSize(datn.f);
-fn     = reshape(fn,[prod(df(1:3)) C]);
-Mat    = datn.Mat;
-W      = 1;
-
-if updt_bf 
-    chan = spm_multireg_io('GetBiasFieldStruct',C,df,Mat,reg,fwhm,[],datn.bf.T);
-    bf   = spm_multireg_io('GetBiasField',chan,df);
-else 
-    bf = ones(1,C);
-end
-
-% Missing data stuff
-fn      = spm_multireg_util('MaskF',fn);
-code    = spm_gmm_lib('obs2code', fn);
-fn      = bf.*fn;
-L       = unique(code);
-do_miss = numel(L) > 1;
-
-% GMM posterior
-m  = datn.mog.po.m;
-b  = datn.mog.po.b;
-V  = datn.mog.po.V;
-n  = datn.mog.po.n;
-
-% GMM prior
-m0 = datn.mog.pr.m;
-b0 = datn.mog.pr.b;
-V0 = datn.mog.pr.V;
-n0 = datn.mog.pr.n;
-
-% Lower bound
-lb = datn.mog.lb;
-
-% Make softmaxed K + 1 template
-K1 = numel(b);
-K  = K1 - 1;
-if size(mu,4) < K1
-    mu = log(spm_multireg_util('softmaxmu',mu,4));
-end
-mu = reshape(mu,[prod(df(1:3)) K1]);
-
-if nargout > 1    
-    % Update GMM and get responsibilities
-               
-    if samp > 1
-        % Subsample (runs faster, lower bound is corrected by scalar W)              
-        [code0,code,fn0,fn,mu0,mu,W] = spm_multireg_util('SubSample',samp,Mat,df,code,fn,mu);
-    end        
-    
-    [zn,mog,~,lb] = spm_gmm_loop({fn,W},{{m,b},{V,n}},{'LogProp', mu}, ...
-                                 'GaussPrior',   {m0,b0,V0,n0}, ...
-                                 'Missing',      do_miss, ...
-                                 'LowerBound',   lb, ...
-                                 'MissingCode',  {code,L}, ...
-                                 'IterMax',      nit_gmm, ...
-                                 'Tolerance',    1e-4, ...
-                                 'SubIterMax',   nit_gmm_miss, ...
-                                 'SubTolerance', 1e-4, ...
-                                 'Verbose',      0);
-    mu = []; fn = [];
-
-    % Update datn
-    datn.mog.po.m = mog.MU; % GMM posteriors
-    datn.mog.po.b = mog.b;
-    datn.mog.po.V = mog.V;
-    datn.mog.po.n = mog.n;        
-    
-    if samp > 1
-        % Compute responsibilities on original data         
-        zn = ComputeResponsibilities(datn,fn0,mu0,code0);
-    end    
-        
-    datn.mog.lb = lb; % Lower bound            
-    datn.E(1)   = -sum(lb.sum(end)); % objective function
-else
-    % Just compute responsibilities    
-    zn = ComputeResponsibilities(datn,fn,mu,code);
-    
-end
-
-if ~get_k1
-    % Get 4D versions of K1 - 1 classes
-    zn = reshape(zn(:,1:K),[df(1:3) K]);
-end
-end
 %==========================================================================
 
 %==========================================================================
