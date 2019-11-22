@@ -471,9 +471,9 @@ Mr     = spm_dexpm(q,B);
 psi1   = spm_multireg_io('GetData',datn.psi);
 psi0   = spm_multireg_util('Affine',df,Mmu\Mr*Mn);
 psi    = spm_multireg_util('Compose',psi1,psi0);
-clear psi0 psi1
+psi0 = []; psi1 = [];  
 mu     = spm_multireg_util('Pull1',mu,psi);
-clear psi
+psi = [];
 
 if samp > 1      
     [~,mu] = spm_multireg_util('SubSample',samp,Mat,0,mu);
@@ -502,7 +502,7 @@ fn = reshape(fn,[prod(d(1:3)) C]);
 fn   = spm_multireg_util('MaskF',fn);
 code = spm_gmm_lib('obs2code', fn);
 zn   = spm_multireg_io('ComputeResponsibilities',datn,bf.*fn,mu,code);
-clear mu
+mu   = [];
 
 % GMM posterior
 m  = datn.mog.po.m;
@@ -565,7 +565,7 @@ psi0 = spm_multireg_util('Affine',df,Mmu\Mr*Mn);
 J    = spm_diffeo('jacobian',psi1);
 J    = reshape(spm_multireg_util('Pull1',reshape(J,[d 3*3]),psi0),[df 3 3]);
 psi  = spm_multireg_util('Compose',psi1,psi0);
-clear psi0 psi1
+psi0 = []; psi1 = [];  
 
 mu1  = spm_multireg_util('Pull1',mu,psi);
 [f,datn] = spm_multireg_io('GetClasses',datn,mu1,sett);
@@ -581,9 +581,9 @@ for m=1:M
         tmp(~isfinite(tmp)) = 0;
         G(:,:,:,m,i1) = tmp;
     end
-    clear Gm;
+    Gm = [];
 end
-clear J mu
+J = []; mu = [];
 
 msk       = all(isfinite(f),4);
 a         = Mask(f - spm_multireg_util('softmax',mu1,4),msk);
@@ -620,9 +620,9 @@ Mr     = spm_dexpm(q,B);
 psi1   = spm_multireg_io('GetData',datn.psi);
 psi0   = spm_multireg_util('Affine',df,Mmu\Mr*Mn);
 psi    = spm_multireg_util('Compose',psi1,psi0);
-clear psi0 psi1
+psi0 = []; psi1 = [];  
 mu     = spm_multireg_util('Pull1',mu,psi);
-clear psi
+psi = [];
 
 % Get responsibilities
 [zn,datn,code] = spm_multireg_io('GetClasses',datn,mu,sett,true);
@@ -722,20 +722,19 @@ for it=1:nit_bf
                 selected_resp = zn(selected_voxels,k);
                 gk = bsxfun(@times, gk, selected_resp);
                 Hk = bsxfun(@times, Hk, selected_resp);
-                clear selected_resp
+                selected_resp = [];
 
                 % ---------------------------------------------------------
                 % Accumulate across clusters
                 gi = gi + gk;
                 Hi = Hi + Hk;
-                clear sk1x sk2x
             end
 
             % -------------------------------------------------------------
             % Multiply with bias corrected value (chain rule)
             gi = gi .* selected_obs(:,cc);
             Hi = Hi .* (selected_obs(:,cc).^2);
-            clear selected_obs
+            selected_obs = [];
 
             % -------------------------------------------------------------
             % Normalisation term
@@ -745,9 +744,9 @@ for it=1:nit_bf
             % Accumulate across missing codes
             gr_l(selected_voxels) = gr_l(selected_voxels) + gi;
             H_l(selected_voxels)  = H_l(selected_voxels) + Hi;
-            clear selected_voxels
+            selected_voxels = [];
         end
-        clear zn
+        zn = [];
         
         d3 = numel(chan(c).T); % Number of DCT parameters
         H  = zeros(d3,d3);     
@@ -757,12 +756,12 @@ for it=1:nit_bf
             gr = gr + kron(b3,spm_krutil(double(gr_l(:,:,z)),double(chan(c).B1),double(chan(c).B2),0));
             H  = H  + kron(b3*b3',spm_krutil(double(H_l(:,:,z)),double(chan(c).B1),double(chan(c).B2),1));
         end
-        clear b3                       
+        b3 = [];                    
 
         % -------------------------------------------------------------
         % Gauss-Newton update of bias field parameters
         Update = reshape((H + chan(c).C)\(gr + chan(c).C*chan(c).T(:)),size(chan(c).T));
-        clear H gr
+        H = []; gr = [];
 
         % Line-search
         %------------------------------------------------------------------    
@@ -806,7 +805,7 @@ for it=1:nit_bf
                 end
             end
         end
-        clear oT Update obf    
+        oT = []; Update = []; obf = [];        
     end
 end
 
@@ -874,9 +873,9 @@ Mr   = spm_dexpm(q,B);
 psi1 = spm_multireg_io('GetData',datn.psi);
 psi0 = spm_multireg_util('Affine',d,Mmu\Mr*Mn);
 psi  = spm_multireg_util('Compose',psi1,psi0);
-clear psi0 psi1
+psi0 = []; psi1 = [];  
 mu   = spm_multireg_util('Pull1',mu,psi);
-clear psi
+psi  = [];
 
 % Update GMM parameters
 [~,datn] = spm_multireg_io('GetClasses',datn,mu,sett);
@@ -938,7 +937,7 @@ mu1      = spm_multireg_util('Pull1',mu,psi);
 [f,datn] = spm_multireg_io('GetClasses',datn,mu1,sett);
 
 [a,w]     = spm_multireg_util('Push1',f - spm_multireg_util('softmax',mu1,4),psi,d);
-clear mu1 psi f
+mu1 = []; psi = []; f = [];
 
 [H,g]     = spm_multireg_der('SimpleAffineHessian',mu,G,H0,a,w);
 g         = double(dM'*g);
@@ -991,11 +990,11 @@ psi       = spm_multireg_util('Compose',spm_multireg_io('GetData',datn.psi), spm
 mu        = spm_multireg_util('Pull1',mu,psi);
 [f,datn]  = spm_multireg_io('GetClasses',datn,mu,sett);
 [a,w]     = spm_multireg_util('Push1',f - spm_multireg_util('softmax',mu,4),psi,d);
-clear psi f mu
+psi = []; f = []; mu = [];
 
 g         = reshape(sum(a.*G,4),[d 3]);
 H         = w.*H0;
-clear a w
+a = []; w = [];
 
 u0        = spm_diffeo('vel2mom', v, v_settings);                          % Initial momentum
 datn.E(2) = 0.5*sum(u0(:).*v(:));                                          % Prior term

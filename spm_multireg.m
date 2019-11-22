@@ -68,7 +68,8 @@ spm_multireg_show('Clear',sett);
 % Init dat
 %------------------
 
-dat = spm_multireg_init('InitDat',F,sett); clear F
+dat = spm_multireg_init('InitDat',F,sett); 
+F   = [];
 N   = numel(dat); % Number of subjects
 
 % Get number of template classes (if not using GMM)
@@ -290,7 +291,8 @@ sett.var = spm_multireg_io('CopyFields',sz(end), sett.var);
 % Init dat, deformation, bias field and GMM
 %------------------
 
-dat = spm_multireg_init('InitDat',F,sett); clear F
+dat = spm_multireg_init('InitDat',F,sett); 
+F   = [];
 dat = spm_multireg_init('InitDef',dat,sett);
 dat = spm_multireg_init('InitBiasField',dat,sett);
 dat = spm_multireg_init('InitGMM',dat,K,sett);

@@ -462,7 +462,7 @@ if nargout > 1
                                  'SubIterMax',   nit_gmm_miss, ...
                                  'SubTolerance', 1e-4, ...
                                  'Verbose',      0);
-    clear mu fn
+    mu = []; fn = [];
 
     % Update datn
     datn.mog.po.m = mog.MU; % GMM posteriors
