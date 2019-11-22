@@ -41,7 +41,7 @@ switch id
         [varargout{1:nargout}] = GetMat(varargin{:});             
     case 'GetSize'
         [varargout{1:nargout}] = GetSize(varargin{:});    
-    case 'ResavePsiSub' 
+    case 'SavePsiSub' 
         [varargout{1:nargout}] = SavePsiSub(varargin{:});           
     case 'SaveTemplate'
         [varargout{1:nargout}] = SaveTemplate(varargin{:});    
