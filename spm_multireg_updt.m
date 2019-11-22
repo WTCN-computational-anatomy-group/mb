@@ -111,9 +111,6 @@ end
 if do_bf_norm
     % Zero-mean the field DC component
     dat = ZeroMeanDC(dat,mu,sett);
-    
-    % Update GMM after mean correction    
-    dat = UpdateGMM(dat,mu,sett);
 end
 end
 %==========================================================================
