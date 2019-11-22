@@ -4,6 +4,7 @@ function varargout = spm_multireg_util(varargin)
 % Utility functions for spm_multireg.
 %
 % FORMAT psi0      = spm_multireg_util('Affine',d,Mat)
+% FORMAT G         = spm_multireg_util('CompGrads',im)
 % FORMAT psi       = spm_multireg_util('Compose',psi1,psi0)
 % FORMAT id        = spm_multireg_util('Identity',d)
 % FORMAT l         = spm_multireg_util('lse',mu,dr)
@@ -32,7 +33,9 @@ id = varargin{1};
 varargin = varargin(2:end);
 switch id
     case 'Affine'
-        [varargout{1:nargout}] = Affine(varargin{:});                 
+        [varargout{1:nargout}] = Affine(varargin{:});    
+    case 'CompGrads'
+        [varargout{1:nargout}] = CompGrads(varargin{:});            
     case 'Compose'
         [varargout{1:nargout}] = Compose(varargin{:});
     case 'Identity'
@@ -77,6 +80,33 @@ end
 function psi0 = Affine(d,Mat)
 id    = Identity(d);
 psi0  = reshape(reshape(id,[prod(d) 3])*Mat(1:3,1:3)' + Mat(1:3,4)',[d 3]);
+end
+%==========================================================================
+
+%==========================================================================
+% CompGrads()
+function G = CompGrads(im)
+% Compute gradients of an image
+% FORMAT G = CompGrads(a)
+%
+% im - The input image or images.
+% G  - A D x 3 cell array of gradients
+%
+%__________________________________________________________________________
+% Copyright (C) 2017 Wellcome Trust Centre for Neuroimaging
+
+% John Ashburner
+% $Id$
+
+d  = [size(im) 1 1];
+id = Identity(d);
+G  = cell(d(4),3);
+
+for l=1:d(4)
+    [~,G{l,1},~,~] = spm_diffeo('bsplins',im(:,:,:,l),id, [2 0 0 1 1 1]);
+    [~,~,G{l,2},~] = spm_diffeo('bsplins',im(:,:,:,l),id, [0 2 0 1 1 1]);
+    [~,~,~,G{l,3}] = spm_diffeo('bsplins',im(:,:,:,l),id, [0 0 2 1 1 1]);
+end
 end
 %==========================================================================
 
