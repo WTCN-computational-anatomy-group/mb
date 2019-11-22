@@ -3,6 +3,7 @@ function varargout = spm_multireg_show(varargin)
 %
 % Visualisation functions for spm_multireg.
 %
+% FORMAT spm_multireg_show('Clear',sett)
 % FORMAT spm_multireg_show('ShowAll',dat,mu,Objective,N,sett)
 % FORMAT spm_multireg_show('ShowBiasField',dat,sett)
 % FORMAT spm_multireg_show('ShowModel',mu,Objective,N,sett)
@@ -20,6 +21,8 @@ end
 id = varargin{1};
 varargin = varargin(2:end);
 switch id
+    case 'Clear'
+        [varargout{1:nargout}] = Clear(varargin{:});
     case 'ShowAll'
         [varargout{1:nargout}] = ShowAll(varargin{:});
     case 'ShowBiasField'
@@ -35,6 +38,18 @@ switch id
     otherwise
         help spm_multireg_show
         error('Unknown function %s. Type ''help spm_multireg_show'' for help.', id)
+end
+end
+%==========================================================================
+
+%==========================================================================
+% Clear()
+function Clear(sett)
+fn = {sett.show.figname_bf, sett.show.figname_int, sett.show.figname_model, ...
+      sett.show.figname_subjects, sett.show.figname_parameters};
+for i=1:numel(fn)
+    f  = findobj('Type', 'Figure', 'Name', fn{i});
+    if ~isempty(f), clf(f); drawnow; end    
 end
 end
 %==========================================================================

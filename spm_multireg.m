@@ -61,6 +61,9 @@ vx          = sett.model.vx;
 
 sett.model.groupwise = true;
 
+% Clear figures
+spm_multireg_show('Clear',sett);
+
 %------------------
 % Init dat
 %------------------
