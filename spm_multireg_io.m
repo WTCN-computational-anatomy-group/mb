@@ -11,7 +11,7 @@ function varargout = spm_multireg_io(varargin)
 % FORMAT out           = spm_multireg_io('GetData',in)
 % FORMAT Mat           = spm_multireg_io('GetMat',fin)
 % FORMAT [d,M]         = spm_multireg_io('GetSize',fin)
-% FORMAT psi           = spm_multireg_io('SavePsiSub',datn,sett) 
+% FORMAT [psi,fpth]    = spm_multireg_io('SavePsiSub',datn,sett) 
 % FORMAT dat           = spm_multireg_io('SaveTemplate',dat,mu,sett)
 % FORMAT fout          = spm_multireg_io('SetData',fin,f) 
 %
@@ -294,7 +294,7 @@ end
 
 %==========================================================================
 % SavePsiSub()
-function psi = SavePsiSub(datn,sett)
+function [psi,fpth] = SavePsiSub(datn,sett)
 
 % Parse function settings
 B       = sett.registr.B;
@@ -307,10 +307,12 @@ Mn   = datn.Mat;
 psi1 = GetData(datn.psi);
 psi  = spm_multireg_util('Compose',psi1,spm_multireg_util('Affine',d,Mmu\spm_dexpm(q,B)*Mn));
 psi  = reshape(reshape(psi,[prod(d) 3])*Mmu(1:3,1:3)' + Mmu(1:3,4)',[d 1 3]);
+fpth = '';
 if isa(datn.psi(1),'nifti')
     to_delete = datn.psi(1).dat.fname;
     [~,nam,~] = fileparts(datn.f(1).dat.fname);
-    datn.psi(1).dat.fname = fullfile(dir_res,['y_' nam '.nii']);
+    fpth = fullfile(dir_res,['y_' nam '.nii']);
+    datn.psi(1).dat.fname = fpth;
     datn.psi(1).dat.dim = [d 1 3];
     datn.psi(1).mat = datn.f(1).mat0; % For working with "imported" images;
    %datn.psi(1).mat = Mn;

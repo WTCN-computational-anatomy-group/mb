@@ -604,7 +604,14 @@ Nii.mat  = M;
 Nii.mat0 = M;
 Nii.descrip = descrip;
 create(Nii);
-Nii.dat(:,:,:,:) = img;
+d = size(img);
+if numel(d)     == 5
+    Nii.dat(:,:,:,:,:) = img;
+elseif numel(d) == 4
+    Nii.dat(:,:,:,:)   = img;
+elseif numel(d) == 3
+    Nii.dat(:,:,:)     = img;
+end
 end
 %==========================================================================
 

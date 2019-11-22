@@ -328,10 +328,22 @@ end
 if ~isfield(sett,'write')
     sett.write = struct;
 end
+if ~isfield(sett.write,'bf')
+    sett.write.bf = false; % field
+end
+if ~isfield(sett.write,'df')
+    sett.write.df = false(1,2); % forward, inverse
+end
 if ~isfield(sett.write,'dir_res')
     sett.write.dir_res = '.';
 end
-
+if ~isfield(sett.write,'im')
+    sett.write.im = false(1,4); % image, corrected, warped, warped corrected
+end
+if ~isfield(sett.write,'tc')
+    sett.write.tc = true(1,3); % native, warped, warped-mod
+end
+    
 % Make directories (if does not exist)
 if ~(exist(sett.write.dir_res,'dir') == 7)  
     mkdir(sett.write.dir_res);  

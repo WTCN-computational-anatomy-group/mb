@@ -5,7 +5,7 @@ function varargout = spm_multireg(varargin)
 %
 % FORMAT [dat,mu,sett] = spm_multireg('Groupwise',F,sett)
 % FORMAT [dat,mu,sett] = spm_multireg('Register',F,mu,sett)
-% FORMAT                 spm_multireg('WriteNormalised',dat,mu,sett)
+% FORMAT res             spm_multireg('WriteResults',dat,mu,sett)
 %__________________________________________________________________________
 % Copyright (C) 2019 Wellcome Trust Centre for Neuroimaging
 
@@ -27,8 +27,8 @@ switch id
         [varargout{1:nargout}] = Groupwise(varargin{:});   
     case 'Register'
         [varargout{1:nargout}] = Register(varargin{:});           
-    case 'WriteNormalised'
-        [varargout{1:nargout}] = WriteNormalised(varargin{:});        
+    case 'WriteResults'
+        [varargout{1:nargout}] = WriteResults(varargin{:});        
     otherwise
         help spm_multireg
         error('Unknown function %s. Type ''help spm_multireg'' for help.', id)
@@ -431,8 +431,8 @@ end
 %==========================================================================
 
 %==========================================================================
-% WriteNormalised()
-function WriteNormalised(dat,mu0,sett)
+% WriteResults()
+function res = WriteResults(dat,mu0,sett)
 
 % Parse function settings
 B        = sett.registr.B;
@@ -442,112 +442,245 @@ do_infer = sett.do.infer;
 fwhm     = sett.bf.fwhm;
 Mmu      = sett.var.Mmu;
 reg      = sett.bf.reg;
+write_bf = sett.write.bf; % field
+write_df = sett.write.df; % forward, inverse
+write_im = sett.write.im; % image, corrected, warped, warped corrected
+write_tc = sett.write.tc; % native, warped, warped-mod
 
-for n=1:numel(dat)
+% struct for saving paths of data written to disk
+N   = numel(dat);
+cl  = cell(N,1);
+res = struct('bf',cl,'im',cl,'imc',cl,'c',cl,'fy',cl,'iy',cl,'wim',cl,'wimc',cl,'wc',cl,'mwc',cl);
+
+for n=1:N % Loop over subjects
     
     % Get parameters
     [df,C] = spm_multireg_io('GetSize',dat(n).f);
-    q      = double(dat(n).q);
-    Mr     = spm_dexpm(q,B);
-    Mn     = dat(n).Mat;        
-    if isa(dat(n).f(1),'nifti')
-        [~,namn] = fileparts(dat(n).f(1).dat.fname);                
-    else
-        namn     = ['n' num2str(n)];
-    end
+    K      = size(mu0,4);
+    K1     = K + 1;
+    if isa(dat(n).f(1),'nifti'), [~,namn] = fileparts(dat(n).f(1).dat.fname);                
+    else,                           namn  = ['n' num2str(n)];
+    end            
+    Mr = spm_dexpm(double(dat(n).q),B);
+    Mn = dat(n).Mat;            
            
-    if isfield(dat(n),'mog')   
-        % Get subject-space template (softmaxed K + 1)
-        psi1 = spm_multireg_io('GetData',dat(n).psi);
-        psi0 = spm_multireg_util('Affine',df,Mmu\Mr*Mn);
-        psi  = spm_multireg_util('Compose',psi1,psi0);
-        clear psi0 psi1
-        
-        mu = spm_multireg_util('Pull1',mu0,psi);
-        clear psi
-        
-        mu = log(spm_multireg_util('softmaxmu',mu,4));
-        mu = reshape(mu,[prod(df(1:3)) size(mu,4)]);
+    % Integrate K1 and C into write settings
+    if size(write_bf,1) == 1 && C  > 1, write_bf = repmat(write_bf,[C  1]); end    
+    if size(write_im,1) == 1 && C  > 1, write_im = repmat(write_im,[C  1]); end   
+    if size(write_tc,1) == 1 && K1 > 1, write_tc = repmat(write_tc,[K1 1]); end
+    
+    if any(write_bf == true) || any(write_im == true) || any(write_tc == true)
+        if isfield(dat(n),'mog')   
+            % Input data were intensity images
+            %------------------
 
-        % Get bias field
-        chan = spm_multireg_io('GetBiasFieldStruct',C,df,Mn,reg,fwhm,[],dat(n).bf.T);
-        bf   = spm_multireg_io('GetBiasField',chan,df);
+            % Get subject-space template (softmaxed K + 1)
+            psi1 = spm_multireg_io('GetData',dat(n).psi);
+            psi0 = spm_multireg_util('Affine',df,Mmu\Mr*Mn);
+            psi  = spm_multireg_util('Compose',psi1,psi0);
+            psi0 = []; psi1 = [];        
+
+            mu  = spm_multireg_util('Pull1',mu0,psi);
+            psi = [];
+
+            mu = log(spm_multireg_util('softmaxmu',mu,4));
+            mu = reshape(mu,[prod(df(1:3)) size(mu,4)]);
+
+            % Get bias field
+            chan = spm_multireg_io('GetBiasFieldStruct',C,df,Mn,reg,fwhm,[],dat(n).bf.T);
+            bf   = spm_multireg_io('GetBiasField',chan,df);
+
+            % Get image(s)
+            fn   = spm_multireg_io('GetData',dat(n).f);
+            fn   = reshape(fn,[prod(df(1:3)) C]);
+            fn   = spm_multireg_util('MaskF',fn);
+            code = spm_gmm_lib('obs2code', fn);
+
+            % Get responsibilities
+            zn = spm_multireg_io('ComputeResponsibilities',dat(n),bf.*fn,mu,code); 
+            mu = [];     
+
+            % Get bias field modulated image data
+            fn = bf.*fn;
+            if do_infer
+                % Infer missing values
+                sample_post = do_infer > 1;
+                MU = dat(n).mog.po.m;    
+                A  = bsxfun(@times, dat(n).mog.po.V, reshape(dat(n).mog.po.n, [1 1 K1]));            
+                fn = spm_gmm_lib('InferMissing',fn,zn,{MU,A},{code,unique(code)},sample_post);        
+            end
+
+            % TODO: Possible post-processing (MRF + clean-up)
+
+
+            % Make 3D        
+            bf = reshape(bf,[df(1:3) C]);
+            fn = reshape(fn,[df(1:3) C]);
+            zn = reshape(zn,[df(1:3) K1]);
+
+            if any(write_bf == true)
+                % Write bias field
+                descrip = 'Bias field (';
+                pths    = {};
+                for c=1:C
+                    if ~write_bf(c,1), continue; end
+                    nam  = ['bf' num2str(c) '_' namn '.nii'];
+                    fpth = fullfile(dir_res,nam);            
+                    spm_multireg_util('WriteNii',fpth,bf(:,:,:,c),Mn,[descrip 'c=' num2str(c) ')']);                
+                    pths{end + 1} = fpth;
+                end
+                res(n).bf = pths;
+            end
+
+            if any(write_im(:,1) == true)
+                % Write image
+                descrip = 'Image (';
+                pths    = {};
+                for c=1:C
+                    if ~write_im(c,1), continue; end
+                    nam  = ['im' num2str(c) '_' namn '.nii'];
+                    fpth = fullfile(dir_res,nam);            
+                    spm_multireg_util('WriteNii',fpth,fn(:,:,:,c)./bf(:,:,:,c),Mn,[descrip 'c=' num2str(c) ')']);
+                    pths{end + 1} = fpth;
+                end
+                res(n).im = pths;
+
+                % Write image corrected
+                descrip = 'Image corrected (';
+                pths    = {};
+                for c=1:C
+                    if ~write_im(c,2), continue; end
+                    nam  = ['imc' num2str(c) '_' namn '.nii'];
+                    fpth = fullfile(dir_res,nam);            
+                    spm_multireg_util('WriteNii',fpth,fn(:,:,:,c),Mn,[descrip 'c=' num2str(c) ')']);
+                    pths{end + 1} = fpth;
+                end
+                res(n).imc = pths;
+            end
+
+            if any(write_tc(:,1) == true)
+                % Write segmentations
+                descrip = 'Tissue (';
+                pths    = {};
+                for k=1:K1 
+                    if ~write_tc(k,1), continue; end
+                    nam  = ['c' num2str(k) '_' namn '.nii'];
+                    fpth = fullfile(dir_res,nam);            
+                    spm_multireg_util('WriteNii',fpth,zn(:,:,:,k),Mn,[descrip 'k=' num2str(k) ')']);
+                    pths{end + 1} = fpth;
+                end  
+                res(n).c = pths;
+            end
+        else
+            % Input data were segmentations
+            %------------------
+            
+            zn = spm_multireg_io('GetData',dat(n).f);
+            zn = cat(4,zn,1 - sum(zn,4));
+        end    
+    end
+
+    if write_df(2) || any(write_tc(:,2) == true) ||  any(write_im(:,[3 4]) == true)
+        % Write inverse deformation and/or normalised images
+        %------------------
         
-        % Get image(s)
-        fn   = spm_multireg_io('GetData',dat(n).f);
-        fn   = reshape(fn,[prod(df(1:3)) C]);
-        fn   = spm_multireg_util('MaskF',fn);
-        code = spm_gmm_lib('obs2code', fn);
-        
-        % Get responsibilities
-        zn = spm_multireg_io('ComputeResponsibilities',dat(n),bf.*fn,mu,code); clear mu
-        K1 = size(zn,2);
-                
-        % Get bias field modulated image data
-        fn = bf.*fn; clear bf
-        if do_infer
-            % Inger missing values
-            sample_post = do_infer > 1;
-            MU = dat(n).mog.po.m;    
-            A  = bsxfun(@times, dat(n).mog.po.V, reshape(dat(n).mog.po.n, [1 1 K1]));            
-            fn = spm_gmm_lib('InferMissing',fn,zn,{MU,A},{code,unique(code)},sample_post);        
+        % Get inverse deformation (correct?)
+        psi = spm_multireg_io('GetData',dat(n).psi);    
+        psi = spm_diffeo('invdef',psi,dmu(1:3),eye(4),eye(4));    
+        %psi = spm_extrapolate_def(psi,Mmu);
+        M   = inv(Mmu\Mr*Mn);
+        psi = reshape(reshape(psi,[prod(dmu) 3])*M(1:3,1:3)' + M(1:3,4)',[dmu 3]);        
+
+        if write_df(2)
+            % Write inverse deformation
+            descrip = 'Inverse deformation';
+            nam     = ['iy_' namn '.nii'];
+            fpth    = fullfile(dir_res,nam);            
+            spm_multireg_util('WriteNii',fpth,psi,Mmu,descrip);
+            res(n).iy = fpth;
+        end       
+
+        if isfield(dat(n),'mog') && any(write_im(:,3) == true)
+            % Write normalised image
+            descrip = 'Normalised image (';
+            pths    = {};
+            for c=1:C
+                if ~write_im(c,3), continue; end
+                nam  = ['wim' num2str(c) '_' namn '.nii'];
+                fpth = fullfile(dir_res,nam);            
+                img  = single(spm_diffeo('bsplins',fn(:,:,:,c)./bf(:,:,:,c),psi,[1 1 1 0 0 0]));
+                spm_multireg_util('WriteNii',fpth,img,Mmu,[descrip 'c=' num2str(c) ')']);            
+                pths{end + 1} = fpth;
+            end
+            res(n).wim = pths;
         end
-        clear code
-        
-         % Make 3D        
-        zn = reshape(zn,[df(1:3) K1]);
-        fn = reshape(fn,[df(1:3) C]);
-        
-        % Write segmentations
-        descrip = 'Tissue (';
-        for k=1:K1           
-            nam  = ['c' num2str(k) namn '.nii'];
-            fpth = fullfile(dir_res,nam);            
-            spm_multireg_util('WriteNii',fpth,zn(:,:,:,k),Mn,[descrip 'k=' num2str(k) ')']);
+
+        if isfield(dat(n),'mog') && any(write_im(:,4) == true)
+            % Write normalised image corrected
+            descrip = 'Normalised image corrected (';
+            pths    = {};
+            for c=1:C
+                if ~write_im(c,4), continue; end
+                nam  = ['wimc' num2str(c) '_' namn '.nii'];
+                fpth = fullfile(dir_res,nam);            
+                img  = single(spm_diffeo('bsplins',fn(:,:,:,c),psi,[1 1 1 0 0 0]));
+                spm_multireg_util('WriteNii',fpth,img,Mmu,[descrip 'c=' num2str(c) ')']);            
+                pths{end + 1} = fpth;
+            end
+            res(n).wimc = pths;
+        end
+
+        if any(write_tc(:,2) == true)
+            % Write normalised segmentations
+            descrip = 'Normalised tissue (';
+            pths    = {};
+            for k=1:K1           
+                if ~write_tc(k,2), continue; end
+                nam  = ['wc' num2str(k) '_' namn '.nii'];
+                fpth = fullfile(dir_res,nam);            
+                img  = single(spm_diffeo('bsplins',zn(:,:,:,k),psi,[1 1 1 0 0 0]));
+                spm_multireg_util('WriteNii',fpth,img,Mmu,[descrip 'k=' num2str(k) ')']);            
+                pths{end + 1} = fpth;
+            end    
+            res(n).wc = pths;
         end  
     end
-    
-    % Get inverse deformation
-    psi = spm_multireg_io('GetData',dat(n).psi);    
-    psi = spm_diffeo('invdef',psi,dmu(1:3),eye(4),eye(4));    
-%     psi = spm_extrapolate_def(psi,Mmu);
-    M   = inv(Mmu\Mr*Mn);
-    psi = reshape(reshape(psi,[prod(dmu) 3])*M(1:3,1:3)' + M(1:3,4)',[dmu 3]);        
-    
-    % Trilinear resampling in template space    
-    if isfield(dat(n),'mog')    
-        % Input data are intensity images        
-        descrip = 'Normalised image (';
-        for c=1:C
-            nam = ['ic' num2str(c) namn '.nii'];
-            fpth   = fullfile(dir_res,nam);            
-            img = single(spm_diffeo('bsplins',fn(:,:,:,c),psi,[1 1 1 0 0 0]));
-            spm_multireg_util('WriteNii',fpth,img,Mmu,[descrip 'k=' num2str(c) ')']);            
-        end
+
+    if write_df(1) || any(write_tc(:,3) == true)
+        % Write forward deformation and/or normalised modulated images
+        %------------------
         
-        descrip = 'Normalised tissue (';
-        for k=1:K1           
-            nam = ['wc' num2str(k) namn '.nii'];
-            fpth   = fullfile(dir_res,nam);            
-            img = single(spm_diffeo('bsplins',zn(:,:,:,k),psi,[1 1 1 0 0 0]));
-            spm_multireg_util('WriteNii',fpth,img,Mmu,[descrip 'k=' num2str(k) ')']);            
-        end        
-    else       
-        % Input data are segmentations
-        descrip = 'Normalised tissue (';
-        fn      = spm_multireg_io('GetData',dat(n).f);
-        for k=1:C            
-            nam = ['wc' num2str(k) namn '.nii'];
-            fpth   = fullfile(dir_res,nam);            
-            img = single(spm_diffeo('bsplins',fn(:,:,:,k),psi,[1 1 1 0 0 0]));
-            spm_multireg_util('WriteNii',fpth,img,Mmu,[descrip 'k=' num2str(k) ')']);            
-        end        
-        nam = ['wc' num2str(k + 1) namn '.nii'];
-        fpth   = fullfile(dir_res,nam);
-        img = 1 - sum(img,4);
-        img = single(spm_diffeo('bsplins',img,psi,[1 1 1 0 0 0]));
-        spm_multireg_util('WriteNii',fpth,img,Mmu,[descrip 'k=' num2str(k) ')']);
-    end        
+        % Get forward deformation
+        psi1 = spm_multireg_io('GetData',dat(n).psi);
+        psi  = spm_multireg_util('Compose',psi1,spm_multireg_util('Affine',df,Mmu\Mr*Mn));
+        psi1 = [];
+        psi  = reshape(reshape(psi,[prod(df) 3])*Mmu(1:3,1:3)' + Mmu(1:3,4)',[df 3]);
+
+       if write_df(1)
+            % Write forward deformation
+            descrip   = 'Forward deformation';
+            nam       = ['fy_' namn '.nii'];
+            fpth      = fullfile(dir_res,nam);            
+            spm_multireg_util('WriteNii',fpth,psi,Mn,descrip);
+            res(n).fy = fpth;
+       end  
+        
+        if any(write_tc(:,3) == true)
+            % Write normalised modulated segmentations (correct?)
+            descrip = 'Normalised modulated tissue (';
+            pths    = {};
+            for k=1:K1           
+                if ~write_tc(k,3), continue; end
+                nam   = ['mwc' num2str(k) '_' namn '.nii'];
+                fpth  = fullfile(dir_res,nam);
+                img   = spm_multireg_util('Push1',zn(:,:,:,k),psi,dmu);
+                img   = img*abs(det(Mn(1:3,1:3))/det(Mmu(1:3,1:3)));
+                spm_multireg_util('WriteNii',fpth,img,Mmu,[descrip 'k=' num2str(k) ')']);            
+                pths{end + 1} = fpth;
+            end    
+            res(n).mwc = pths;
+        end
+    end
 end
 end
 %==========================================================================
