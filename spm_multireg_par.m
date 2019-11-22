@@ -195,10 +195,10 @@ if ~isfield(sett,'nit')
     sett.nit = struct;
 end
 if ~isfield(sett.nit,'bf')   
-    sett.nit.bf = 3;
+    sett.nit.bf = 1;
 end
 if ~isfield(sett.nit,'gmm')   
-    sett.nit.gmm = 10;
+    sett.nit.gmm = 20;
 end
 if ~isfield(sett.nit,'init')
     % The number of iterations, at largest zoom level.
@@ -282,7 +282,7 @@ if ~isfield(sett.show,'figname_subjects')
     sett.show.figname_subjects = '(spm_multireg) Segmentations';
 end
 if ~isfield(sett.show,'level')
-    sett.show.level = 1;
+    sett.show.level = 1; % 0, 1, 2, 3
 end
 if ~isfield(sett.show,'mx_subjects')
     sett.show.mx_subjects = 8;

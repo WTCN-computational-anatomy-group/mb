@@ -57,10 +57,10 @@ end
 %==========================================================================
 % ShowAll()
 function ShowAll(dat,mu,Objective,N,sett)
-if sett.show.level >= 1
+if sett.show.level >= 2
     ShowModel(mu,Objective,N,sett);
 end
-if sett.show.level >= 2
+if sett.show.level >= 3
     ShowSubjects(dat,mu,sett);
     ShowParameters(dat,mu,sett);
     ShowBiasField(dat,sett);
