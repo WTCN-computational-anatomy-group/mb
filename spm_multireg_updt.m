@@ -109,7 +109,7 @@ else
 end    
 
 if do_bf_norm
-    % Zero-mean the field DC component
+    % Zero-mean the bias field DC component
     dat = ZeroMeanDC(dat,mu,sett);
 end
 end
