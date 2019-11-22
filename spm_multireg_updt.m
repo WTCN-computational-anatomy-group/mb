@@ -900,16 +900,16 @@ psi = spm_multireg_util('Compose',spm_multireg_io('GetData',datn.psi), ...
                                   spm_multireg_util('Affine',df, Mmu\spm_dexpm(q,B)*Mn));
 mu  = spm_multireg_util('Pull1',mu,psi);
 [f,datn] = spm_multireg_io('GetClasses',datn,mu,sett);
-if isempty(H0)
-    g     = spm_multireg_util('Push1',spm_multireg_util('softmax',mu,4) - f,psi,d);
-    H     = spm_multireg_util('Push1',spm_multireg_der('AppearanceHessian',mu,accel),psi,d);
-else
+% if isempty(H0)
+%     g     = spm_multireg_util('Push1',spm_multireg_util('softmax',mu,4) - f,psi,d);
+%     H     = spm_multireg_util('Push1',spm_multireg_der('AppearanceHessian',mu,accel),psi,d);
+% else
     % Faster approximation - but might be unstable
     % If there are problems, then revert to the slow
     % way.
     [g,w] = spm_multireg_util('Push1',spm_multireg_util('softmax',mu,4) - f,psi,d);
     H     = w.*H0;
-end
+% end
 end
 %==========================================================================
 
