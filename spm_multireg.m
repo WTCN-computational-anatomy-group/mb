@@ -243,6 +243,13 @@ dat = spm_multireg_io('SaveTemplate',dat,mu,sett);
 % Print total runtime
 spm_multireg_show('Speak','Finished',toc(t0));
 
+if sett.show.level >= 1
+    % Show stuff
+    spm_multireg_show('ShowModel',mu,Objective,N,sett);
+    spm_multireg_show('ShowSubjects',dat,mu,sett);
+    spm_multireg_show('ShowParameters',dat,mu,sett);
+    spm_multireg_show('ShowBiasField',dat,sett);
+end
 end
 %==========================================================================
 
