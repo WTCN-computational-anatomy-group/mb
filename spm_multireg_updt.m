@@ -419,7 +419,7 @@ B    = sett.registr.B;
 fwhm = sett.bf.fwhm;
 Mmu  = sett.var.Mmu;
 reg  = sett.bf.reg;
-samp = sett.gen.samp_gmm;
+samp = sett.gen.samp;
 
 L      = datn.bf.L;
 [df,C] = spm_multireg_io('GetSize',datn.f);
@@ -611,7 +611,7 @@ Mmu        = sett.var.Mmu;
 nit_bf     = sett.nit.bf;
 nit_ls     = sett.optim.nls_bf;
 reg        = sett.bf.reg;
-samp       = sett.gen.samp_gmm;
+samp       = sett.gen.samp;
 
 % Get subject-space template (softmaxed K + 1)
 [df,C] = spm_multireg_io('GetSize',datn.f);

@@ -163,8 +163,8 @@ end
 if ~isfield(sett.gen,'run2d')
     sett.gen.run2d = 0; % 0, 1, 2, 3
 end
-if ~isfield(sett.gen,'samp_gmm')
-    sett.gen.samp_gmm = 3;
+if ~isfield(sett.gen,'samp')
+    sett.gen.samp = 3;
 end
 if ~isfield(sett.gen,'threads')
     sett.gen.threads = Inf;

@@ -398,7 +398,7 @@ fwhm         = sett.bf.fwhm;
 nit_gmm      = sett.nit.gmm;
 nit_gmm_miss = sett.nit.gmm_miss;
 reg          = sett.bf.reg;
-samp         = sett.gen.samp_gmm;
+samp         = sett.gen.samp;
 updt_bf      = sett.do.updt_bf;
 
 fn     = GetData(datn.f);
