@@ -330,15 +330,15 @@ mvr = mean(vr,2);
 % pr.V = bsxfun(@times, repmat(eye(C),[1 1 K]), reshape(pr.n, [1 1 K]));
 mu = zeros(C,K);
 A  = zeros(C,C,K);        
-n  = 3;
+n  = 1;
 for c=1:C         
-    mu(c,:)  = (0:(K - 1))'*mmx(c)/(1.5*K);
-    A(c,c,:) = mmx(c)/(1.5*K);    
-%     vrc      = mvr(c)/(K + 1);
-%     mnc      = 1.0*mn(c);
-%     sd       = sqrt(vrc);
-%     mu(c,:)  = abs(linspace(mnc - n*sd,mnc + n*sd,K));    
-%     A(c,c,:) = vrc;        
+%     mu(c,:)  = (0:(K - 1))'*mmx(c)/(1.5*K);
+%     A(c,c,:) = mmx(c)/(1.5*K);    
+    vrc      = mvr(c)/(K + 1);
+    mnc      = mn(c);
+    sd       = sqrt(vrc);
+    mu(c,:)  = abs(linspace(mnc - n*sd,mnc + n*sd,K));    
+    A(c,c,:) = vrc;        
     A(c,c,:) = 1/A(c,c,:);
 end   
 
