@@ -5,7 +5,7 @@ function varargout = spm_multireg_updt(varargin)
 %
 % FORMAT dat            = spm_multireg_updt('UpdateAffines',dat,mu,sett)
 % FORMAT dat            = spm_multireg_updt('UpdateBiasField',dat,mu,sett)
-% FORMAT [zn,datn,code] = spm_multireg_updt('UpdateGMM',datn,mu,sett,get_k1)
+% FORMAT [zn,datn,code] = spm_multireg_updt('UpdateGMMSub',datn,mu,sett,get_k1)
 % FORMAT dat            = spm_multireg_updt('UpdateIntensity',dat, sett)
 % FORMAT [mu,dat]       = spm_multireg_updt('UpdateMean',dat, mu, sett)
 % FORMAT dat            = spm_multireg_updt('UpdateSimpleAffines',dat,mu,sett)
@@ -27,8 +27,8 @@ switch id
         [varargout{1:nargout}] = UpdateAffines(varargin{:});
     case 'UpdateBiasField'
         [varargout{1:nargout}] = UpdateBiasField(varargin{:});           
-    case 'UpdateGMM'  
-        [varargout{1:nargout}] = UpdateGMM(varargin{:});        
+    case 'UpdateGMMSub'  
+        [varargout{1:nargout}] = UpdateGMMSub(varargin{:});        
     case 'UpdateIntensity'
         [varargout{1:nargout}] = UpdateIntensity(varargin{:});        
     case 'UpdateMean'
@@ -117,7 +117,7 @@ end
 
 %==========================================================================
 % UpdateGMM()
-function [zn,datn,code] = UpdateGMM(datn,mu,sett,get_k1)
+function [zn,datn,code] = UpdateGMMSub(datn,mu,sett,get_k1)
 if nargin < 4, get_k1 = false; end
 
 % Parse function settings

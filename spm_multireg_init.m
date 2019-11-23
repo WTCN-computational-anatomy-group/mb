@@ -221,7 +221,7 @@ for n=1:numel(dat)
     fn = bf.*fn;
 
     % Init GMM posterior
-    [po,mx(:,n),mn(:,n),vr(:,n)] = init_gmm_po(fn,K1);        
+    [po,mx(:,n),mn(:,n),vr(:,n)] = init_gmm_po(fn,K1,sett);        
     
     mog.po = po;
     
@@ -232,7 +232,7 @@ for n=1:numel(dat)
 end
 
 % Init GMM empirical prior
-pr = init_gmm_pr(mx,mn,vr,K1);
+pr = init_gmm_pr(mx,mn,vr,K1,sett);
 for n=1:numel(dat)                
     dat(n).mog.pr = pr;
 end
@@ -272,7 +272,11 @@ end
 
 %==========================================================================    
 % init_gmm_po()
-function [po,mx,mn,vr] = init_gmm_po(fn,K)
+function [po,mx,mn,vr] = init_gmm_po(fn,K,sett)
+
+% Parse function settings
+fig_name = sett.show.figname_int;
+
 C  = size(fn,2);
 mx = zeros(1,C);
 mn = zeros(1,C);
@@ -299,12 +303,21 @@ po.m = mu;
 po.b = ones(1,K);
 po.n = C*ones(1,K);
 po.V = bsxfun(@times, A, reshape(po.n, [1 1 K])); % Expected precision
+
+if 0
+    spm_gmm_lib('plot','gaussprior',{po.m,po.b,po.V,po.n},[],fig_name);
+end
+
 end
 %==========================================================================      
 
 %==========================================================================    
 % init_gmm_pr()
-function pr = init_gmm_pr(mx,mn,vr,K)
+function pr = init_gmm_pr(mx,mn,vr,K,sett)
+
+% Parse function settings
+fig_name = sett.show.figname_int;
+
 C   = size(mx,1);
 mmx = max(mx,[],2);
 mmn = mean(mn,2);
@@ -334,5 +347,10 @@ pr.m = mu;
 pr.b = ones(1,K);
 pr.n = C*ones(1,K);
 pr.V = bsxfun(@times, A, reshape(pr.n, [1 1 K])); % Expected precision
+
+if 0
+    spm_gmm_lib('plot','gaussprior',{pr.m,pr.b,pr.V,pr.n},[],fig_name);
+end
+
 end
 %==========================================================================   

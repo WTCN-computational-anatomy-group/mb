@@ -450,7 +450,7 @@ write_tc = sett.write.tc; % native, warped, warped-mod
 % struct for saving paths of data written to disk
 N   = numel(dat);
 cl  = cell(N,1);
-res = struct('bf',cl,'im',cl,'imc',cl,'c',cl,'fy',cl,'iy',cl,'wim',cl,'wimc',cl,'wc',cl,'mwc',cl);
+res = struct('bf',cl,'im',cl,'imc',cl,'c',cl,'y',cl,'iy',cl,'wim',cl,'wimc',cl,'wc',cl,'mwc',cl);
 
 for n=1:N % Loop over subjects
     
@@ -659,10 +659,10 @@ for n=1:N % Loop over subjects
        if write_df(1)
             % Write forward deformation
             descrip   = 'Forward deformation';
-            nam       = ['fy_' namn '.nii'];
+            nam       = ['y_' namn '.nii'];
             fpth      = fullfile(dir_res,nam);            
             spm_multireg_util('WriteNii',fpth,psi,Mn,descrip);
-            res(n).fy = fpth;
+            res(n).y = fpth;
        end  
         
         if any(write_tc(:,3) == true)

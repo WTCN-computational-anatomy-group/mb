@@ -205,9 +205,9 @@ if ~isfield(datn,'mog')
     end
 else
     if nargout > 1
-        [P,datn,code] = spm_multireg_updt('UpdateGMM',datn,mu,sett,get_k1);        
+        [P,datn,code] = spm_multireg_updt('UpdateGMMSub',datn,mu,sett,get_k1);        
     else
-        P = spm_multireg_updt('UpdateGMM',datn,mu,sett,get_k1);
+        P = spm_multireg_updt('UpdateGMMSub',datn,mu,sett,get_k1);
     end
 end
 
