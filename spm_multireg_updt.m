@@ -222,11 +222,9 @@ end
 function dat = UpdateIntensity(dat, sett)
 
 % Parse function settings
-fig_name = sett.show.figname_int;
-level    = sett.show.level;
-verbose  = level >= 2;
+do_updt_int = sett.do.updt_int;
 
-if ~isfield(dat(1),'mog'), return; end
+if ~do_updt_int || ~isfield(dat(1),'mog'), return; end
 
 N  = numel(dat);
 po = cell(1,N);
@@ -239,9 +237,8 @@ end
 pr = dat(1).mog.pr;
 pr = {pr.m,pr.b,pr.V,pr.n};
 pr = spm_gmm_lib('updatehyperpars',po,pr,...
-                 'verbose', verbose, ...
-                 'constrained', false, ...
-                 'figname', fig_name);
+                 'verbose', false, ...
+                 'constrained', false);
 for n=1:N
     dat(n).mog.pr.m = pr{1};
     dat(n).mog.pr.b = pr{2};

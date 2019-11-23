@@ -6,6 +6,7 @@ function varargout = spm_multireg_show(varargin)
 % FORMAT spm_multireg_show('Clear',sett)
 % FORMAT spm_multireg_show('ShowAll',dat,mu,Objective,N,sett)
 % FORMAT spm_multireg_show('ShowBiasField',dat,sett)
+% FORMAT spm_multireg_show('ShowIntensityModel',dat,sett)
 % FORMAT spm_multireg_show('ShowModel',mu,Objective,N,sett)
 % FORMAT spm_multireg_show('ShowParameters',dat,mu,sett)
 % FORMAT spm_multireg_show('ShowSubjects',dat,mu,sett)
@@ -26,7 +27,9 @@ switch id
     case 'ShowAll'
         [varargout{1:nargout}] = ShowAll(varargin{:});
     case 'ShowBiasField'
-        [varargout{1:nargout}] = ShowBiasField(varargin{:});    
+        [varargout{1:nargout}] = ShowBiasField(varargin{:}); 
+    case 'ShowIntensityModel'
+        [varargout{1:nargout}] = ShowIntensityModel(varargin{:});         
     case 'ShowModel'
         [varargout{1:nargout}] = ShowModel(varargin{:});
     case 'ShowParameters'
@@ -64,6 +67,7 @@ if sett.show.level >= 3
     ShowSubjects(dat,mu,sett);
     ShowParameters(dat,mu,sett);
     ShowBiasField(dat,sett);
+    ShowIntensityModel(dat,sett);
 end
 end
 %==========================================================================
@@ -104,6 +108,23 @@ for n=1:nd
     ShowIm(bf(:,:,:,c).*fn(:,:,:,c),ax,nr,nd,n + 2*nd,fig_name,false);
 end
 drawnow
+end
+%==========================================================================
+
+%==========================================================================
+% ShowIntensityModel()
+function ShowIntensityModel(dat,sett)
+
+% Parse function settings
+fig_name = sett.show.figname_int;
+
+n  = 1;
+m0 = dat(n).mog.pr.m;
+b0 = dat(n).mog.pr.b;
+V0 = dat(n).mog.pr.V;
+n0 = dat(n).mog.pr.n;
+
+spm_gmm_lib('plot','gaussprior',{m0,b0,V0,n0},[],fig_name);
 end
 %==========================================================================
 
