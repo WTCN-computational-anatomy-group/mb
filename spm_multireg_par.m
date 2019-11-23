@@ -134,6 +134,9 @@ end
 if ~isfield(sett.do,'updt_bf')
     sett.do.updt_bf = true;
 end
+if ~isfield(sett.do,'updt_int')
+    sett.do.updt_int = true;
+end
 if ~isfield(sett.do,'updt_vel')
     sett.do.updt_vel = true;
 end
