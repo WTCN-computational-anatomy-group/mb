@@ -250,6 +250,7 @@ if sett.show.level >= 1
     spm_multireg_show('ShowSubjects',dat,mu,sett);
     spm_multireg_show('ShowParameters',dat,mu,sett);
     spm_multireg_show('ShowBiasField',dat,sett);
+    spm_multireg_show('ShowIntensityModel',dat,sett);
 end
 end
 %==========================================================================
