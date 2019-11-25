@@ -740,8 +740,9 @@ V  = datn.mog.po.V;
 n  = datn.mog.po.n;
 K1 = size(m,2);
 
-lx  = W*spm_multireg_energ('LowerBound','X',bf.*fn,zn,code,{m,b},{V,n});
-lxb = W*spm_multireg_energ('LowerBound','XB',bf);
+bffn = bf.*fn;
+lx   = W*spm_multireg_energ('LowerBound','X',bffn,zn,code,{m,b},{V,n});
+lxb  = W*spm_multireg_energ('LowerBound','XB',bf);
             
 % -----------------------------------------------------------------
 % Update bias field parameters
@@ -779,7 +780,7 @@ for it=1:nit_bf
             mapped_c     = find(mapped_c == c);
             cc           = mapped_c; % short alias
 
-            selected_obs = bf(selected_voxels,observed_channels).*fn(selected_voxels,observed_channels);
+            selected_obs = bffn(selected_voxels,observed_channels);
             gi = 0; % Gradient accumulated accross clusters
             Hi = 0; % Hessian accumulated accross clusters
             for k=1:K1
@@ -848,8 +849,7 @@ for it=1:nit_bf
         armijo = 1;        
 
         % Old parameters
-        oT     = chan(c).T;       
-        obf    = bf;
+        oT     = chan(c).T;  
         opr_bf = pr_bf;
         olxb   = lxb;   
         olx    = lx;
@@ -860,13 +860,14 @@ for it=1:nit_bf
             chan(c).T = chan(c).T - armijo*Update;
 
             % Compute new bias-field (only for channel c)
-            [bf,pr_bf] = spm_multireg_io('GetBiasField',chan,d,obf,c,opr_bf);            
+            [bf,pr_bf] = spm_multireg_io('GetBiasField',chan,d,bf,c,opr_bf);                        
+            bffn       = bf.*fn;
             
             % Recompute responsibilities (with updated bias field)
-            zn = spm_multireg_io('ComputeResponsibilities',datn,bf.*fn,mu,code);
+            zn = spm_multireg_io('ComputeResponsibilities',datn,bffn,mu,code);
             
             % Compute new lower bound
-            lx  = W*spm_multireg_energ('LowerBound','X',bf.*fn,zn,code,{m,b},{V,n});
+            lx  = W*spm_multireg_energ('LowerBound','X',bffn,zn,code,{m,b},{V,n});            
             lxb = W*spm_multireg_energ('LowerBound','XB',bf);
             
             % Check new lower bound
@@ -879,13 +880,14 @@ for it=1:nit_bf
                 chan(c).T = oT;
 
                 if ls == nit_ls                  
-                    bf    = obf;         
+                    bf    = spm_multireg_io('GetBiasField',chan,d,bf,c,opr_bf);    
+                    bffn  = bf.*fn;
                     pr_bf = opr_bf;
-                    zn    = spm_multireg_io('ComputeResponsibilities',datn,bf.*fn,mu,code);
+                    zn    = spm_multireg_io('ComputeResponsibilities',datn,bffn,mu,code);
                 end
             end
         end
-        oT = []; Update = []; obf = [];        
+        oT = []; Update = [];      
     end
 end
 
@@ -896,7 +898,7 @@ datn.E(1)   = -datn.mog.lb.sum(end);
 datn.E(3)   = -sum(pr_bf);
 
 if do_bf_norm
-    [lSS0,lSS1,lSS2] = spm_gmm_lib('SuffStat', 'base', bf.*fn, zn, 1, {code,L});   
+    [lSS0,lSS1,lSS2] = spm_gmm_lib('SuffStat', 'base', bffn, zn, 1, {code,L});   
     datn.bf.lSS0     = lSS0;
     datn.bf.lSS1     = lSS1;
     datn.bf.lSS2     = lSS2;
