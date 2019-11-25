@@ -463,14 +463,14 @@ for n=1:N % Loop over subjects
     else,                           namn  = ['n' num2str(n)];
     end            
     Mr = spm_dexpm(double(dat(n).q),B);
-    Mn = dat(n).Mat;            
-           
+    Mn = dat(n).Mat;                
+    
     % Integrate K1 and C into write settings
     if size(write_bf,1) == 1 && C  > 1, write_bf = repmat(write_bf,[C  1]); end    
     if size(write_im,1) == 1 && C  > 1, write_im = repmat(write_im,[C  1]); end   
     if size(write_tc,1) == 1 && K1 > 1, write_tc = repmat(write_tc,[K1 1]); end
     
-    if any(write_bf == true) || any(write_im == true) || any(write_tc == true)
+    if any(write_bf(:) == true) || any(write_im(:) == true) || any(write_tc(:) == true)
         if isfield(dat(n),'mog')   
             % Input data were intensity images
             %------------------
@@ -581,26 +581,27 @@ for n=1:N % Loop over subjects
         end    
     end
 
-    if write_df(2) || any(write_tc(:,2) == true) ||  any(write_im(:,[3 4]) == true)
-        % Write inverse deformation and/or normalised images
+    if any(write_df == true) || any(reshape(write_tc(:,[2 3]),[],1) == true) ||  any(reshape(write_im(:,[3 4]),[],1) == true)
+        % Write forward deformation and/or normalised images
         %------------------
         
-        % Get inverse deformation (correct?)
-        psi = spm_multireg_io('GetData',dat(n).psi);    
-        psi = spm_diffeo('invdef',psi,dmu(1:3),eye(4),eye(4));    
-        %psi = spm_extrapolate_def(psi,Mmu);
-        M   = inv(Mmu\Mr*Mn);
-        psi = reshape(reshape(psi,[prod(dmu) 3])*M(1:3,1:3)' + M(1:3,4)',[dmu 3]);        
+        % For imporved push - subsampling density in each dimension
+        sd = spm_multireg_util('SampDens',Mmu,Mn);
+        
+        % Get forward deformation
+        psi1 = spm_multireg_io('GetData',dat(n).psi);
+        psi  = spm_multireg_util('Compose',psi1,spm_multireg_util('Affine',df,Mmu\Mr*Mn));
+        psi1 = [];
 
-        if write_df(2)
-            % Write inverse deformation
-            descrip = 'Inverse deformation';
-            nam     = ['iy_' namn '.nii'];
-            fpth    = fullfile(dir_res,nam);            
-            spm_multireg_util('WriteNii',fpth,psi,Mmu,descrip);
-            res(n).iy = fpth;
-        end       
-
+       if write_df(1)
+            % Write forward deformation
+            descrip   = 'Forward deformation';
+            nam       = ['y_' namn '.nii'];
+            fpth      = fullfile(dir_res,nam);            
+            spm_multireg_util('WriteNii',fpth,psi,Mn,descrip);
+            res(n).y = fpth;
+       end  
+       
         if isfield(dat(n),'mog') && any(write_im(:,3) == true)
             % Write normalised image
             descrip = 'Normalised image (';
@@ -609,7 +610,7 @@ for n=1:N % Loop over subjects
                 if ~write_im(c,3), continue; end
                 nam  = ['wim' num2str(c) '_' namn '.nii'];
                 fpth = fullfile(dir_res,nam);            
-                img  = single(spm_diffeo('bsplins',fn(:,:,:,c)./bf(:,:,:,c),psi,[1 1 1 0 0 0]));
+                img   = spm_multireg_util('Push1',fn(:,:,:,c)./bf(:,:,:,c),psi,dmu,sd);
                 spm_multireg_util('WriteNii',fpth,img,Mmu,[descrip 'c=' num2str(c) ')']);            
                 pths{end + 1} = fpth;
             end
@@ -624,7 +625,7 @@ for n=1:N % Loop over subjects
                 if ~write_im(c,4), continue; end
                 nam  = ['wimc' num2str(c) '_' namn '.nii'];
                 fpth = fullfile(dir_res,nam);            
-                img  = single(spm_diffeo('bsplins',fn(:,:,:,c),psi,[1 1 1 0 0 0]));
+                img   = spm_multireg_util('Push1',fn(:,:,:,c),psi,dmu,sd);
                 spm_multireg_util('WriteNii',fpth,img,Mmu,[descrip 'c=' num2str(c) ')']);            
                 pths{end + 1} = fpth;
             end
@@ -639,32 +640,12 @@ for n=1:N % Loop over subjects
                 if ~write_tc(k,2), continue; end
                 nam  = ['wc' num2str(k) '_' namn '.nii'];
                 fpth = fullfile(dir_res,nam);            
-                img  = single(spm_diffeo('bsplins',zn(:,:,:,k),psi,[1 1 1 0 0 0]));
+                img   = spm_multireg_util('Push1',zn(:,:,:,k),psi,dmu,sd);
                 spm_multireg_util('WriteNii',fpth,img,Mmu,[descrip 'k=' num2str(k) ')']);            
                 pths{end + 1} = fpth;
             end    
             res(n).wc = pths;
         end  
-    end
-
-    if write_df(1) || any(write_tc(:,3) == true)
-        % Write forward deformation and/or normalised modulated images
-        %------------------
-        
-        % Get forward deformation
-        psi1 = spm_multireg_io('GetData',dat(n).psi);
-        psi  = spm_multireg_util('Compose',psi1,spm_multireg_util('Affine',df,Mmu\Mr*Mn));
-        psi1 = [];
-        psi  = reshape(reshape(psi,[prod(df) 3])*Mmu(1:3,1:3)' + Mmu(1:3,4)',[df 3]);
-
-       if write_df(1)
-            % Write forward deformation
-            descrip   = 'Forward deformation';
-            nam       = ['y_' namn '.nii'];
-            fpth      = fullfile(dir_res,nam);            
-            spm_multireg_util('WriteNii',fpth,psi,Mn,descrip);
-            res(n).y = fpth;
-       end  
         
         if any(write_tc(:,3) == true)
             % Write normalised modulated segmentations (correct?)
@@ -680,7 +661,23 @@ for n=1:N % Loop over subjects
                 pths{end + 1} = fpth;
             end    
             res(n).mwc = pths;
-        end
+        end  
+                
+        if write_df(2)
+            % Get inverse deformation (correct?)
+            psi = spm_multireg_io('GetData',dat(n).psi);    
+            psi = spm_diffeo('invdef',psi,dmu(1:3),eye(4),eye(4));    
+            %psi = spm_extrapolate_def(psi,Mmu);
+            M   = inv(Mmu\Mr*Mn);
+            psi = reshape(reshape(psi,[prod(dmu) 3])*M(1:3,1:3)' + M(1:3,4)',[dmu 3]);        
+        
+            % Write inverse deformation
+            descrip = 'Inverse deformation';
+            nam     = ['iy_' namn '.nii'];
+            fpth    = fullfile(dir_res,nam);            
+            spm_multireg_util('WriteNii',fpth,psi,Mmu,descrip);
+            res(n).iy = fpth;
+        end       
     end
 end
 end
