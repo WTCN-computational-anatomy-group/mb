@@ -184,7 +184,8 @@ else
     if d(3)>1, zrange = Range(r(3)); else, zrange = 0; end
     if d(2)>1, yrange = Range(r(2)); else, yrange = 0; end
     if d(1)>1, xrange = Range(r(1)); else, xrange = 0; end
-    id = Identity(size(psi));
+    dp = size(psi); 
+    id = Identity(dp(1:3));     
     a1 = zeros([size(psi,1),size(psi,2),size(psi,3),size(a0,4)],'single');
     for l=1:d(4)
         tmp = single(0);
@@ -247,8 +248,9 @@ if ~isempty(psi)
     if d(3)>1, zrange = Range(r(3)); else, zrange = 0; end
     if d(2)>1, yrange = Range(r(2)); else, yrange = 0; end
     if d(1)>1, xrange = Range(r(1)); else, xrange = 0; end
-
-    id    = Identity(size(psi));
+    
+    dp    = size(psi);
+    id    = Identity(dp(1:3));
     f1    = single(0);
     w1    = single(0);
     for dz=zrange
