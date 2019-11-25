@@ -212,7 +212,7 @@ if ~isfield(sett.nit,'init_mu')
     sett.nit.init_mu = 2;
 end
 if ~isfield(sett.nit,'miss')   
-    sett.nit.gmm_miss = 10;
+    sett.nit.gmm_miss = 32;
 end
 if ~isfield(sett.nit,'zm')
     % The number of iterations, for updating all model parameters, at each zoom
