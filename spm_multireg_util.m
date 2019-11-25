@@ -11,6 +11,7 @@ function varargout = spm_multireg_util(varargin)
 % FORMAT f         = spm_multireg_util('MaskF',f)
 % FORMAT a1        = spm_multireg_util('Pull1',a0,psi,r)
 % FORMAT [f1,w1]   = spm_multireg_util('Push1',f,psi,d,r)
+% FORMAT sd        = spm_multireg_util('SampDens',Mmu,Mf)
 % FORMAT             spm_multireg_util('SetBoundCond')
 % FORMAT             spm_multireg_util('SetPath')
 % FORMAT varargout = spm_multireg_util('Shoot',v0,kernel,args)
@@ -48,6 +49,8 @@ switch id
         [varargout{1:nargout}] = Pull1(varargin{:});
     case 'Push1'
         [varargout{1:nargout}] = Push1(varargin{:});
+    case 'SampDens'
+        [varargout{1:nargout}] = SampDens(varargin{:});        
     case 'SetBoundCond'
         [varargout{1:nargout}] = SetBoundCond(varargin{:});
     case 'SetPath'
@@ -275,6 +278,15 @@ else
     f1(~msk) = 0;
     w1       = single(all(msk,4));
 end
+end
+%==========================================================================
+
+%==========================================================================
+% SampDens()
+function sd = SampDens(Mmu,Mf)
+vx_mu = sqrt(sum(Mmu(1:3,1:3).^2,1));
+vx_f  = sqrt(sum( Mf(1:3,1:3).^2,1));
+sd    = max(round(2.0*vx_f./vx_mu),1);
 end
 %==========================================================================
 
