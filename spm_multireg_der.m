@@ -122,7 +122,7 @@ H  = zeros([d 6],'single');
 for m1=1:M
     for m2=1:M
         if accel==0
-            tmp = Ab(m1,m2)*ones(d,'single');
+            tmp = Ab(m1,m2);
         else
             if m2~=m1
                 tmp = (-s(:,:,:,m1).*s(:,:,:,m2))*accel           + (1-accel)*Ab(m1,m2);
