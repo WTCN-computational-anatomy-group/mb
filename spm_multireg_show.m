@@ -116,7 +116,10 @@ end
 function ShowIntensityModel(dat,sett)
 
 % Parse function settings
-fig_name = sett.show.figname_int;
+do_updt_int = sett.do.updt_int;
+fig_name    = sett.show.figname_int;
+
+if ~do_updt_int || ~isfield(dat(1),'mog'), return; end
 
 n  = 1;
 m0 = dat(n).mog.pr.m;
