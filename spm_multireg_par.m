@@ -198,10 +198,10 @@ if ~isfield(sett,'nit')
     sett.nit = struct;
 end
 if ~isfield(sett.nit,'bf')   
-    sett.nit.bf = 1;
+    sett.nit.bf = 3;
 end
 if ~isfield(sett.nit,'gmm')   
-    sett.nit.gmm = 20;
+    sett.nit.gmm = 100;
 end
 if ~isfield(sett.nit,'init')
     % The number of iterations, at largest zoom level.
@@ -212,7 +212,7 @@ if ~isfield(sett.nit,'init_mu')
     sett.nit.init_mu = 2;
 end
 if ~isfield(sett.nit,'miss')   
-    sett.nit.gmm_miss = 32;
+    sett.nit.gmm_miss = 100;
 end
 if ~isfield(sett.nit,'zm')
     % The number of iterations, for updating all model parameters, at each zoom
@@ -319,9 +319,9 @@ if ~isfield(sett.var,'mu_settings')
 end
 if ~isfield(sett.var,'v_settings')
     if sett.do.updt_aff
-        sett.var.v_settings = [0 0 0.2 0.05 0.2]*4;
+        sett.var.v_settings = [0 0 0.2 0.05 0.2]*8;
     else
-        sett.var.v_settings = [1e-4 0 0.2 0.05 0.2]*4;
+        sett.var.v_settings = [1e-4 0 0.2 0.05 0.2]*8;
     end
 end
 %------------------
