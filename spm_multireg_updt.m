@@ -498,8 +498,29 @@ Mmu  = sett.var.Mmu;
 reg  = sett.bf.reg;
 samp = sett.gen.samp;
 
-L      = datn.bf.L;
 [df,C] = spm_multireg_io('GetSize',datn.f);
+Mat    = datn.Mat;
+q      = double(datn.q);
+Mn     = datn.Mat;
+W      = 1;
+Mr     = spm_dexpm(q,B);
+
+% Get image(s)
+fn = spm_multireg_io('GetData',datn.f);
+if samp > 1      
+    [~,fn] = spm_multireg_util('SubSample',samp,Mat,0,fn);
+    d      = size(fn);
+    d      = [d 1];
+    d      = d(1:3);    
+    W      = prod(df(1:3))/prod(d(1:3));
+else
+    d      = df;
+end
+fn = reshape(fn,[prod(d(1:3)) C]);
+isneg = nanmin(fn,[],1) < 0;
+
+% Check if all channels contains negative values, if so, return
+if all(isneg == 1), return; end
 
 % GMM posterior
 m = datn.mog.po.m;
@@ -517,6 +538,7 @@ n0 = datn.mog.pr.n;
 lSS0 = datn.bf.lSS0;
 lSS1 = datn.bf.lSS1;
 lSS2 = datn.bf.lSS2;
+L    = datn.bf.L;
 
 % Rescale suffstats
 K = size(m,2);
@@ -543,25 +565,15 @@ datn.mog.po.n = n;
 % Update lower bound/objective
 
 % Get subject-space template (softmaxed K + 1)
-Mat    = datn.Mat;
-q      = double(datn.q);
-Mn     = datn.Mat;
-W      = 1;
-Mr     = spm_dexpm(q,B);
-psi1   = spm_multireg_io('GetData',datn.psi);
-psi0   = spm_multireg_util('Affine',df,Mmu\Mr*Mn);
-psi    = spm_multireg_util('Compose',psi1,psi0);
+psi1 = spm_multireg_io('GetData',datn.psi);
+psi0 = spm_multireg_util('Affine',df,Mmu\Mr*Mn);
+psi  = spm_multireg_util('Compose',psi1,psi0);
 psi0 = []; psi1 = [];  
-mu     = spm_multireg_util('Pull1',mu,psi);
-psi = [];
+mu   = spm_multireg_util('Pull1',mu,psi);
+psi  = [];
 
 if samp > 1      
     [~,mu] = spm_multireg_util('SubSample',samp,Mat,0,mu);
-    d      = size(mu);
-    d      = d(1:3);    
-    W      = prod(df(1:3))/prod(d(1:3));
-else
-    d      = df;
 end
 
 mu = log(spm_multireg_util('softmaxmu',mu,4));
@@ -570,13 +582,6 @@ mu = reshape(mu,[prod(d(1:3)) size(mu,4)]);
 % Get bias field
 chan       = spm_multireg_io('GetBiasFieldStruct',C,df,Mat,reg,fwhm,[],datn.bf.T,samp);
 [bf,pr_bf] = spm_multireg_io('GetBiasField',chan,d);
-
-% Get image(s)
-fn = spm_multireg_io('GetData',datn.f);
-if samp > 1      
-    [~,fn] = spm_multireg_util('SubSample',samp,Mat,0,fn);
-end
-fn = reshape(fn,[prod(d(1:3)) C]);
 
 % Get responsibilities
 fn   = spm_multireg_util('MaskF',fn);
@@ -691,19 +696,37 @@ reg        = sett.bf.reg;
 samp       = sett.gen.samp;
 tol        = sett.bf.tol;
 
-% Get subject-space template (softmaxed K + 1)
 [df,C] = spm_multireg_io('GetSize',datn.f);
 Mat    = datn.Mat;
 q      = double(datn.q);
 Mn     = datn.Mat;
 W      = 1;
 Mr     = spm_dexpm(q,B);
-psi1   = spm_multireg_io('GetData',datn.psi);
-psi0   = spm_multireg_util('Affine',df,Mmu\Mr*Mn);
-psi    = spm_multireg_util('Compose',psi1,psi0);
+
+% Get image(s)
+fn = spm_multireg_io('GetData',datn.f);
+if samp > 1      
+    [~,fn] = spm_multireg_util('SubSample',samp,Mat,0,fn);
+    d      = size(fn);
+    d      = [d 1];
+    d      = d(1:3);    
+    W      = prod(df(1:3))/prod(d(1:3));
+else
+    d      = df;
+end
+fn    = reshape(fn,[prod(d(1:3)) C]);
+isneg = nanmin(fn,[],1) < 0;
+
+% Check if all channels contains negative values, if so, return
+if all(isneg == 1), return; end
+
+% Get subject-space template (softmaxed K + 1)
+psi1 = spm_multireg_io('GetData',datn.psi);
+psi0 = spm_multireg_util('Affine',df,Mmu\Mr*Mn);
+psi  = spm_multireg_util('Compose',psi1,psi0);
 psi0 = []; psi1 = [];  
-mu     = spm_multireg_util('Pull1',mu,psi);
-psi = [];
+mu   = spm_multireg_util('Pull1',mu,psi);
+psi  = [];
 
 % Get responsibilities
 [zn,datn,code] = spm_multireg_io('GetClasses',datn,mu,sett,true);
@@ -713,11 +736,6 @@ nL             = numel(L);
 if samp > 1      
     [~,mu] = spm_multireg_util('SubSample',samp,Mat,0,mu);
     [~,zn] = spm_multireg_util('SubSample',samp,Mat,df,zn);
-    d      = size(mu);
-    d      = d(1:3);    
-    W      = prod(df(1:3))/prod(d(1:3));
-else
-    d      = df;
 end
 mu = log(spm_multireg_util('softmaxmu',mu,4));
 mu = reshape(mu,[prod(d(1:3)) size(mu,4)]);
@@ -726,13 +744,6 @@ mu = reshape(mu,[prod(d(1:3)) size(mu,4)]);
 chan       = spm_multireg_io('GetBiasFieldStruct',C,df,Mat,reg,fwhm,[],datn.bf.T,samp);
 kron       = @(a,b) spm_krutil(a,b);
 [bf,pr_bf] = spm_multireg_io('GetBiasField',chan,d);
-
-% Get image(s)
-fn = spm_multireg_io('GetData',datn.f);
-if samp > 1      
-    [~,fn] = spm_multireg_util('SubSample',samp,Mat,0,fn);
-end
-fn = reshape(fn,[prod(d(1:3)) C]);
 
 % GMM posterior
 m  = datn.mog.po.m;
@@ -754,8 +765,8 @@ for it=1:nit_bf
     % Update bias field parameters for each channel separately
     for c=1:C % Loop over channels
 
-        if done(c)
-            % Channel c finished
+        if done(c) || isneg(c)
+            % Channel c finished or has negative values
             %fprintf('Done! c=%i, it=%i\n',c,it);
             continue; 
         end

@@ -46,12 +46,13 @@ updt_bf    = sett.do.updt_bf;
 if ~updt_bf, return; end
 
 for n=1:numel(dat)    
-    [d,C]          = spm_multireg_io('GetSize',dat(n).f);
+    [d,C] = spm_multireg_io('GetSize',dat(n).f);
+    fn    = spm_multireg_io('GetData',dat(n).f);                    
+    fn    = reshape(fn,[prod(d(1:3)) C]);                      
+    fn    = spm_multireg_util('MaskF',fn);
+    isneg = nanmin(fn,[],1) < 0;
     if do_bf_norm
-        val = 1e3;            
-        fn  = spm_multireg_io('GetData',dat(n).f);                    
-        fn  = reshape(fn,[prod(d(1:3)) C]);                      
-        fn  = spm_multireg_util('MaskF',fn);
+        val = 1e3;                    
         scl = double(val./nanmean(fn,1)); 
     else        
         scl = ones(1,C);
@@ -66,6 +67,15 @@ for n=1:numel(dat)
     dc.int        = zeros(1,C);
     dc.ln         = zeros(1,C);
     dat(n).bf.dc  = dc;
+    
+    for c=1:C
+       if isneg(c)
+           % Image channel contains negative values -> do not model bias
+           % field
+           T              = dat(n).bf.T{c};
+           dat(n).bf.T{c} = zeros(size(T),'single');
+       end
+    end
 end
 end
 %==========================================================================
