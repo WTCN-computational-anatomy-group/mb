@@ -122,6 +122,8 @@ if do_updt_aff
             Eold     = E; tic;
             [mu,dat] = spm_multireg_updt('UpdateMean',dat, mu, sett);
             te       = spm_multireg_energ('TemplateEnergy',mu,sett);
+            dat      = spm_multireg_updt('UpdateBiasField',dat,mu,sett);
+            dat      = spm_multireg_updt('UpdateIntensity',dat, sett);
             E        = sum(sum(cat(2,dat.E),2),1) + te;
             t        = toc;
                                
