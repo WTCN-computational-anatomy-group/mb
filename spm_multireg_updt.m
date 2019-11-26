@@ -188,7 +188,7 @@ if nargout > 1
                                  'Tolerance',    1e-4, ...
                                  'SubIterMax',   nit_gmm_miss, ...
                                  'SubTolerance', 1e-4, ...
-                                 'Verbose',      0);
+                                 'Verbose',      [0 0]);
     mu = []; fn = [];
 
     % Update datn
@@ -689,6 +689,7 @@ nit_bf     = sett.nit.bf;
 nit_ls     = sett.optim.nls_bf;
 reg        = sett.bf.reg;
 samp       = sett.gen.samp;
+tol        = sett.bf.tol;
 
 % Get subject-space template (softmaxed K + 1)
 [df,C] = spm_multireg_io('GetSize',datn.f);
@@ -746,12 +747,19 @@ lxb  = W*spm_multireg_energ('LowerBound','XB',bf);
             
 % -----------------------------------------------------------------
 % Update bias field parameters
+done = false(1,C);
 for it=1:nit_bf
     
     % -----------------------------------------------------------------
     % Update bias field parameters for each channel separately
     for c=1:C % Loop over channels
 
+        if done(c)
+            % Channel c finished
+            %fprintf('Done! c=%i, it=%i\n',c,it);
+            continue; 
+        end
+        
         % -----------------------------------------------------------------
         % Compute gradient and Hessian    
         gr_l = zeros(d(1:3),'single');
@@ -871,9 +879,18 @@ for it=1:nit_bf
             lxb = W*spm_multireg_energ('LowerBound','XB',bf);
             
             % Check new lower bound
-            if (lx + lxb + sum(pr_bf)) > (olx + olxb + sum(opr_bf))       
+            if (lx + lxb + sum(pr_bf)) > (olx + olxb + sum(opr_bf))                                                  
                 datn.mog.lb.XB(end + 1) = lxb;
                 datn.mog.lb.X(end  + 1) = lx;
+                
+                nl   = lx + lxb + sum(pr_bf);
+                ol   = olx + olxb + sum(opr_bf);                
+                gain = 2*(ol - nl)/(ol + nl);
+                if gain < tol
+                    % Finished for channel c
+                    done(c) = true;
+                end
+                
                 break;
             else                                
                 armijo    = armijo*0.5;
