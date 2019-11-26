@@ -593,15 +593,17 @@ for n=1:N % Loop over subjects
         psi  = spm_multireg_util('Compose',psi1,spm_multireg_util('Affine',df,Mmu\Mr*Mn));
         psi1 = [];
 
-       if write_df(1)
+        if df(3) == 1, psi(:,:,:,3) = 1; end % 2D
+
+        if write_df(1)
             % Write forward deformation
             descrip   = 'Forward deformation';
             nam       = ['y_' namn '.nii'];
             fpth      = fullfile(dir_res,nam);            
             spm_multireg_util('WriteNii',fpth,psi,Mn,descrip);
             res(n).y = fpth;
-       end  
-       
+        end  
+
         if isfield(dat(n),'mog') && any(write_im(:,3) == true)
             % Write normalised image
             descrip = 'Normalised image (';
