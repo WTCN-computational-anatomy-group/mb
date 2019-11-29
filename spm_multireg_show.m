@@ -138,7 +138,10 @@ function ShowModel(mu,Objective,N,sett)
 % Parse function settings
 fig_name = sett.show.figname_model;
 
-mu  = spm_multireg_util('softmaxmu',mu,4); % Gives K + 1 classes
+d  = size(mu);
+mu = cat(4,mu,zeros(d(1:3),'single'));
+mu = spm_multireg_util('softmax',mu,4);
+% mu  = spm_multireg_util('softmaxmu',mu,4); % Gives K + 1 classes
 nam = ['K=' num2str(size(mu,4)) ', N=' num2str(N) ' (softmaxed)'];
 if size(mu,3) > 1
     ShowCat(mu,1,2,3,1,fig_name);
@@ -217,8 +220,9 @@ for n=1:nd
         Mn     = dat(n).Mat;
         psi1   = spm_multireg_io('GetData',dat(n).psi);
         psi    = spm_multireg_util('Compose',psi1,spm_multireg_util('Affine',df,Mmu\spm_dexpm(q,B)*Mn));
-        mu     = spm_multireg_util('Pull1',mu0,psi);        
-        mu     = spm_multireg_util('softmaxmu',mu,4);
+        mu     = spm_multireg_util('Pull1',mu0,psi);               
+        mu     = cat(4,mu,zeros(df(1:3),'single'));
+        mu     = spm_multireg_util('softmax',mu,4);
         mu     = reshape(mu,[prod(df(1:3)) size(mu,4)]);
         mu     = sum(mu,1);
         mu     = mu./sum(mu);
@@ -275,7 +279,8 @@ for n=1:nd
     fn = spm_multireg_io('GetClasses',dat(n),mu,sett);   
     fn = cat(4,fn,1 - sum(fn,4)); % Gives K + 1 classes
     
-    mu = spm_multireg_util('softmaxmu',mu,4); % Gives K + 1 classes
+    mu = cat(4,mu,zeros(df(1:3),'single'));
+    mu = spm_multireg_util('softmax',mu,4);
     
     % Show template, segmentation
     ShowCat(mu,ax,nr,nd,n,fig_name);

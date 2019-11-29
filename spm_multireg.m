@@ -119,11 +119,10 @@ if do_updt_aff
 
         for subit=1:nit_init_mu
             % Update template, bias field and intensity model
-            Eold     = E; tic;
+            Eold     = E; tic;                        
             [mu,dat] = spm_multireg_updt('UpdateMean',dat, mu, sett);
             te       = spm_multireg_energ('TemplateEnergy',mu,sett);
-            dat      = spm_multireg_updt('UpdateBiasField',dat,mu,sett);
-            dat      = spm_multireg_updt('UpdateIntensity',dat, sett);
+            dat      = spm_multireg_updt('UpdateIntensityPrior',dat, mu, sett);
             E        = sum(sum(cat(2,dat.E),2),1) + te;
             t        = toc;
                                
@@ -139,6 +138,7 @@ if do_updt_aff
         % Update affine
         Eold = E; tic;
         dat  = spm_multireg_updt('UpdateSimpleAffines',dat,mu,sett);
+        dat  = spm_multireg_updt('UpdateIntensityPrior',dat, mu, sett);
         E    = sum(sum(cat(2,dat.E),2),1) + te;
         t    = toc;
         
@@ -166,10 +166,9 @@ for zm=numel(sz):-1:1 % loop over zoom levels
     if zm ~= numel(sz) || zm == 1
         % Runs only at finest resolution
         for i=1:nit_init_mu
-            % Update template, bias field and intensity model
+            % Update template, bias field and intensity model                        
             [mu,dat] = spm_multireg_updt('UpdateMean',dat, mu, sett);
-            dat      = spm_multireg_updt('UpdateBiasField',dat,mu,sett);
-            dat      = spm_multireg_updt('UpdateIntensity',dat, sett);
+            dat      = spm_multireg_updt('UpdateIntensityPrior',dat, mu, sett);
             
             % Show stuff
             spm_multireg_show('ShowAll',dat,mu,Objective,N,sett);
@@ -182,35 +181,34 @@ for zm=numel(sz):-1:1 % loop over zoom levels
     for iter=1:nit_zm
 
         % Update template, bias field and intensity model
-        % Might be an idea to run this multiple times
+        % Might be an idea to run this multiple times                
         [mu,dat] = spm_multireg_updt('UpdateMean',dat, mu, sett);
         te       = spm_multireg_energ('TemplateEnergy',mu,sett);
-        dat      = spm_multireg_updt('UpdateBiasField',dat,mu,sett);
-        dat      = spm_multireg_updt('UpdateIntensity',dat, sett);
+        dat      = spm_multireg_updt('UpdateIntensityPrior',dat, mu, sett);
         E1       = sum(sum(cat(2,dat.E),2),1) + te;        
                            
         % Update affine
         % (Might be an idea to run this less often - currently slow)
         dat      = spm_multireg_updt('UpdateAffines',dat,mu,sett);
+        dat      = spm_multireg_updt('UpdateIntensityPrior',dat, mu, sett);
         E2       = sum(sum(cat(2,dat.E),2),1) + te;
 
         % Update template, bias field and intensity model
-        % (Might be an idea to run this multiple times)
+        % (Might be an idea to run this multiple times)                
         [mu,dat] = spm_multireg_updt('UpdateMean',dat, mu, sett); % An extra mean iteration
         te       = spm_multireg_energ('TemplateEnergy',mu,sett);
-        dat      = spm_multireg_updt('UpdateBiasField',dat,mu,sett);
-        dat      = spm_multireg_updt('UpdateIntensity',dat, sett);        
-                    
+        dat      = spm_multireg_updt('UpdateIntensityPrior',dat, mu, sett);
+                
         [mu,dat] = spm_multireg_updt('UpdateMean',dat, mu, sett);
         te       = spm_multireg_energ('TemplateEnergy',mu,sett);
-        dat      = spm_multireg_updt('UpdateBiasField',dat,mu,sett);
-        dat      = spm_multireg_updt('UpdateIntensity',dat, sett);
+        dat      = spm_multireg_updt('UpdateIntensityPrior',dat, mu, sett);
         E3       = sum(sum(cat(2,dat.E),2),1) + te;
             
         % Update velocities
         dat      = spm_multireg_energ('VelocityEnergy',dat,sett);
         dat      = spm_multireg_updt('UpdateVelocities',dat,mu,sett);
         dat      = spm_multireg_energ('VelocityEnergy',dat,sett);
+        dat      = spm_multireg_updt('UpdateIntensityPrior',dat, mu, sett);
         E4old    = E4;
         E4       = sum(sum(cat(2,dat.E),2),1) + te;       
 
@@ -498,9 +496,16 @@ for n=1:N % Loop over subjects
             fn   = reshape(fn,[prod(df(1:3)) C]);
             fn   = spm_multireg_util('MaskF',fn);
             code = spm_gmm_lib('obs2code', fn);
+            L    = unique(code);
+            
+            % GMM posterior
+            m  = dat(n).mog.po.m;
+            b  = dat(n).mog.po.b;
+            V  = dat(n).mog.po.V;
+            nu = dat(n).mog.po.n;
 
             % Get responsibilities
-            zn = spm_multireg_io('ComputeResponsibilities',dat(n),bf.*fn,mu,code); 
+            zn = spm_multireg_io('ComputeResponsibilities',m,b,V,nu,bf.*fn,mu,L,code); 
             mu = [];     
 
             % Get bias field modulated image data

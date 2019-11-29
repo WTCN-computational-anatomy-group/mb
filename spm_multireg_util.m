@@ -531,40 +531,28 @@ end
 
 %==========================================================================
 % SubSample()
-function varargout = SubSample(samp,Mat,d0,varargin)
+function varargout = SubSample(samp,Mat,varargin)
 vx        = sqrt(sum(Mat(1:3,1:3).^2));
 samp      = max([1 1 1],round(samp*[1 1 1]./vx));
 N         = numel(varargin);
-varargout = cell(1,2*N + 1);
-cnt       = 1;
+varargout = cell(1,N + 2);
 for n=1:N
-    f              = varargin{n};    
-    varargout{cnt} = f; 
-    cnt            = cnt + 1;
+    f  = varargin{n};    
+    d0 = size(f);
+    d0 = [d0 1];
     
-    if d0 > 0
-        C = size(f,2);    
-        f = reshape(f,[d0(1:3) C]);    
-    end
-    
-    f = f(1:samp:end,1:samp:end,1:samp:end,:);
+    f = f(1:samp:end,1:samp:end,1:samp:end,:);    
     d = size(f); 
-    d = [d 1];
+    d = [d 1];    
     
-    if d0 > 0
-        varargout{cnt} = reshape(f,[prod(d(1:3)) C]); 
-    else
-        varargout{cnt} = f; 
-    end
-    cnt = cnt + 1;
+    varargout{n} = f; 
 end
 
-if d0 > 0
-    % For weighting data parts of lowerbound with factor based on amount of
-    % downsampling  
-    W              = prod(d0(1:3))/prod(d(1:3));
-    varargout{end} = W;
-end
+% For weighting data parts of lowerbound with factor based on amount of
+% downsampling  
+W                = prod(d0(1:3))/prod(d(1:3));
+varargout{N + 1} = W;
+varargout{N + 2} = d(1:3);
 end
 %==========================================================================
 

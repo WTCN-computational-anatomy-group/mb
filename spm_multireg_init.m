@@ -50,7 +50,7 @@ for n=1:numel(dat)
     fn    = spm_multireg_io('GetData',dat(n).f);                    
     fn    = reshape(fn,[prod(d(1:3)) C]);                      
     fn    = spm_multireg_util('MaskF',fn);
-    isneg = nanmin(fn,[],1) < 0;
+    isneg = zeros([1 C]);%nanmin(fn,[],1) < 0;
     if do_bf_norm
         val = 1e3;                    
         scl = double(val./nanmean(fn,1)); 

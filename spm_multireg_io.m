@@ -56,17 +56,10 @@ end
 
 %==========================================================================
 % ComputeResponsibilities()
-function [zn,lx,lz] = ComputeResponsibilities(datn,fn,mu,code)
+function [zn,lx,lz] = ComputeResponsibilities(m,b,V,n,fn,mu,L,code)
 
 % Is there missing data?
-L       = unique(code);
 do_miss = numel(L) > 1;
-
-% Posterior
-m = datn.mog.po.m;
-b = datn.mog.po.b;
-V = datn.mog.po.V;
-n = datn.mog.po.n;
 
 if do_miss, const = spm_gmm_lib('Const', {m,b}, {V,n}, L);
 else,       const = spm_gmm_lib('Const', {m,b}, {V,n});
@@ -204,11 +197,12 @@ if ~isfield(datn,'mog')
         datn.E(1) = -sum(tmp(msk));
     end
 else
-    if nargout > 1
-        [P,datn,code] = spm_multireg_updt('UpdateGMMSub',datn,mu,sett,get_k1);        
-    else
-        P = spm_multireg_updt('UpdateGMMSub',datn,mu,sett,get_k1);
-    end
+    [P,datn] = spm_multireg_updt('UpdateAppearance',datn,mu,sett);        
+%     if nargout > 1
+%         [P,datn,code] = spm_multireg_updt('UpdateGMMSub',datn,mu,sett,get_k1);        
+%     else
+%         P = spm_multireg_updt('UpdateGMMSub',datn,mu,sett,get_k1);        
+%     end
 end
 
 if 0
