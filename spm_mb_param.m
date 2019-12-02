@@ -365,6 +365,8 @@ end
 if ~(exist(sett.write.dir_res,'dir') == 7)  
     mkdir(sett.write.dir_res);  
 end
+s                  = what(sett.write.dir_res); % Get absolute path
+sett.write.dir_res = s.path;
 
 end
 %==========================================================================

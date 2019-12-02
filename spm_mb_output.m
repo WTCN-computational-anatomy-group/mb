@@ -24,7 +24,7 @@ end
 
 %==========================================================================
 % ProcessSubject
-function resn = ProcessSubject(datn,mu,resn,ix,sett)
+function resn = ProcessSubject(datn,resn,mu,ix,sett)
 
 % Parse function settings
 B        = sett.registr.B;
@@ -54,123 +54,123 @@ if size(write_bf,1) == 1 && C  > 1, write_bf = repmat(write_bf,[C  1]); end
 if size(write_im,1) == 1 && C  > 1, write_im = repmat(write_im,[C  1]); end   
 if size(write_tc,1) == 1 && K1 > 1, write_tc = repmat(write_tc,[K1 1]); end
 
-if any(write_bf(:) == true) || any(write_im(:) == true) || any(write_tc(:) == true)
-    if isfield(datn,'mog')   
-        % Input data were intensity images
-        %------------------
+if (all(write_bf(:) == false) && all(write_im(:) == false) && all(write_tc(:) == false))   
+    return
+end
 
-        % Get subject-space template (softmaxed K + 1)
-        psi1 = spm_mb_io('GetData',datn.psi);
-        psi0 = spm_mb_shape('Affine',df,Mmu\Mr*Mn);
-        psi  = spm_mb_shape('Compose',psi1,psi0);
-        psi0 = []; psi1 = [];        
+psi0 = spm_mb_io('GetData',datn.psi);
 
-        mu  = spm_mb_shape('Pull1',mu,psi);
-        psi = [];
+if isfield(datn,'mog') && (any(write_bf(:) == true) || any(write_im(:) == true) || any(write_tc(:) == true))    
+    % Input data were intensity images
+    %------------------
 
-        % Make K + 1 template
-        mu = reshape(mu,[prod(df(1:3)) K]);
-        mu = cat(2,mu,zeros([prod(df(1:3)) 1],'single'));        
+    % Get subject-space template (softmaxed K + 1)
+    psi = spm_mb_shape('Compose',psi0,spm_mb_shape('Affine',df,Mmu\Mr*Mn));    
+    mu  = spm_mb_shape('Pull1',mu,psi);
+    psi = [];
+    
+    % Make K + 1 template
+    mu = reshape(mu,[prod(df(1:3)) K]);
+    mu = cat(2,mu,zeros([prod(df(1:3)) 1],'single'));        
 
-        % Get bias field
-        chan = spm_mb_io('GetBiasFieldStruct',C,df,Mn,reg,fwhm,[],datn.bf.T);
-        bf   = spm_mb_io('GetBiasField',chan,df);
+    % Get bias field
+    chan = spm_mb_appearance('BiasFieldStruct',C,df,Mn,reg,fwhm,[],datn.bf.T);
+    bf   = spm_mb_appearance('BiasField',chan,df);
 
-        % Get image(s)
-        fn   = spm_mb_io('GetData',datn.f);
-        fn   = reshape(fn,[prod(df(1:3)) C]);
-        fn   = spm_mb_appearance('Mask',fn);
-        code = spm_gmm_lib('obs2code', fn);
-        L    = unique(code);
+    % Get image(s)
+    fn   = spm_mb_io('GetData',datn.f);
+    fn   = reshape(fn,[prod(df(1:3)) C]);
+    fn   = spm_mb_appearance('Mask',fn);
+    code = spm_gmm_lib('obs2code', fn);
+    L    = unique(code);
 
-        % GMM posterior
-        m = datn.mog.po.m;
-        b = datn.mog.po.b;
-        V = datn.mog.po.V;
-        n = datn.mog.po.n;
+    % GMM posterior
+    m = datn.mog.po.m;
+    b = datn.mog.po.b;
+    V = datn.mog.po.V;
+    n = datn.mog.po.n;
 
-        % Get responsibilities
-        zn = spm_mb_appearance('Responsibility',m,b,V,n,bf.*fn,mu,L,code); 
-        mu = [];     
+    % Get responsibilities
+    zn = spm_mb_appearance('Responsibility',m,b,V,n,bf.*fn,mu,L,code); 
+    mu = [];     
 
-        % Get bias field modulated image data
-        fn = bf.*fn;
-        if do_infer
-            % Infer missing values
-            sample_post = do_infer > 1;
-            MU = datn.mog.po.m;    
-            A  = bsxfun(@times, datn.mog.po.V, reshape(datn.mog.po.n, [1 1 K1]));            
-            fn = spm_gmm_lib('InferMissing',fn,zn,{MU,A},{code,unique(code)},sample_post);        
+    % Get bias field modulated image data
+    fn = bf.*fn;
+    if do_infer
+        % Infer missing values
+        sample_post = do_infer > 1;
+        MU = datn.mog.po.m;    
+        A  = bsxfun(@times, datn.mog.po.V, reshape(datn.mog.po.n, [1 1 K1]));            
+        fn = spm_gmm_lib('InferMissing',fn,zn,{MU,A},{code,unique(code)},sample_post);        
+    end
+
+    % TODO: Possible post-processing (MRF + clean-up)
+
+
+    % Make 3D        
+    bf = reshape(bf,[df(1:3) C]);
+    fn = reshape(fn,[df(1:3) C]);
+    zn = reshape(zn,[df(1:3) K1]);
+
+    if any(write_bf == true)
+        % Write bias field
+        descrip = 'Bias field (';
+        pths    = {};
+        for c=1:C
+            if ~write_bf(c,1), continue; end
+            nam  = ['bf' num2str(c) '_' namn '.nii'];
+            fpth = fullfile(dir_res,nam);            
+            spm_mb_io('WriteNii',fpth,bf(:,:,:,c),Mn,[descrip 'c=' num2str(c) ')']);                
+            pths{end + 1} = fpth;
         end
+        resn.bf = pths;
+    end
 
-        % TODO: Possible post-processing (MRF + clean-up)
-
-
-        % Make 3D        
-        bf = reshape(bf,[df(1:3) C]);
-        fn = reshape(fn,[df(1:3) C]);
-        zn = reshape(zn,[df(1:3) K1]);
-
-        if any(write_bf == true)
-            % Write bias field
-            descrip = 'Bias field (';
-            pths    = {};
-            for c=1:C
-                if ~write_bf(c,1), continue; end
-                nam  = ['bf' num2str(c) '_' namn '.nii'];
-                fpth = fullfile(dir_res,nam);            
-                spm_mb_io('WriteNii',fpth,bf(:,:,:,c),Mn,[descrip 'c=' num2str(c) ')']);                
-                pths{end + 1} = fpth;
-            end
-            resn.bf = pths;
+    if any(write_im(:,1) == true)
+        % Write image
+        descrip = 'Image (';
+        pths    = {};
+        for c=1:C
+            if ~write_im(c,1), continue; end
+            nam  = ['im' num2str(c) '_' namn '.nii'];
+            fpth = fullfile(dir_res,nam);            
+            spm_mb_io('WriteNii',fpth,fn(:,:,:,c)./bf(:,:,:,c),Mn,[descrip 'c=' num2str(c) ')']);
+            pths{end + 1} = fpth;
         end
+        resn.im = pths;
 
-        if any(write_im(:,1) == true)
-            % Write image
-            descrip = 'Image (';
-            pths    = {};
-            for c=1:C
-                if ~write_im(c,1), continue; end
-                nam  = ['im' num2str(c) '_' namn '.nii'];
-                fpth = fullfile(dir_res,nam);            
-                spm_mb_io('WriteNii',fpth,fn(:,:,:,c)./bf(:,:,:,c),Mn,[descrip 'c=' num2str(c) ')']);
-                pths{end + 1} = fpth;
-            end
-            resn.im = pths;
-
-            % Write image corrected
-            descrip = 'Image corrected (';
-            pths    = {};
-            for c=1:C
-                if ~write_im(c,2), continue; end
-                nam  = ['imc' num2str(c) '_' namn '.nii'];
-                fpth = fullfile(dir_res,nam);            
-                spm_mb_io('WriteNii',fpth,fn(:,:,:,c),Mn,[descrip 'c=' num2str(c) ')']);
-                pths{end + 1} = fpth;
-            end
-            resn.imc = pths;
+        % Write image corrected
+        descrip = 'Image corrected (';
+        pths    = {};
+        for c=1:C
+            if ~write_im(c,2), continue; end
+            nam  = ['imc' num2str(c) '_' namn '.nii'];
+            fpth = fullfile(dir_res,nam);            
+            spm_mb_io('WriteNii',fpth,fn(:,:,:,c),Mn,[descrip 'c=' num2str(c) ')']);
+            pths{end + 1} = fpth;
         end
+        resn.imc = pths;
+    end
 
-        if any(write_tc(:,1) == true)
-            % Write segmentations
-            descrip = 'Tissue (';
-            pths    = {};
-            for k=1:K1 
-                if ~write_tc(k,1), continue; end
-                nam  = ['c' num2str(k) '_' namn '.nii'];
-                fpth = fullfile(dir_res,nam);            
-                spm_mb_io('WriteNii',fpth,zn(:,:,:,k),Mn,[descrip 'k=' num2str(k) ')']);
-                pths{end + 1} = fpth;
-            end  
-            resn.c = pths;
-        end
-    else
-        % Input data were segmentations
-        %------------------
+    if any(write_tc(:,1) == true)
+        % Write segmentations
+        descrip = 'Tissue (';
+        pths    = {};
+        for k=1:K1 
+            if ~write_tc(k,1), continue; end
+            nam  = ['c' num2str(k) '_' namn '.nii'];
+            fpth = fullfile(dir_res,nam);            
+            spm_mb_io('WriteNii',fpth,zn(:,:,:,k),Mn,[descrip 'k=' num2str(k) ')']);
+            pths{end + 1} = fpth;
+        end  
+        resn.c = pths;
+    end
+else
+    % Input data were segmentations
+    %------------------
 
-        zn = spm_mb_io('GetData',datn.f);
-        zn = cat(4,zn,1 - sum(zn,4));
-    end    
+    zn = spm_mb_io('GetData',datn.f);
+    zn = cat(4,zn,1 - sum(zn,4));
 end
 
 if any(write_df == true) || any(reshape(write_tc(:,[2 3]),[],1) == true) ||  any(reshape(write_im(:,[3 4]),[],1) == true)
@@ -181,9 +181,7 @@ if any(write_df == true) || any(reshape(write_tc(:,[2 3]),[],1) == true) ||  any
     sd = SampDens(Mmu,Mn);
 
     % Get forward deformation
-    psi1 = spm_mb_io('GetData',datn.psi);
-    psi  = spm_mb_shape('Compose',psi1,spm_mb_shape('Affine',df,Mmu\Mr*Mn));
-    psi1 = [];
+    psi = spm_mb_shape('Compose',psi0,spm_mb_shape('Affine',df,Mmu\Mr*Mn));    
 
     if df(3) == 1, psi(:,:,:,3) = 1; end % 2D
 
@@ -259,8 +257,7 @@ if any(write_df == true) || any(reshape(write_tc(:,[2 3]),[],1) == true) ||  any
 
     if write_df(2)
         % Get inverse deformation (correct?)
-        psi = spm_mb_io('GetData',datn.psi);    
-        psi = spm_diffeo('invdef',psi,dmu(1:3),eye(4),eye(4));    
+        psi = spm_diffeo('invdef',psi0,dmu(1:3),eye(4),eye(4));    
         %psi = spm_extrapolate_def(psi,Mmu);
         M   = inv(Mmu\Mr*Mn);
         psi = reshape(reshape(psi,[prod(dmu) 3])*M(1:3,1:3)' + M(1:3,4)',[dmu 3]);        
