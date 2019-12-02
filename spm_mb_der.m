@@ -1,19 +1,19 @@
-function varargout = spm_multireg_der(varargin)
+function varargout = spm_mb_der(varargin)
 %__________________________________________________________________________
 %
-% Derivative functions for spm_multireg.
+% Functions for derivative related.
 %
-% FORMAT [H,g] = spm_multireg_der('AffineHessian',mu,G,a,w,accel)
-% FORMAT H     = spm_multireg_der('AppearanceHessian',mu,accel)
-% FORMAT [H,g] = spm_multireg_der('SimpleAffineHessian',mu,G,H0,a,w)
-% FORMAT H     = spm_multireg_der('VelocityHessian',mu,G,accel)
+% FORMAT [H,g] = spm_mb_der('AffineHessian',mu,G,a,w,accel)
+% FORMAT H     = spm_mb_der('AppearanceHessian',mu,accel)
+% FORMAT [H,g] = spm_mb_der('SimpleAffineHessian',mu,G,H0,a,w)
+% FORMAT H     = spm_mb_der('VelocityHessian',mu,G,accel)
 %
 %__________________________________________________________________________
 % Copyright (C) 2019 Wellcome Trust Centre for Neuroimaging
 
 if nargin == 0
-    help spm_multireg_der
-    error('Not enough argument. Type ''help spm_multireg_der'' for help.');
+    help spm_mb_der
+    error('Not enough argument. Type ''help spm_mb_der'' for help.');
 end
 id = varargin{1};
 varargin = varargin(2:end);
@@ -27,8 +27,8 @@ switch id
     case 'VelocityHessian'
         [varargout{1:nargout}] = VelocityHessian(varargin{:});                
     otherwise
-        help spm_multireg_der
-        error('Unknown function %s. Type ''help spm_multireg_der'' for help.', id)
+        help spm_mb_der
+        error('Unknown function %s. Type ''help spm_mb_der'' for help.', id)
 end
 end
 %==========================================================================
@@ -64,7 +64,7 @@ end
 function H = AppearanceHessian(mu,accel)
 M  = size(mu,4);
 d  = [size(mu,1) size(mu,2) size(mu,3)];
-if accel>0, s  = spm_multireg_util('softmax',mu,4); end
+if accel>0, s  = spm_mb_shape('Softmax',mu,4); end
 Ab = 0.5*(eye(M)-1/(M+1)); % See Bohning's paper
 I  = Horder(M);
 H  = zeros([d (M*(M+1))/2],'single');
@@ -116,7 +116,7 @@ end
 function H = VelocityHessian(mu,G,accel)
 d  = [size(mu,1),size(mu,2),size(mu,3)];
 M  = size(mu,4);
-if accel>0, s  = spm_multireg_util('softmax',mu,4); end
+if accel>0, s  = spm_mb_shape('Softmax',mu,4); end
 Ab = 0.5*(eye(M)-1/(M+1)); % See Bohning's paper
 H  = zeros([d 6],'single');
 for m1=1:M

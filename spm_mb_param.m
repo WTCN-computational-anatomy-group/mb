@@ -1,18 +1,18 @@
-function varargout = spm_multireg_par(varargin)
+function varargout = spm_mb_param(varargin)
 %__________________________________________________________________________
 %
-% Parameter/settings functions for spm_multireg.
+% Functions for settings and parameters related.
 %
-% FORMAT B    = spm_multireg_par('AffineBases',code)
-% FORMAT sett = spm_multireg_par('Settings')
-% FORMAT sz   = spm_multireg_par('ZoomSettings',d, Mmu, v_settings, mu_settings, n)
+% FORMAT B    = spm_mb_param('AffineBases',code)
+% FORMAT sett = spm_mb_param('Settings')
+% FORMAT sz   = spm_mb_param('ZoomSettings',d, Mmu, v_settings, mu_settings, n)
 %
 %__________________________________________________________________________
 % Copyright (C) 2019 Wellcome Trust Centre for Neuroimaging
 
 if nargin == 0
-    help spm_multireg_par
-    error('Not enough argument. Type ''help spm_multireg_par'' for help.');
+    help spm_mb_param
+    error('Not enough argument. Type ''help spm_mb_param'' for help.');
 end
 id = varargin{1};
 varargin = varargin(2:end);
@@ -24,8 +24,8 @@ switch id
     case 'ZoomSettings'
         [varargout{1:nargout}] = ZoomSettings(varargin{:});           
     otherwise
-        help spm_multireg_par
-        error('Unknown function %s. Type ''help spm_multireg_par'' for help.', id)
+        help spm_mb_param
+        error('Unknown function %s. Type ''help spm_mb_param'' for help.', id)
 end
 end
 %==========================================================================
@@ -97,6 +97,17 @@ end
 %==========================================================================
 % Settings()
 function sett = Settings(sett)
+
+%------------------
+% .appear (appearance model related)
+%------------------
+
+if ~isfield(sett,'appear')
+    sett.appear = struct;
+end
+if ~isfield(sett.appear,'tol')
+    sett.appear.tol = 1e-4;
+end
 
 %------------------
 % .bf (bias field related)
@@ -172,9 +183,6 @@ end
 if ~isfield(sett.gen,'samp')
     sett.gen.samp = 3;
 end
-if ~isfield(sett.gen,'threads')
-    sett.gen.threads = Inf;
-end
 
 %------------------
 % .model (model related)
@@ -199,6 +207,9 @@ end
 
 if ~isfield(sett,'nit')
     sett.nit = struct;
+end
+if ~isfield(sett.nit,'appear')   
+    sett.nit.appear = 8;
 end
 if ~isfield(sett.nit,'bf')   
     sett.nit.bf = 1;
@@ -273,19 +284,19 @@ if ~isfield(sett.show,'channel')
     sett.show.channel = 1; % 1, ..., C
 end
 if ~isfield(sett.show,'figname_bf')
-    sett.show.figname_bf = '(spm_multireg) Bias fields';
+    sett.show.figname_bf = '(spm_mb) Bias fields';
 end
 if ~isfield(sett.show,'figname_int')
-    sett.show.figname_int = '(spm_multireg) Intensity model';
+    sett.show.figname_int = '(spm_mb) Intensity model';
 end
 if ~isfield(sett.show,'figname_model')
-    sett.show.figname_model = '(spm_multireg) Template model';
+    sett.show.figname_model = '(spm_mb) Template model';
 end
 if ~isfield(sett.show,'figname_parameters')
-    sett.show.figname_parameters = '(spm_multireg) Parameters';
+    sett.show.figname_parameters = '(spm_mb) Parameters';
 end
 if ~isfield(sett.show,'figname_subjects')
-    sett.show.figname_subjects = '(spm_multireg) Segmentations';
+    sett.show.figname_subjects = '(spm_mb) Segmentations';
 end
 if ~isfield(sett.show,'level')
     sett.show.level = 1; % 0, 1, 2, 3

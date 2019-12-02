@@ -1,38 +1,33 @@
-function varargout = spm_multireg_io(varargin)
+function varargout = spm_mb_io(varargin)
 %__________________________________________________________________________
 %
-% I/O functions for spm_multireg.
+% Functions for I/O related.
 %
-% FORMAT [zn,lx,lz]    = spm_multireg_io('ComputeResponsibilities',datn,fn,mu,code)
-% FORMAT to            = spm_multireg_io('CopyFields',from,to)
-% FORMAT [bfn,lln]     = spm_multireg_io('GetBiasField',chan,d,varargin)
-% FORMAT chan          = spm_multireg_io('GetBiasFieldStruct',C,d,Mat,reg,fwhm,scl,T)
-% FORMAT [P,datn,code] = spm_multireg_io('GetClasses',datn,mu,sett,get_k1)
-% FORMAT out           = spm_multireg_io('GetData',in)
-% FORMAT Mat           = spm_multireg_io('GetMat',fin)
-% FORMAT [d,M]         = spm_multireg_io('GetSize',fin)
-% FORMAT [psi,fpth]    = spm_multireg_io('SavePsiSub',datn,sett) 
-% FORMAT dat           = spm_multireg_io('SaveTemplate',dat,mu,sett)
-% FORMAT fout          = spm_multireg_io('SetData',fin,f) 
+% FORMAT to         = spm_mb_io('CopyFields',from,to)
+% FORMAT [P,datn]   = spm_mb_io('GetClasses',datn,mu,sett)
+% FORMAT out        = spm_mb_io('GetData',in)
+% FORMAT Mat        = spm_mb_io('GetMat',fin)
+% FORMAT [d,M]      = spm_mb_io('GetSize',fin)
+% FORMAT dat        = spm_mb_io('InitDat',F,sett)
+% FORMAT [psi,fpth] = spm_mb_io('SavePsiSub',datn,sett) 
+% FORMAT dat        = spm_mb_io('SaveTemplate',dat,mu,sett)
+% FORMAT              spm_mb_io('SetBoundCond')
+% FORMAT fout       = spm_mb_io('SetData',fin,f) 
+% FORMAT              spm_mb_io('SetPath')
+% FORMAT              spm_mb_io('WriteNii',f,img,Mmu,descrip);
 %
 %__________________________________________________________________________
 % Copyright (C) 2019 Wellcome Trust Centre for Neuroimaging
 
 if nargin == 0
-    help spm_multireg_io
-    error('Not enough argument. Type ''help spm_multireg_io'' for help.');
+    help spm_mb_io
+    error('Not enough argument. Type ''help spm_mb_io'' for help.');
 end
 id = varargin{1};
 varargin = varargin(2:end);
 switch id
-    case 'ComputeResponsibilities'
-        [varargout{1:nargout}] = ComputeResponsibilities(varargin{:});   
     case 'CopyFields'
-        [varargout{1:nargout}] = CopyFields(varargin{:});                   
-    case 'GetBiasField'
-        [varargout{1:nargout}] = GetBiasField(varargin{:});  
-    case 'GetBiasFieldStruct'
-        [varargout{1:nargout}] = GetBiasFieldStruct(varargin{:});  
+        [varargout{1:nargout}] = CopyFields(varargin{:});       
     case 'GetClasses'
         [varargout{1:nargout}] = GetClasses(varargin{:});    
     case 'GetData'
@@ -41,36 +36,23 @@ switch id
         [varargout{1:nargout}] = GetMat(varargin{:});             
     case 'GetSize'
         [varargout{1:nargout}] = GetSize(varargin{:});    
+    case 'InitDat' 
+        [varargout{1:nargout}] = InitDat(varargin{:});            
     case 'SavePsiSub' 
         [varargout{1:nargout}] = SavePsiSub(varargin{:});           
     case 'SaveTemplate'
         [varargout{1:nargout}] = SaveTemplate(varargin{:});    
+    case 'SetBoundCond'
+        [varargout{1:nargout}] = SetBoundCond(varargin{:});        
     case 'SetData'
         [varargout{1:nargout}] = SetData(varargin{:});                
+    case 'SetPath'
+        [varargout{1:nargout}] = SetPath(varargin{:});        
+    case 'WriteNii'
+        [varargout{1:nargout}] = WriteNii(varargin{:});            
     otherwise
-        help spm_multireg_io
-        error('Unknown function %s. Type ''help spm_multireg_io'' for help.', id)
-end
-end
-%==========================================================================
-
-%==========================================================================
-% ComputeResponsibilities()
-function [zn,lx,lz] = ComputeResponsibilities(m,b,V,n,fn,mu,L,code)
-
-% Is there missing data?
-do_miss = numel(L) > 1;
-
-if do_miss, const = spm_gmm_lib('Const', {m,b}, {V,n}, L);
-else,       const = spm_gmm_lib('Const', {m,b}, {V,n});
-end
-
-fn = spm_gmm_lib('Marginal', fn, {m,V,n}, const, {code,L});
-zn = spm_gmm_lib('Responsibility', fn, mu);
-
-if nargout > 1
-    lx = spm_multireg_energ('LowerBound','X',fn,zn,code,{m,b},{V,n}); 
-    lz = spm_gmm_lib('KL', 'Categorical', zn, 1, mu);
+        help spm_mb_io
+        error('Unknown function %s. Type ''help spm_mb_io'' for help.', id)
 end
 end
 %==========================================================================
@@ -86,102 +68,9 @@ end
 %==========================================================================
 
 %==========================================================================
-% GetBiasField()
-function [bfn,lln] = GetBiasField(chan,d,varargin)
-C  = numel(chan);
-I  = prod(d);
-Iz = prod(d(1:2));
-nz = d(3);   
-if numel(varargin) == 0
-    % Compute full bias field (for all channels)
-    bfn = zeros([I C],'single');
-    lln = zeros(1,C);
-    for c=1:C           
-        lln(c) = double(-0.5*chan(c).T(:)'*chan(c).C*chan(c).T(:));    
-
-        for z=1:nz
-            ix        = IndexSlice2Vol(z,Iz);
-            bf_c      = transf(chan(c).B1,chan(c).B2,chan(c).B3(z,:),chan(c).T);
-            bf_c      = bf_c(:);      
-            bfn(ix,c) = single(exp(bf_c));        
-        end
-    end
-else
-    % Compute just for one channel
-    bfn = varargin{1};
-    c   = varargin{2};
-    lln = varargin{3};
-
-    lln(c) = double(-0.5*chan(c).T(:)'*chan(c).C*chan(c).T(:));    
-
-    for z=1:nz
-        ix        = IndexSlice2Vol(z,Iz);
-        bf_c      = transf(chan(c).B1,chan(c).B2,chan(c).B3(z,:),chan(c).T);
-        bf_c      = bf_c(:);      
-        bfn(ix,c) = single(exp(bf_c));        
-    end
-end
-end
-%==========================================================================
-
-%==========================================================================
-% GetBiasFieldStruct()
-function chan = GetBiasFieldStruct(C,d,Mat,reg,fwhm,scl,T,samp)
-if nargin < 7, T    = {}; end
-if nargin < 8, samp = 1; end
-
-cl   = cell(C,1);    
-args = {'C',cl,'B1',cl,'B2',cl,'B3',cl,'T',cl,'ll',cl};
-chan = struct(args{:});
-
-vx = sqrt(sum(Mat(1:3,1:3).^2));                     
-sd = vx(1)*d(1)/fwhm; d3(1) = ceil(sd*2);
-sd = vx(2)*d(2)/fwhm; d3(2) = ceil(sd*2);
-sd = vx(3)*d(3)/fwhm; d3(3) = ceil(sd*2);
-
-% Precision (inverse covariance) of Gaussian prior on bias field parameters
-ICO = spm_bias_lib('regulariser','bending',d,d3,vx);
-ICO = single(ICO*reg);
-
-samp      = max([1 1 1],round(samp*[1 1 1]./vx));
-[x0,y0,~] = ndgrid(single(1:samp(1):d(1)),single(1:samp(2):d(2)),1);
-z0        = single(1:samp(3):d(3));
-
-for c=1:C
-    % GAUSSIAN REGULARISATION for bias correction                        
-    chan(c).C = ICO;
-
-    % Basis functions for bias correction
-    chan(c).B3 = single(spm_dctmtx(d(3),d3(3),z0));
-    chan(c).B2 = single(spm_dctmtx(d(2),d3(2),y0(1,:)'));
-    chan(c).B1 = single(spm_dctmtx(d(1),d3(1),x0(:,1)));
-
-    if isempty(T)
-        % Initial parameterisation of bias field
-        chan(c).T = zeros(d3,'single');
-    else
-        % Parameterisation given
-        chan(c).T = T{c};
-    end
-
-    if ~isempty(scl)
-        % Change DC component of bias field to make intensities more
-        % simillar between MR images.
-        b1               = chan(c).B1(1,1);
-        b2               = chan(c).B2(1,1);
-        b3               = chan(c).B3(1,1);
-        chan(c).T(1,1,1) = 1/(b1*b2*b3)*log(scl(c));
-    end
-end   
-end
-%========================================================================== 
-
-%==========================================================================
 % GetClasses()
-function [P,datn,code] = GetClasses(datn,mu,sett,get_k1)
-if nargin < 4, get_k1 = false; end
+function [P,datn] = GetClasses(datn,mu,sett)
 
-code = [];
 if ~isfield(datn,'mog')
     P = GetData(datn.f);
 
@@ -193,16 +82,11 @@ if ~isfield(datn,'mog')
 
         % Compute subject-specific categorical cross-entropy loss between
         % segmentation and template
-        tmp       = sum(P.*mu,4) - spm_multireg_util('lse',mu,4);  
+        tmp       = sum(P.*mu,4) - spm_mb_shape('LSE',mu,4);  
         datn.E(1) = -sum(tmp(msk));
     end
 else
-    [P,datn] = spm_multireg_updt('UpdateAppearance',datn,mu,sett);        
-%     if nargout > 1
-%         [P,datn,code] = spm_multireg_updt('UpdateGMMSub',datn,mu,sett,get_k1);        
-%     else
-%         P = spm_multireg_updt('UpdateGMMSub',datn,mu,sett,get_k1);        
-%     end
+    [P,datn] = spm_mb_appearance('Update',datn,mu,sett);
 end
 
 if 0
@@ -287,6 +171,76 @@ end
 %==========================================================================
 
 %==========================================================================
+% InitDat()
+function dat = InitDat(F,sett)
+
+% Parse function settings
+run2d = sett.gen.run2d;
+
+M0 = eye(4);
+for n=1:numel(F)
+    
+    % Init datn.f
+    if iscell(F(n)) && isnumeric(F{n})
+        % Input F is numeric -> store as numeric
+        
+        if run2d            
+            % Get 2D slice from 3D data
+            dat(n).f = GetSlice(F{n},run2d);
+        else
+            dat(n).f = single(F{n});
+        end
+    elseif isa(F(n),'nifti') || (iscell(F(n)) && (isa(F{n},'char') || isa(F{n},'nifti')))
+        % Input F is nifti (path or object) -> store as nifti
+                       
+        if isa(F(n),'nifti')
+            Nii      = F(n);
+            dat(n).f = Nii;        
+        elseif iscell(F(n)) 
+            if isa(F{n},'char')
+                Nii      = nifti(F{n});
+                dat(n).f = Nii;        
+            elseif isa(F{n},'nifti')                
+                Nii      = F{n};
+                C        = numel(Nii);
+                dat(n).f = nifti;
+                for c=1:C
+                    dat(n).f(c) = Nii(c);
+                end
+            end
+        end
+        
+        if run2d
+            % Get 2D slice from 3D data
+            fn       = spm_mb_io('GetData',dat(n).f);
+            dat(n).f = GetSlice(fn,run2d);
+        end
+    end
+    
+    % Other parameters
+    dat(n).M   = M0;    
+    dat(n).q   = zeros(6,1);    
+    dat(n).v   = [];    
+    dat(n).psi = [];    
+    dat(n).E   = [0 0 0]; % Px Pv Pbf
+    dat(n).bf  = [];
+                     
+    % Orientation matrix (image voxel-to-world)    
+    dat(n).Mat = eye(4); % Should really do this better           
+    if isa(F(n),'nifti') || (iscell(F(n)) && (isa(F{n},'char') || isa(F{n},'nifti')))
+        Mat = Nii(1).mat;
+        vx  = sqrt(sum(Mat(1:3,1:3).^2));    
+        if run2d
+            dat(n).Mat = diag([vx 1]);
+        else
+            dat(n).Mat = Nii(1).mat;        
+        end
+    end
+end
+end
+%==========================================================================
+
+%==========================================================================
 % SavePsiSub()
 function [psi,fpth] = SavePsiSub(datn,sett)
 
@@ -299,7 +253,7 @@ d    = GetSize(datn.f);
 q    = double(datn.q);
 Mn   = datn.Mat;
 psi1 = GetData(datn.psi);
-psi  = spm_multireg_util('Compose',psi1,spm_multireg_util('Affine',d,Mmu\spm_dexpm(q,B)*Mn));
+psi  = spm_mb_shape('Compose',psi1,spm_mb_shape('Affine',d,Mmu\spm_dexpm(q,B)*Mn));
 psi  = reshape(reshape(psi,[prod(d) 3])*Mmu(1:3,1:3)' + Mmu(1:3,4)',[d 1 3]);
 fpth = '';
 if isa(datn.psi(1),'nifti')
@@ -339,7 +293,10 @@ if ~isempty(mu)
     Nmu.dat(:,:,:,:) = mu;
     
     % Save mu (softmax)    
-    mu       = spm_multireg_util('softmaxmu',mu,4);
+    d        = size(mu);
+    d        = [d 1];
+    mu       = cat(4,mu,zeros(d(1:3),'single'));
+    mu       = spm_mb_shape('Softmax',mu,4);
     f        = fullfile(dir_res ,'mu_softmax.nii');        
     fa       = file_array(f,size(mu),'float32',0);
     Nmu      = nifti;
@@ -350,6 +307,14 @@ if ~isempty(mu)
     create(Nmu);
     Nmu.dat(:,:,:,:) = mu;
 end
+end
+%==========================================================================
+
+%==========================================================================
+% SetBoundCond()
+function SetBoundCond
+spm_diffeo('bound',0);
+spm_field('bound',1);
 end
 %==========================================================================
 
@@ -375,6 +340,31 @@ if isa(fin,'nifti')
     end
     return
 end
+end
+%==========================================================================
+
+%==========================================================================
+% SetPath()
+function SetPath
+pth=fileparts(which('spm'));
+addpath(pth);
+addpath(fullfile(pth,'toolbox','Longitudinal'));
+addpath(fullfile(pth,'toolbox','Shoot'));
+end
+%==========================================================================
+
+%==========================================================================
+% WriteNii()
+function WriteNii(f,img,M,descrip)
+fa       = file_array(f,size(img),'float32',0);
+Nii      = nifti;
+Nii.dat  = fa;
+Nii.mat  = M;
+Nii.mat0 = M;
+Nii.descrip = descrip;
+create(Nii);
+d = size(img);
+Nii.dat(:,:,:,:,:,:) = img;
 end
 %==========================================================================
 
@@ -411,21 +401,26 @@ end
 %==========================================================================
 
 %==========================================================================
-% IndexSlice2Vol()
-function ix = IndexSlice2Vol(z,Iz)
-ix = ((z - 1)*Iz + 1):z*Iz;
-end
-%==========================================================================
+% GetSlice()
+function fn = GetSlice(fn,direction)
+d  = size(fn);
+d  = [d 1];
+ix = round(d(1:3)*0.5);
 
-%==========================================================================
-% transf()
-function t = transf(B1,B2,B3,T)
-if ~isempty(T)
-    d2 = [size(T) 1];
-    t1 = reshape(reshape(T, d2(1)*d2(2),d2(3))*B3', d2(1), d2(2));
-    t  = B1*t1*B2';
-else
-    t  = zeros(size(B1,1),size(B2,1));
+if d(3) == 1, return; end
+
+if direction == 1
+    fn = single(fn(ix(1),:,:,:));
+elseif direction == 2
+    fn = single(fn(:,ix(2),:,:));
+elseif direction == 3
+    fn = single(fn(:,:,ix(3),:));
 end
+
+% Reshape
+C  = d(4);
+ix = 1:3;
+d  = d(1:3);
+fn = reshape(fn, [d(ix ~= direction) 1 C]);
 end
-%==========================================================================
+%==========================================================================   
