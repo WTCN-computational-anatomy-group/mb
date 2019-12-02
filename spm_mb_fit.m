@@ -1,7 +1,7 @@
 function [dat,mu,sett] = spm_mb_fit(F,sett)
 %__________________________________________________________________________
 %
-% Groupwise normalisation and segmentation of images.
+% Multi-Brain - Groupwise normalisation and segmentation of images
 %
 %__________________________________________________________________________
 % Copyright (C) 2019 Wellcome Trust Centre for Neuroimaging
