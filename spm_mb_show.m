@@ -5,11 +5,9 @@ function varargout = spm_mb_show(varargin)
 %
 % FORMAT spm_mb_show('Clear',sett)
 % FORMAT spm_mb_show('All',dat,mu,Objective,N,sett)
-% FORMAT spm_mb_show('BiasField',dat,sett)
-% FORMAT spm_mb_show('IntensityPrior',dat,sett)
+% FORMAT spm_mb_show('IntensityPrior',dat,sett,p)
 % FORMAT spm_mb_show('Model',mu,Objective,N,sett)
-% FORMAT spm_mb_show('Parameters',dat,mu,sett)
-% FORMAT spm_mb_show('Subjects',dat,mu,sett)
+% FORMAT spm_mb_show('Subjects',dat,mu,sett,p)
 % FORMAT spm_mb_show('Speak',nam,varargin)
 %
 %__________________________________________________________________________
@@ -24,16 +22,12 @@ varargin = varargin(2:end);
 switch id    
     case 'All'
         [varargout{1:nargout}] = All(varargin{:});
-    case 'BiasField'
-        [varargout{1:nargout}] = BiasField(varargin{:}); 
     case 'Clear'
         [varargout{1:nargout}] = Clear(varargin{:});        
     case 'IntensityPrior'
         [varargout{1:nargout}] = IntensityPrior(varargin{:});         
     case 'Model'
-        [varargout{1:nargout}] = Model(varargin{:});
-    case 'Parameters'
-        [varargout{1:nargout}] = Parameters(varargin{:});            
+        [varargout{1:nargout}] = Model(varargin{:});          
     case 'Subjects'
         [varargout{1:nargout}] = Subjects(varargin{:});        
     case 'Speak'
@@ -52,50 +46,14 @@ if sett.show.level >= 2
     Model(mu,Objective,N,sett);
 end
 if sett.show.level >= 3
-    Subjects(dat,mu,sett);
-    Parameters(dat,mu,sett);
-    BiasField(dat,sett);
-    IntensityPrior(dat,sett);
+    p_ix = spm_mb_appearance('GetPopulationIdx',dat);
+    Np   = numel(p_ix);
+    for p=1:Np
+        if Np == 1, p = []; end
+        Subjects(dat(p_ix{p}),mu,sett,p);
+        IntensityPrior(dat(p_ix{p}),sett,p);
+    end
 end
-end
-%==========================================================================
-
-%==========================================================================
-% BiasField()
-function BiasField(dat,sett)
-
-% Parse function settings
-axis_3d  = sett.show.axis_3d;
-c        = sett.show.channel;
-fig_name = sett.show.figname_bf;
-fwhm     = sett.bf.fwhm;
-mx_subj  = sett.show.mx_subjects;
-reg      = sett.bf.reg;
-updt_bf  = sett.do.updt_bf;
-
-if ~updt_bf, return; end
-
-[df,C] = spm_mb_io('GetSize',dat(1).f);
-nr = 3;
-if df(3) == 1, ax = 3;
-else,         ax = axis_3d;   
-end
-    
-nd = min(numel(dat),mx_subj);
-for n=1:nd
-    df   = spm_mb_io('GetSize',dat(n).f);
-    fn   = spm_mb_io('GetData',dat(n).f);   
-    chan = spm_mb_appearance('BiasFieldStruct',C,df,dat(n).Mat,reg,fwhm,[],dat(n).bf.T);
-    bf   = spm_mb_appearance('BiasField',chan,df);
-    bf   = reshape(bf,[df C]);
-    c    = min(c,C);
-    
-    % Show stuff
-    ShowIm(fn(:,:,:,c),ax,nr,nd,n,fig_name,false);
-    ShowIm(bf(:,:,:,c),ax,nr,nd,n + nd,fig_name,false);            
-    ShowIm(bf(:,:,:,c).*fn(:,:,:,c),ax,nr,nd,n + 2*nd,fig_name,false);
-end
-drawnow
 end
 %==========================================================================
 
@@ -113,10 +71,12 @@ end
 
 %==========================================================================
 % IntensityPrior()
-function IntensityPrior(dat,sett)
+function IntensityPrior(dat,sett,p)
+if nargin < 3, p = []; end
 
 % Parse function settings
 fig_name = sett.show.figname_int;
+if ~isempty(p), fig_name = [fig_name ' (p=' num2str(p) ')']; end
 
 if ~isfield(dat(1),'mog'), return; end
 
@@ -161,148 +121,6 @@ end
 %==========================================================================
 
 %==========================================================================
-% Parameters()
-function Parameters(dat,mu0,sett)
-
-% Parse function settings
-B        = sett.registr.B;
-c        = sett.show.channel;
-fig_name = sett.show.figname_parameters;
-fwhm     = sett.bf.fwhm;
-Mmu      = sett.var.Mmu;
-mx_subj  = sett.show.mx_subjects;
-reg      = sett.bf.reg;
-updt_bf  = sett.do.updt_bf;
-
-fg = findobj('Type', 'Figure', 'Name', fig_name);
-if isempty(fg)
-    fg = figure('Name', fig_name, 'NumberTitle', 'off');
-else
-    clf(fg);
-end
-set(0, 'CurrentFigure', fg);   
-
-nd = min(numel(dat),mx_subj);
-nr = 3;
-if ~isfield(dat,'mog')
-    nr = nr - 1;
-end
-for n=1:nd              
-    % Affine parameters
-    q    = double(dat(n).q);
-    M    = spm_dexpm(q,B);
-    q    = spm_imatrix(M);            
-    q    = q([1 2 6]);
-    q(3) = 180/pi*q(3);
-    q    = abs(q);
-    subplot(nr,nd,n) 
-    hold on
-    for k=1:numel(q)
-        bar(k, q(k));
-    end
-    box on
-    hold off            
-    set(gca,'xtick',[])  
-    
-    % Velocities (x)
-    v = spm_mb_io('GetData',dat(n).v);
-    ShowIm(v(:,:,:,1),3,nr,nd,n + 1*nd,fig_name)
-    
-    if isfield(dat,'mog')
-        % Intensity histogram
-        
-        % Here we get approximate class proportions from the (softmaxed K + 1)
-        % tissue template
-        [df,C] = spm_mb_io('GetSize',dat(n).f);
-        q      = double(dat(n).q);
-        Mn     = dat(n).Mat;
-        psi1   = spm_mb_io('GetData',dat(n).psi);
-        psi    = spm_mb_shape('Compose',psi1,spm_mb_shape('Affine',df,Mmu\spm_dexpm(q,B)*Mn));
-        mu     = spm_mb_shape('Pull1',mu0,psi);               
-        mu     = cat(4,mu,zeros(df(1:3),'single'));
-        mu     = spm_mb_shape('Softmax',mu,4);
-        mu     = reshape(mu,[prod(df(1:3)) size(mu,4)]);
-        mu     = sum(mu,1);
-        mu     = mu./sum(mu);
-        
-        % Plot GMM fit        
-        fn = spm_mb_io('GetData',dat(n).f);        
-        c  = min(c,size(fn,4));
-        fn = fn(:,:,:,c);
-        if updt_bf
-            chan = spm_mb_appearance('BiasFieldStruct',C,df,dat(n).Mat,reg,fwhm,[],dat(n).bf.T);
-            bf   = spm_mb_appearance('BiasField',chan,df);
-            bf   = reshape(bf,[df C]);
-            bf   = bf(:,:,:,c);
-            fn   = bf.*fn;
-        end
-        ShowGMMFit(fn,mu,dat(n).mog,nr,nd,n + 2*nd,c);
-    end
-end
-drawnow
-end
-%==========================================================================
-
-%==========================================================================
-% Subjects()
-function Subjects(dat,mu0,sett)
-
-% Parse function settings
-axis_3d  = sett.show.axis_3d;
-B        = sett.registr.B;
-c        = sett.show.channel;
-fig_name = sett.show.figname_subjects;
-fwhm     = sett.bf.fwhm;
-Mmu      = sett.var.Mmu;
-mx_subj  = sett.show.mx_subjects;
-reg      = sett.bf.reg;
-updt_bf  = sett.do.updt_bf;
-
-if isfield(dat,'mog'), nr = 3;
-else,                  nr = 2;
-end
-if size(mu0,3) == 1, ax = 3;
-else,                ax = axis_3d;   
-end
-    
-nd = min(numel(dat),mx_subj);
-for n=1:nd
-    [df,C] = spm_mb_io('GetSize',dat(n).f);
-    q      = double(dat(n).q);
-    Mn     = dat(n).Mat;
-    psi1   = spm_mb_io('GetData',dat(n).psi);
-    psi    = spm_mb_shape('Compose',psi1,spm_mb_shape('Affine',df,Mmu\spm_dexpm(q,B)*Mn));
-    mu     = spm_mb_shape('Pull1',mu0,psi);            
-    
-    fn = spm_mb_io('GetClasses',dat(n),mu,sett);   
-    fn = cat(4,fn,1 - sum(fn,4)); % Gives K + 1 classes
-    
-    mu = cat(4,mu,zeros(df(1:3),'single'));
-    mu = spm_mb_shape('Softmax',mu,4);
-    
-    % Show template, segmentation
-    ShowCat(mu,ax,nr,nd,n,fig_name);
-    ShowCat(fn,ax,nr,nd,n + nd,fig_name);        
-    if isfield(dat,'mog')
-        % and image (if using GMM)
-        fn = spm_mb_io('GetData',dat(n).f);
-        c  = min(c,C);
-        fn = fn(:,:,:,c);
-        if updt_bf
-            chan = spm_mb_appearance('BiasFieldStruct',C,df,dat(n).Mat,reg,fwhm,[],dat(n).bf.T);
-            bf   = spm_mb_appearance('BiasField',chan,df);
-            bf   = reshape(bf,[df C]);
-            bf   = bf(:,:,:,c);
-            fn   = bf.*fn;
-        end
-        ShowIm(fn,ax,nr,nd,n + 2*nd,fig_name);
-    end
-end
-drawnow
-end
-%==========================================================================
-
-%==========================================================================
 % Speak()
 function Speak(nam,varargin)
 switch nam
@@ -328,6 +146,142 @@ switch nam
     otherwise
         error('Unknown input!')
 end
+end
+%==========================================================================
+
+%==========================================================================
+% Subjects()
+function Subjects(dat,mu0,sett,p)
+if nargin < 4, p = []; end
+
+% Parse function settings
+axis_3d       = sett.show.axis_3d;
+B             = sett.registr.B;
+c             = sett.show.channel;
+fig_name_bf   = sett.show.figname_bf;
+fig_name_par  = sett.show.figname_parameters;
+fig_name_tiss = sett.show.figname_subjects;
+fwhm          = sett.bf.fwhm;
+Mmu           = sett.var.Mmu;
+mx_subj       = sett.show.mx_subjects;
+reg           = sett.bf.reg;
+updt_bf       = sett.do.updt_bf;
+
+if ~isempty(p), fig_name_bf   = [fig_name_bf ' (p=' num2str(p) ')']; end
+if ~isempty(p), fig_name_par  = [fig_name_par ' (p=' num2str(p) ')']; end
+if ~isempty(p), fig_name_tiss = [fig_name_tiss ' (p=' num2str(p) ')']; end
+
+if isfield(dat,'mog'), nr_tiss = 3;
+else,                  nr_tiss = 2;
+end
+nr_bf  = 3;
+nr_par = 4;
+if ~isfield(dat,'mog'), nr_par = nr_par - 2; end
+
+[df,~] = spm_mb_io('GetSize',dat(1).f);
+if df(3) == 1, ax = 3;
+else,          ax = axis_3d;   
+end
+    
+clr = {'r','g','b','y','m','c',};
+K   = size(mu0,4);
+K1  = K + 1;
+nd  = min(numel(dat),mx_subj);
+for n=1:nd
+    % Parameters
+    [df,C] = spm_mb_io('GetSize',dat(n).f);          
+    c      = min(c,C);    
+    q      = double(dat(n).q);
+    Mr     = spm_dexpm(q,B);
+    Mn     = dat(n).Mat;
+    
+    % Warp template
+    psi1 = spm_mb_io('GetData',dat(n).psi);
+    psi  = spm_mb_shape('Compose',psi1,spm_mb_shape('Affine',df,Mmu\Mr*Mn));
+    mu   = spm_mb_shape('Pull1',mu0,psi);            
+    psi1 = [];
+    
+    % Get segmentation
+    if isfield(dat,'mog')
+        fn = spm_mb_io('GetData',dat(n).f); 
+        zn = spm_mb_io('GetClasses',dat(n),mu,sett); % Just compute responsibilties
+        zn = reshape(zn,[df(1:3) K1]);
+    else
+        zn = spm_mb_io('GetData',dat(n).f); 
+        zn = cat(4,zn,1 - sum(zn,4));
+    end
+    
+    % Get template (K + 1)
+    mu = cat(4,mu,zeros(df(1:3),'single'));
+    mu = spm_mb_shape('Softmax',mu,4);
+    
+    % Get bias field    
+    if updt_bf
+        chan = spm_mb_appearance('BiasFieldStruct',dat(n),C,df,reg,fwhm,[],dat(n).bf.T);
+        bf   = spm_mb_appearance('BiasField',chan,df);
+        bf   = reshape(bf,[df C]);
+    else
+        bf = ones([1 1 1 C]);
+    end    
+
+    % Show template, segmentation
+    ShowCat(mu,ax,nr_tiss,nd,n,fig_name_tiss);
+    ShowCat(zn,ax,nr_tiss,nd,n + nd,fig_name_tiss);        
+    if isfield(dat,'mog')
+        % and image (if using GMM)     
+        ShowIm(bf(:,:,:,c).*fn(:,:,:,c),ax,nr_tiss,nd,n + 2*nd,fig_name_tiss);        
+    end
+    zn = [];
+    
+    if updt_bf && isfield(dat,'mog')
+        % Show bias field
+        ShowIm(fn(:,:,:,c),ax,nr_bf,nd,n,fig_name_bf,false);
+        ShowIm(bf(:,:,:,c),ax,nr_bf,nd,n + nd,fig_name_bf,false);            
+        ShowIm(bf(:,:,:,c).*fn(:,:,:,c),ax,nr_bf,nd,n + 2*nd,fig_name_bf,false);
+    end
+    
+    % Now show some other stuff
+    fg = findobj('Type', 'Figure', 'Name', fig_name_par);
+    if isempty(fg), fg = figure('Name', fig_name_par, 'NumberTitle', 'off'); end
+    set(0, 'CurrentFigure', fg);   
+
+    % Affine parameters    
+    q    = spm_imatrix(Mr);            
+    q    = q([1 2 6]);
+    q(3) = 180/pi*q(3);
+    q    = abs(q);
+    sp = subplot(nr_par,nd,n);
+    cla(sp); % clear subplot
+    hold on
+    for k=1:numel(q)
+        bar(k, q(k), clr{k});
+    end
+    box on
+    hold off            
+    set(gca,'xtick',[])  
+    
+    % Velocities (x)
+    v = spm_mb_io('GetData',dat(n).v);
+    ShowIm(v(:,:,:,1),ax,nr_par,nd,n + 1*nd,fig_name_par)
+    
+    % Intensity histogram w GMM fit
+    if isfield(dat,'mog')                
+        % Here we get approximate class proportions from the (softmaxed K + 1)
+        % tissue template
+        mu = reshape(mu,[prod(df(1:3)) size(mu,4)]);
+        mu = sum(mu,1);
+        mu = mu./sum(mu);
+        
+        % Plot GMM fit        
+        ShowGMMFit(bf(:,:,:,c).*fn(:,:,:,c),mu,dat(n).mog,nr_par,nd,n + 2*nd,c);
+        
+        % Lower bound
+        subplot(nr_par,nd,n + 3*nd) 
+        plot(dat(n).mog.lb.sum,'-');
+        axis off
+    end    
+end
+drawnow
 end
 %==========================================================================
 

@@ -23,21 +23,28 @@ end
 %==========================================================================
 
 %==========================================================================
-% ProcessSubject
+% ProcessSubject()
 function resn = ProcessSubject(datn,resn,mu,ix,sett)
 
 % Parse function settings
-B        = sett.registr.B;
-dmu      = sett.var.d;
-dir_res  = sett.write.dir_res;
-do_infer = sett.do.infer;
-fwhm     = sett.bf.fwhm;
-Mmu      = sett.var.Mmu;
-reg      = sett.bf.reg;
-write_bf = sett.write.bf; % field
-write_df = sett.write.df; % forward, inverse
-write_im = sett.write.im; % image, corrected, warped, warped corrected
-write_tc = sett.write.tc; % native, warped, warped-mod
+B          = sett.registr.B;
+dmu        = sett.var.d;
+dir_res    = sett.write.dir_res;
+do_infer   = sett.do.infer;
+do_updt_bf = sett.do.updt_bf;
+fwhm       = sett.bf.fwhm;
+Mmu        = sett.var.Mmu;
+reg        = sett.bf.reg;
+write_bf   = sett.write.bf; % field
+write_df   = sett.write.df; % forward, inverse
+write_im   = sett.write.im; % image, corrected, warped, warped corrected
+write_tc   = sett.write.tc; % native, warped, warped-mod
+
+if ~(exist(dir_res,'dir') == 7)  
+    mkdir(dir_res);  
+end
+s       = what(dir_res); % Get absolute path
+dir_res = s.path;
 
 % Get parameters
 [df,C] = spm_mb_io('GetSize',datn.f);
@@ -75,7 +82,7 @@ if isfield(datn,'mog') && (any(write_bf(:) == true) || any(write_im(:) == true) 
 
     if do_updt_bf
         % Get bias field
-        chan = spm_mb_appearance('BiasFieldStruct',C,df,Mn,reg,fwhm,[],datn.bf.T);
+        chan = spm_mb_appearance('BiasFieldStruct',datn,C,df,reg,fwhm,[],datn.bf.T);
         bf   = spm_mb_appearance('BiasField',chan,df);
     else
         bf   = ones([1 C],'single');

@@ -218,8 +218,6 @@ if sett.show.level >= 1
     % Show stuff
     spm_mb_show('Model',mu,Objective,N,sett);
     spm_mb_show('Subjects',dat,mu,sett);
-    spm_mb_show('Parameters',dat,mu,sett);
-    spm_mb_show('BiasField',dat,sett);
     spm_mb_show('IntensityPrior',dat,sett);
 end
 end

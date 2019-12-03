@@ -86,7 +86,13 @@ if ~isfield(datn,'mog')
         datn.E(1) = -sum(tmp(msk));
     end
 else
-    [P,datn] = spm_mb_appearance('Update',datn,mu,sett);
+    if nargout > 1
+        % Update appearance model
+        [P,datn] = spm_mb_appearance('Update',datn,mu,sett);
+    else
+        % Just get responsibilities
+        P        = spm_mb_appearance('Update',datn,mu,sett);
+    end
 end
 
 if 0
@@ -177,8 +183,10 @@ function dat = InitDat(F,sett)
 % Parse function settings
 run2d = sett.gen.run2d;
 
+% Initialise for each subject
+N  = numel(F);
 M0 = eye(4);
-for n=1:numel(F)
+for n=1:N
     
     % Init datn.f
     if iscell(F(n)) && isnumeric(F{n})
@@ -217,16 +225,22 @@ for n=1:numel(F)
         end
     end
     
+    % Get number of channels
+    [~,C] = spm_mb_io('GetSize',dat(n).f);
+    
     % Other parameters
-    dat(n).M   = M0;    
-    dat(n).q   = zeros(6,1);    
-    dat(n).v   = [];    
-    dat(n).psi = [];    
-    dat(n).E   = [0 0 0]; % Px Pv Pbf
-    dat(n).bf  = [];
-                     
+    dat(n).M     = M0;    
+    dat(n).q     = zeros(6,1);    
+    dat(n).v     = [];    
+    dat(n).psi   = [];    
+    dat(n).E     = [0 0 0]; % Px Pv Pbf
+    dat(n).bf    = [];    
+        
+    dat(n).do_bf     = true([1 C]);
+    dat(n).int_pr_ix = 1;
+    
     % Orientation matrix (image voxel-to-world)    
-    dat(n).Mat = eye(4); % Should really do this better           
+    dat(n).Mat = eye(4);
     if isa(F(n),'nifti') || (iscell(F(n)) && (isa(F{n},'char') || isa(F{n},'nifti')))
         Mat = Nii(1).mat;
         vx  = sqrt(sum(Mat(1:3,1:3).^2));    
@@ -409,18 +423,20 @@ ix = round(d(1:3)*0.5);
 
 if d(3) == 1, return; end
 
+nslices = 0; % 1 + 2*nslices
+
 if direction == 1
-    fn = single(fn(ix(1),:,:,:));
+    fn = single(fn(ix(1) - nslices:ix(1) + nslices,:,:,:));
 elseif direction == 2
-    fn = single(fn(:,ix(2),:,:));
+    fn = single(fn(:,ix(2) - nslices:ix(2) + nslices,:,:));
 elseif direction == 3
-    fn = single(fn(:,:,ix(3),:));
+    fn = single(fn(:,:,ix(3) - nslices:ix(3) + nslices,:));
 end
 
 % Reshape
 C  = d(4);
 ix = 1:3;
 d  = d(1:3);
-fn = reshape(fn, [d(ix ~= direction) 1 C]);
+fn = reshape(fn, [d(ix ~= direction) 1 + 2*nslices C]);
 end
 %==========================================================================   
