@@ -649,8 +649,6 @@ for k=1:K % loop over classes
     end
     m0(:,k) = m0(:,k) + H\g;
 
-
-
     % Compute \beta_0
     g_const = 0;
     for i=1:N
