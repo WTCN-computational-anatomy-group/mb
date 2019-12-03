@@ -309,6 +309,11 @@ if nargout > 1
     nL      = numel(L);
     do_miss = numel(L) > 1;
 
+    % Data is an integer type, so to prevent aliasing in the histogram, small
+    % random values are added.
+    rng('default'); rng(1);
+    fn = fn + rand(size(fn)) - 1/2;
+    
     % Make K + 1 template
     mun = cat(2,mun,zeros([prod(d(1:3)) 1],'single'));
 
@@ -583,18 +588,46 @@ for p=1:numel(p_ix) % Loop over populations
     if do_updt_int
         N = numel(p_ix{p}); % Number of subjects in population
         
-        % Get all posteriors
-        po = cell(1,N);
-        for n=p_ix{p}
-            po{n}{1}{1} = dat(n).mog.po.m;
-            po{n}{1}{2} = dat(n).mog.po.b;
-            po{n}{2}{1} = dat(n).mog.po.V;
-            po{n}{2}{2} = dat(n).mog.po.n;
-        end
-        
         % Get old prior
         pr = dat(p_ix{p}(1)).mog.pr;
         pr = {pr.m,pr.b,pr.V,pr.n};
+        C  = size(pr{1},1);
+        
+        % Get all posteriors
+        K     = size(mu,4);
+        K1    = K + 1;
+        po    = cell(1,N);
+        avgmn = 0;
+        avgvr = 0;
+        for n=p_ix{p}
+            po{n}{1}{1} = dat(n).mog.po.m;
+            avgmn       = avgmn + sum(po{n}{1}{1},2)./K1;
+            
+            po{n}{1}{2} = dat(n).mog.po.b;
+            po{n}{2}{1} = dat(n).mog.po.V;
+            po{n}{2}{2} = dat(n).mog.po.n;
+            
+            vr = bsxfun(@times, po{n}{2}{1}, reshape(po{n}{2}{2}, [1 1 K1]));
+            for k=1:K1
+                vr(:,:,k) = inv(vr(:,:,k));
+            end            
+            avgvr = avgvr + sum(vr,3)./K1;
+        end
+        
+        % Average mean
+        avgmn = avgmn./N;
+        
+        % Average precision from average variance
+        avgvr = avgvr./N;        
+        avgvr = diag(diag(avgvr));
+        avgpr = inv(avgvr);
+        
+        % Add one artificial observation
+        po1{1}{1}   = repmat(avgmn,[1 K1]);     % m
+        po1{1}{2}   = zeros(1,K1);              % b
+        po1{2}{1}   = repmat(C*avgpr,[1 1 K1]); % V
+        po1{2}{2}   = C*ones(1,K1);             % n
+        po{end + 1} = po1;
         
         % Update prior
         pr = DoIntensityPriorUpdate(pr,po);
