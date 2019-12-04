@@ -195,7 +195,7 @@ if ~isfield(sett.model,'groupwise')
     sett.model.groupwise = false;
 end
 if ~isfield(sett.model,'K')
-    sett.model.K = 3;
+    sett.model.K = 5;
 end
 if ~isfield(sett.model,'vx')    
     sett.model.vx = 1;    
