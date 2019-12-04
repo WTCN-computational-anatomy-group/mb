@@ -624,7 +624,7 @@ for p=1:numel(p_ix) % Loop over populations
         
         % Add one artificial observation
         po1{1}{1}   = repmat(avgmn,[1 K1]);     % m
-        po1{1}{2}   = zeros(1,K1);              % b
+        po1{1}{2}   = ones(1,K1);               % b
         po1{2}{1}   = repmat(C*avgpr,[1 1 K1]); % V
         po1{2}{2}   = C*ones(1,K1);             % n
         po{end + 1} = po1;
