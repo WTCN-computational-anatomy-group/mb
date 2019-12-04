@@ -78,7 +78,6 @@ end
 end
 %==========================================================================
 
-
 %==========================================================================
 % Affine()
 function psi0 = Affine(d,Mat)
@@ -404,7 +403,7 @@ s_settings  = sett.shoot.s_settings;
 g  = spm_field('vel2mom', mu, mu_settings);
 M  = size(mu,4);
 H  = zeros([sett.var.d M*(M+1)/2],'single');
-H0 = spm_mb_der('AppearanceHessian',mu,accel);
+H0 = AppearanceHessian(mu,accel);
 for n=1:numel(dat)
     [gn,Hn,dat(n)] = UpdateMeanSub(dat(n),mu,H0,sett);
     g              = g + gn;
@@ -428,7 +427,7 @@ if ~do_updt_aff, return; end
 
 % Update the affine parameters
 G  = spm_diffeo('grad',mu);
-H0 = spm_mb_der('VelocityHessian',mu,G,accel);
+H0 = VelocityHessian(mu,G,accel);
 
 if ~isempty(B)
     for n=1:numel(dat)
@@ -463,7 +462,7 @@ for n=1:numel(dat)
     w              = w  + wn;
 end
 for it=1:ceil(4+2*log2(numel(dat)))
-    H  = w.*spm_mb_der('AppearanceHessian',mu,accel);
+    H  = w.*AppearanceHessian(mu,accel);
     g  = w.*Softmax(mu,4) - gf;
     g  = g  + spm_field('vel2mom', mu, mu_settings);
     mu = mu - spm_field(H, g, [mu_settings s_settings]);
@@ -482,7 +481,7 @@ do_updt_vel = sett.do.updt_vel;
 if ~do_updt_vel, return; end
 
 G  = spm_diffeo('grad',mu);
-H0 = spm_mb_der('VelocityHessian',mu,G,accel);
+H0 = VelocityHessian(mu,G,accel);
 if size(G,3) == 1
     % Data is 2D -> add some regularisation
     H0(:,:,:,3) = H0(:,:,:,3) + mean(reshape(H0(:,:,:,[1 2]),[],1));
@@ -562,6 +561,58 @@ end
 %
 % Utility functions
 %
+%==========================================================================
+
+%========================================================================== 
+% AffineHessian()
+function [H,g] = AffineHessian(mu,G,a,w,accel)
+d  = [size(mu,1),size(mu,2),size(mu,3)];
+I  = Horder(3);
+H  = zeros(12,12);
+g  = zeros(12, 1);
+[x{1:4}] = ndgrid(1:d(1),1:d(2),1,1);
+for i=1:d(3)
+    x{3} = x{3}*0+i;
+    gv   = reshape(sum(a(:,:,i,:).*G(:,:,i,:,:),4),[d(1:2) 1 3]);
+    Hv   = w(:,:,i).*VelocityHessian(mu(:,:,i,:),G(:,:,i,:,:),accel);
+    for i1=1:12
+        k1g   = rem(i1-1,3)+1;
+        k1x   = floor((i1-1)/3)+1;
+        g(i1) = g(i1) + sum(sum(sum(x{k1x}.*gv(:,:,:,k1g))));
+        for i2=1:12
+            k2g      = rem(i2-1,3)+1;
+            k2x      = floor((i2-1)/3)+1;
+            H(i1,i2) = H(i1,i2) + sum(sum(sum(x{k1x}.*Hv(:,:,:,I(k1g,k2g)).*x{k2x})));
+        end
+    end
+end
+end
+%========================================================================== 
+
+%==========================================================================
+% AppearanceHessian()
+function H = AppearanceHessian(mu,accel)
+M  = size(mu,4);
+d  = [size(mu,1) size(mu,2) size(mu,3)];
+if accel>0, s  = spm_mb_shape('Softmax',mu,4); end
+Ab = 0.5*(eye(M)-1/(M+1)); % See Bohning's paper
+I  = Horder(M);
+H  = zeros([d (M*(M+1))/2],'single');
+for m1=1:M
+    for m2=m1:M
+        if accel==0
+            tmp = Ab(m1,m2)*ones(d,'single');
+        else
+            if m2~=m1
+                tmp = accel*(-s(:,:,:,m1).*s(:,:,:,m2))           + (1-accel)*Ab(m1,m2);
+            else
+                tmp = accel*(max(s(:,:,:,m1).*(1-s(:,:,:,m1)),0)) + (1-accel)*Ab(m1,m2);
+            end
+        end
+        H(:,:,:,I(m1,m2)) = tmp;
+    end
+end
+end
 %==========================================================================
 
 %==========================================================================
@@ -675,6 +726,21 @@ mn    = floor(mn);
 o     = 3;
 d     = (mx-mn+(2*o+1))';
 M_avg = M_avg * [eye(3) mn-(o+1); 0 0 0 1];
+end
+%==========================================================================
+
+%==========================================================================
+% Horder()
+function I = Horder(d)
+I = diag(1:d);
+l = d;
+for i1=1:d
+    for i2=(i1+1):d
+        l = l + 1;
+        I(i1,i2) = l;
+        I(i2,i1) = l;
+    end
+end
 end
 %==========================================================================
 
@@ -844,6 +910,32 @@ end
 %==========================================================================
 
 %==========================================================================
+% SimpleAffineHessian()
+function [H,g] = SimpleAffineHessian(mu,G,H0,a,w)
+d  = [size(mu,1),size(mu,2),size(mu,3)];
+I  = Horder(3);
+H  = zeros(12,12);
+g  = zeros(12, 1);
+[x{1:4}] = ndgrid(1:d(1),1:d(2),1,1);
+for i=1:d(3)
+    x{3} = x{3}*0+i;
+    gv   = reshape(sum(a(:,:,i,:).*G(:,:,i,:,:),4),[d(1:2) 1 3]);
+    Hv   = w(:,:,i).*H0(:,:,i,:);
+    for i1=1:12
+        k1g   = rem(i1-1,3)+1;
+        k1x   = floor((i1-1)/3)+1;
+        g(i1) = g(i1) + sum(sum(sum(x{k1x}.*gv(:,:,:,k1g))));
+        for i2=1:12
+            k2g      = rem(i2-1,3)+1;
+            k2x      = floor((i2-1)/3)+1;
+            H(i1,i2) = H(i1,i2) + sum(sum(sum(x{k1x}.*Hv(:,:,:,I(k1g,k2g)).*x{k2x})));
+        end
+    end
+end
+end
+%==========================================================================
+
+%==========================================================================
 % UpdateAffinesSub()
 function datn = UpdateAffinesSub(datn,mu,sett)
 % This could be made more efficient.
@@ -892,7 +984,7 @@ J = []; mu = [];
 
 msk       = all(isfinite(f),4);
 a         = Mask(f - Softmax(mu1,4),msk);
-[H,g]     = spm_mb_der('AffineHessian',mu1,G,a,single(msk),accel);
+[H,g]     = AffineHessian(mu1,G,a,single(msk),accel);
 g         = double(dM'*g);
 H         = dM'*H*dM;
 H         = H + eye(numel(q))*(norm(H)*1e-6 + 0.1);
@@ -919,7 +1011,7 @@ mu  = Pull1(mu,psi);
 [f,datn] = spm_mb_io('GetClasses',datn,mu,sett);
 % if isempty(H0)
 %     g     = Push1(Softmax(mu,4) - f,psi,d);
-%     H     = Push1(spm_mb_der('AppearanceHessian',mu,accel),psi,d);
+%     H     = Push1(AppearanceHessian(mu,accel),psi,d);
 % else
     % Faster approximation - but might be unstable
     % If there are problems, then revert to the slow
@@ -957,7 +1049,7 @@ mu1      = Pull1(mu,psi);
 [a,w]     = Push1(f - Softmax(mu1,4),psi,d);
 mu1 = []; psi = []; f = [];
 
-[H,g]     = spm_mb_der('SimpleAffineHessian',mu,G,H0,a,w);
+[H,g]     = SimpleAffineHessian(mu,G,H0,a,w);
 g         = double(dM'*g);
 H         = dM'*H*dM;
 H         = H + eye(numel(q))*(norm(H)*1e-6 + 0.1);
@@ -1036,5 +1128,35 @@ end
 datn.v   = spm_mb_io('SetData',datn.v,v);
 psi1     = Shoot(v, kernel, sett.shoot.args); % Geodesic shooting
 datn.psi = spm_mb_io('SetData',datn.psi,psi1);
+end
+%==========================================================================
+
+%==========================================================================
+% VelocityHessian()
+function H = VelocityHessian(mu,G,accel)
+d  = [size(mu,1),size(mu,2),size(mu,3)];
+M  = size(mu,4);
+if accel>0, s  = spm_mb_shape('Softmax',mu,4); end
+Ab = 0.5*(eye(M)-1/(M+1)); % See Bohning's paper
+H  = zeros([d 6],'single');
+for m1=1:M
+    for m2=1:M
+        if accel==0
+            tmp = Ab(m1,m2);
+        else
+            if m2~=m1
+                tmp = (-s(:,:,:,m1).*s(:,:,:,m2))*accel           + (1-accel)*Ab(m1,m2);
+            else
+                tmp = (max(s(:,:,:,m1).*(1-s(:,:,:,m1)),0))*accel + (1-accel)*Ab(m1,m2);
+            end
+        end
+        H(:,:,:,1) = H(:,:,:,1) + tmp.*G(:,:,:,m1,1).*G(:,:,:,m2,1);
+        H(:,:,:,2) = H(:,:,:,2) + tmp.*G(:,:,:,m1,2).*G(:,:,:,m2,2);
+        H(:,:,:,3) = H(:,:,:,3) + tmp.*G(:,:,:,m1,3).*G(:,:,:,m2,3);
+        H(:,:,:,4) = H(:,:,:,4) + tmp.*G(:,:,:,m1,1).*G(:,:,:,m2,2);
+        H(:,:,:,5) = H(:,:,:,5) + tmp.*G(:,:,:,m1,1).*G(:,:,:,m2,3);
+        H(:,:,:,6) = H(:,:,:,6) + tmp.*G(:,:,:,m1,2).*G(:,:,:,m2,3);
+    end
+end
 end
 %==========================================================================
