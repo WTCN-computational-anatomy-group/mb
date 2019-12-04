@@ -8,7 +8,8 @@ function varargout = spm_mb_io(varargin)
 % FORMAT out        = spm_mb_io('GetData',in)
 % FORMAT Mat        = spm_mb_io('GetMat',fin)
 % FORMAT [d,M]      = spm_mb_io('GetSize',fin)
-% FORMAT dat        = spm_mb_io('InitDat',in,sett)
+% FORMAT s          = spm_mb_io('GetScale',fin);
+% FORMAT dat        = spm_mb_io('InitDat',F,sett)
 % FORMAT [psi,fpth] = spm_mb_io('SavePsiSub',datn,sett) 
 % FORMAT dat        = spm_mb_io('SaveTemplate',dat,mu,sett)
 % FORMAT              spm_mb_io('SetBoundCond')
@@ -27,25 +28,27 @@ id = varargin{1};
 varargin = varargin(2:end);
 switch id
     case 'CopyFields'
-        [varargout{1:nargout}] = CopyFields(varargin{:});       
+        [varargout{1:nargout}] = CopyFields(varargin{:});
     case 'GetClasses'
-        [varargout{1:nargout}] = GetClasses(varargin{:});    
+        [varargout{1:nargout}] = GetClasses(varargin{:});
     case 'GetData'
-        [varargout{1:nargout}] = GetData(varargin{:});            
+        [varargout{1:nargout}] = GetData(varargin{:});
     case 'GetMat'
-        [varargout{1:nargout}] = GetMat(varargin{:});             
+        [varargout{1:nargout}] = GetMat(varargin{:});
     case 'GetSize'
-        [varargout{1:nargout}] = GetSize(varargin{:});    
+        [varargout{1:nargout}] = GetSize(varargin{:});
+    case 'GetScale'
+        [varargout{1:nargout}] = GetScale(varargin{:});
     case 'InitDat' 
-        [varargout{1:nargout}] = InitDat(varargin{:});            
+        [varargout{1:nargout}] = InitDat(varargin{:});
     case 'SavePsiSub' 
-        [varargout{1:nargout}] = SavePsiSub(varargin{:});           
+        [varargout{1:nargout}] = SavePsiSub(varargin{:});
     case 'SaveTemplate'
-        [varargout{1:nargout}] = SaveTemplate(varargin{:});    
+        [varargout{1:nargout}] = SaveTemplate(varargin{:});
     case 'SetBoundCond'
-        [varargout{1:nargout}] = SetBoundCond(varargin{:});        
+        [varargout{1:nargout}] = SetBoundCond(varargin{:});
     case 'SetData'
-        [varargout{1:nargout}] = SetData(varargin{:});                
+        [varargout{1:nargout}] = SetData(varargin{:});
     case 'SetPath'
         [varargout{1:nargout}] = SetPath(varargin{:});        
     case 'WriteNii'
@@ -115,6 +118,45 @@ if 0
         axis image xy off; drawnow
     end
 end
+end
+%==========================================================================
+
+%==========================================================================
+function out = GetScale(in)
+% Return a scale for adding random numbers
+if isnumeric(in)
+    if isa(a,'integer')
+        out = ones([1,1,1,size(a,4)]);
+    else
+        out = zeros([1,1,1,size(a,4)]);;
+    end
+    return;
+end
+if isa(in,'char')
+    in = nifti(in);
+end
+if isa(in,'nifti')
+    M   = numel(in);
+    d   = size(in(1).dat,[1 2 3 4 5]);
+    if d(4)>1 && M>1, error('Don''t know what to do with this image data.'); end
+    d(4) = max(d(4),M);
+    out  = zeros([1,1,1,d(4)]);
+    if M>1
+        for m=1:M
+            dt1 = in(m).dat.dtype(1);
+            if dt1=='I' || dt1=='U'
+                out(m) = in(m).dat.scl_slope(1);
+            end
+        end
+    else
+        dt1 = in(1).dat.dtype(1);
+        if dt1=='I' || dt1=='U'
+            out(:) = in(1).dat.scl_slope(1);
+        end
+    end
+    return
+end
+error('Unknown datatype.');
 end
 %==========================================================================
 

@@ -209,6 +209,9 @@ do_bf      = datn.do_bf;
 % Get image data
 fn = spm_mb_io('GetData',datn.f);
 
+% Get amount to jitter by
+jitter = spm_mb_io('GetScale',datn.f);
+
 % GMM posterior
 m  = datn.mog.po.m;
 b  = datn.mog.po.b;
@@ -244,10 +247,12 @@ if nargout > 1
     nL      = numel(L);
     do_miss = nL > 1;
 
-    % Data is an integer type, so to prevent aliasing in the histogram, small
-    % random values are added.
-    rng('default'); rng(1);
-    fn = fn + rand(size(fn)) - 1/2;
+    if any(jitter~=0)
+        % Data is an integer type, so to prevent aliasing in the histogram, small
+        % random values are added.
+        rng('default'); rng(1);
+        fn = fn + bsxfun(@times,rand(size(fn)) - 1/2,jitter);
+    end
  
     % Make K + 1 template
     mun = cat(2,mun,zeros([prod(d(1:3)) 1],'single'));
