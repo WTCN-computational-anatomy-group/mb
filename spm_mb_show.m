@@ -44,10 +44,10 @@ end
 function All(dat,mu,Objective,N,sett)
 if sett.show.level >= 2
     Model(mu,Objective,N,sett);
+    IntensityPrior(dat,sett);
 end
 if sett.show.level >= 3
-    Subjects(dat,mu,sett);
-    IntensityPrior(dat,sett);
+    Subjects(dat,mu,sett);    
 end
 end
 %==========================================================================

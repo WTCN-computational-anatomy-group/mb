@@ -33,9 +33,6 @@ vx          = sett.model.vx;
 
 sett.model.groupwise = true;
 
-% Clear figures
-spm_mb_show('Clear',sett);
-
 %------------------
 % Init dat
 %------------------
@@ -69,8 +66,6 @@ sett.var = spm_mb_io('CopyFields',sz(end), sett.var);
 dat = spm_mb_shape('Init',dat,sett);
 dat = spm_mb_appearance('Init',dat,K,sett);
 
-if show_level >= 1, spm_mb_show('IntensityPrior',dat,sett); end
-
 %------------------
 % Start algorithm
 %------------------
@@ -82,7 +77,7 @@ E         = Inf;
 prevt     = Inf;
 mu        = zeros([sett.var.d K],'single'); % Initial template (uniform)
 
-if show_level >= 1, spm_mb_show('Model',mu,Objective,N,sett); end
+spm_mb_show('All',dat,mu,Objective,N,sett);
 
 if do_updt_aff
     spm_mb_show('Speak','Init',sett.nit.init);
