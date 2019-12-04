@@ -630,8 +630,9 @@ for p=1:numel(p_ix) % Loop over populations
         po{end + 1} = po1;
         
         % Update prior
-        pr = DoIntensityPriorUpdate(pr,po);
-                     
+%         pr = DoIntensityPriorUpdate(pr,po);
+        pr = spm_gmm_lib('updatehyperpars',po,pr);
+
         % Assign new prior
         for n=p_ix{p}
             dat(n).mog.pr.m = pr{1};
