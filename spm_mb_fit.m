@@ -28,6 +28,7 @@ K           = sett.model.K;
 nit_init    = sett.nit.init;
 nit_init_mu = sett.nit.init_mu;
 nit_zm0     = sett.nit.zm;
+show_level  = sett.show.level;
 vx          = sett.model.vx;
 
 sett.model.groupwise = true;
@@ -68,6 +69,8 @@ sett.var = spm_mb_io('CopyFields',sz(end), sett.var);
 dat = spm_mb_shape('Init',dat,sett);
 dat = spm_mb_appearance('Init',dat,K,sett);
 
+if show_level >= 1, spm_mb_show('IntensityPrior',dat,sett); end
+
 %------------------
 % Start algorithm
 %------------------
@@ -78,6 +81,8 @@ Objective = [];
 E         = Inf;
 prevt     = Inf;
 mu        = zeros([sett.var.d K],'single'); % Initial template (uniform)
+
+if show_level >= 1, spm_mb_show('Model',mu,Objective,N,sett); end
 
 if do_updt_aff
     spm_mb_show('Speak','Init',sett.nit.init);
@@ -215,7 +220,7 @@ dat = spm_mb_io('SaveTemplate',dat,mu,sett);
 % Print total runtime
 spm_mb_show('Speak','Finished',toc(t0));
 
-if sett.show.level >= 1
+if show_level >= 1
     % Show stuff
     spm_mb_show('Model',mu,Objective,N,sett);
     spm_mb_show('Subjects',dat,mu,sett);
