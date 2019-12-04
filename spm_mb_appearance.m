@@ -211,6 +211,7 @@ fn = spm_mb_io('GetData',datn.f);
 
 % Get amount to jitter by
 jitter = spm_mb_io('GetScale',datn.f,sett);
+jitter = reshape(jitter,[1 C]);
 
 % GMM posterior
 m  = datn.mog.po.m;
