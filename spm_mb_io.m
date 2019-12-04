@@ -8,7 +8,7 @@ function varargout = spm_mb_io(varargin)
 % FORMAT out        = spm_mb_io('GetData',in)
 % FORMAT Mat        = spm_mb_io('GetMat',fin)
 % FORMAT [d,M]      = spm_mb_io('GetSize',fin)
-% FORMAT dat        = spm_mb_io('InitDat',F,sett)
+% FORMAT dat        = spm_mb_io('InitDat',in,sett)
 % FORMAT [psi,fpth] = spm_mb_io('SavePsiSub',datn,sett) 
 % FORMAT dat        = spm_mb_io('SaveTemplate',dat,mu,sett)
 % FORMAT              spm_mb_io('SetBoundCond')
@@ -178,38 +178,43 @@ end
 
 %==========================================================================
 % InitDat()
-function dat = InitDat(F,sett)
+function dat = InitDat(in,sett)
 
 % Parse function settings
-run2d = sett.gen.run2d;
+do_gmm = sett.do.gmm;
+run2d  = sett.gen.run2d;
 
 % Initialise for each subject
-N  = numel(F);
+N  = numel(in);
 M0 = eye(4);
 for n=1:N
-    
+
+    if isstruct(in(n)) && isfield(in(n),'F'), F = in(n).F;
+    else,                                     F = in(n);
+    end
+
     % Init datn.f
-    if iscell(F(n)) && isnumeric(F{n})
+    if iscell(F) && isnumeric(F{1})
         % Input F is numeric -> store as numeric
         
         if run2d            
             % Get 2D slice from 3D data
-            dat(n).f = GetSlice(F{n},run2d);
+            dat(n).f = GetSlice(F{1},run2d);
         else
-            dat(n).f = single(F{n});
+            dat(n).f = single(F{1});
         end
-    elseif isa(F(n),'nifti') || (iscell(F(n)) && (isa(F{n},'char') || isa(F{n},'nifti')))
+    elseif isa(F,'nifti') || (iscell(F) && (isa(F{1},'char') || isa(F{1},'nifti')))
         % Input F is nifti (path or object) -> store as nifti
                        
-        if isa(F(n),'nifti')
-            Nii      = F(n);
+        if isa(F,'nifti')
+            Nii      = F;
             dat(n).f = Nii;        
-        elseif iscell(F(n)) 
-            if isa(F{n},'char')
-                Nii      = nifti(F{n});
+        elseif iscell(F) 
+            if isa(F{1},'char')
+                Nii      = nifti(F{1});
                 dat(n).f = Nii;        
-            elseif isa(F{n},'nifti')                
-                Nii      = F{n};
+            elseif isa(F{1},'nifti')                
+                Nii      = F{1};
                 C        = numel(Nii);
                 dat(n).f = nifti;
                 for c=1:C
@@ -228,20 +233,38 @@ for n=1:N
     % Get number of channels
     [~,C] = spm_mb_io('GetSize',dat(n).f);
     
-    % Other parameters
+    % Parameters
     dat(n).M     = M0;    
     dat(n).q     = zeros(6,1);    
     dat(n).v     = [];    
     dat(n).psi   = [];    
     dat(n).E     = [0 0 0]; % Px Pv Pbf
     dat(n).bf    = [];    
-        
-    dat(n).do_bf     = true([1 C]);
-    dat(n).int_pr_ix = 1;
+       
+    if do_gmm
+        dat(n).mog = [];
+        dat(n).bf  = [];
+    end
+    
+    % Subject-level 'extras'
+    if isstruct(in(n)) && isfield(in(n),'do_bf') && ~isempty(in(n).do_bf)
+        dat(n).do_bf = in(n).do_bf;
+    else
+        dat(n).do_bf = true;        
+    end
+    if numel(dat(n).do_bf) < C 
+        dat(n).do_bf = repmat(dat(n).do_bf,[1 C]); 
+    end
+    
+    if isstruct(in(n)) && isfield(in(n),'int_pr_ix') && ~isempty(in(n).int_pr_ix)
+        dat(n).int_pr_ix = in(n).int_pr_ix;
+    else
+        dat(n).int_pr_ix = 1;
+    end
     
     % Orientation matrix (image voxel-to-world)    
     dat(n).Mat = eye(4);
-    if isa(F(n),'nifti') || (iscell(F(n)) && (isa(F{n},'char') || isa(F{n},'nifti')))
+    if isa(F,'nifti') || (iscell(F) && (isa(F{1},'char') || isa(F{1},'nifti')))
         Mat = Nii(1).mat;
         vx  = sqrt(sum(Mat(1:3,1:3).^2));    
         if run2d

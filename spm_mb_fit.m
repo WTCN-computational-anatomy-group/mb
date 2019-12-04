@@ -1,4 +1,4 @@
-function [dat,mu,sett] = spm_mb_fit(F,sett)
+function [dat,mu,sett] = spm_mb_fit(in,sett)
 %__________________________________________________________________________
 %
 % Multi-Brain - Groupwise normalisation and segmentation of images
@@ -40,8 +40,8 @@ spm_mb_show('Clear',sett);
 % Init dat
 %------------------
 
-dat = spm_mb_io('InitDat',F,sett); 
-F   = [];
+dat = spm_mb_io('InitDat',in,sett); 
+in  = [];
 N   = numel(dat); % Number of subjects
 
 % Get number of template classes (if not using GMM)

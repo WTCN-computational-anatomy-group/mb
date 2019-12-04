@@ -46,13 +46,8 @@ if sett.show.level >= 2
     Model(mu,Objective,N,sett);
 end
 if sett.show.level >= 3
-    p_ix = spm_mb_appearance('GetPopulationIdx',dat);
-    Np   = numel(p_ix);
-    for p=1:Np
-        if Np == 1, p = []; end
-        Subjects(dat(p_ix{p}),mu,sett,p);
-        IntensityPrior(dat(p_ix{p}),sett,p);
-    end
+    Subjects(dat,mu,sett);
+    IntensityPrior(dat,sett);
 end
 end
 %==========================================================================
@@ -71,22 +66,15 @@ end
 
 %==========================================================================
 % IntensityPrior()
-function IntensityPrior(dat,sett,p)
-if nargin < 3, p = []; end
-
-% Parse function settings
-fig_name = sett.show.figname_int;
-if ~isempty(p), fig_name = [fig_name ' (p=' num2str(p) ')']; end
-
-if ~isfield(dat(1),'mog'), return; end
-
-n  = 1;
-m0 = dat(n).mog.pr.m;
-b0 = dat(n).mog.pr.b;
-V0 = dat(n).mog.pr.V;
-n0 = dat(n).mog.pr.n;
-
-spm_gmm_lib('plot','gaussprior',{m0,b0,V0,n0},[],fig_name);
+function IntensityPrior(dat,sett)
+    p_ix = spm_mb_appearance('GetPopulationIdx',dat);
+    Np   = numel(p_ix);
+    for p=1:Np
+        if Np == 1, pp = []; 
+        else,       pp = p;
+        end
+        ShowIntensityPrior(dat(p_ix{p}),sett,pp);
+    end
 end
 %==========================================================================
 
@@ -151,8 +139,29 @@ end
 %==========================================================================
 
 %==========================================================================
-% Subjects()
-function Subjects(dat,mu0,sett,p)
+% ShowIntensityPrior()
+function ShowIntensityPrior(dat,sett,p)
+if nargin < 3, p = []; end
+
+% Parse function settings
+fig_name = sett.show.figname_int;
+if ~isempty(p), fig_name = [fig_name ' (p=' num2str(p) ')']; end
+
+if ~isfield(dat(1),'mog'), return; end
+
+n  = 1;
+m0 = dat(n).mog.pr.m;
+b0 = dat(n).mog.pr.b;
+V0 = dat(n).mog.pr.V;
+n0 = dat(n).mog.pr.n;
+
+spm_gmm_lib('plot','gaussprior',{m0,b0,V0,n0},[],fig_name);
+end
+%==========================================================================
+
+%==========================================================================
+% ShowSubjects()
+function ShowSubjects(dat,mu0,sett,p)
 if nargin < 4, p = []; end
 
 % Parse function settings
@@ -195,6 +204,7 @@ for n=1:nd
     q      = double(dat(n).q);
     Mr     = spm_dexpm(q,B);
     Mn     = dat(n).Mat;
+    do_bf  = dat(n).do_bf;
     
     % Warp template
     psi1 = spm_mb_io('GetData',dat(n).psi);
@@ -217,7 +227,7 @@ for n=1:nd
     mu = spm_mb_shape('Softmax',mu,4);
     
     % Get bias field    
-    if updt_bf
+    if updt_bf && any(do_bf == true)
         chan = spm_mb_appearance('BiasFieldStruct',dat(n),C,df,reg,fwhm,[],dat(n).bf.T);
         bf   = spm_mb_appearance('BiasField',chan,df);
         bf   = reshape(bf,[df C]);
@@ -234,7 +244,7 @@ for n=1:nd
     end
     zn = [];
     
-    if updt_bf && isfield(dat,'mog')
+    if updt_bf && isfield(dat,'mog') && any(do_bf == true)
         % Show bias field
         ShowIm(fn(:,:,:,c),ax,nr_bf,nd,n,fig_name_bf,false);
         ShowIm(bf(:,:,:,c),ax,nr_bf,nd,n + nd,fig_name_bf,false);            
@@ -283,6 +293,20 @@ for n=1:nd
     end    
 end
 drawnow
+end
+%==========================================================================
+
+%==========================================================================
+% Subjects()
+function Subjects(dat,mu,sett)
+p_ix = spm_mb_appearance('GetPopulationIdx',dat);
+Np   = numel(p_ix);
+for p=1:Np
+    if Np == 1, pp = []; 
+    else,       pp = p;
+    end
+    ShowSubjects(dat(p_ix{p}),mu,sett,pp);
+end
 end
 %==========================================================================
 

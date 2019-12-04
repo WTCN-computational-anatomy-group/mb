@@ -136,8 +136,10 @@ function p_ix = GetPopulationIdx(dat)
 int_pr_ix = [dat.int_pr_ix];
 un        = unique(int_pr_ix);
 p_ix      = cell(1,numel(un));
+cnt       = 1;
 for i=un
-    p_ix{i} = find(int_pr_ix == i);
+    p_ix{cnt} = find(int_pr_ix == i);
+    cnt       = cnt + 1;
 end
 end
 %==========================================================================
@@ -145,66 +147,10 @@ end
 %==========================================================================
 % Init()
 function dat = Init(dat,K,sett)
-
-% Parse function settings
-do_gmm     = sett.do.gmm;
-fwhm       = sett.bf.fwhm;
-reg        = sett.bf.reg;
-do_updt_bf = sett.do.updt_bf;
-
-if (~do_gmm && ~do_updt_bf), return; end
-
-N  = numel(dat);
-K1 = K + 1;
-lb = struct('sum', NaN, 'X', [], 'XB', [], ...
-            'Z', [], 'P', [], 'MU', [], 'A', []);
-
-[~,C] = spm_mb_io('GetSize',dat(1).f);
-mx    = zeros(C,numel(dat));
-mn    = zeros(C,numel(dat));
-vr    = zeros(C,numel(dat));
-
-for n=1:N
-    [df,C] = spm_mb_io('GetSize',dat(n).f);
-    fn     = spm_mb_io('GetData',dat(n).f);
-    fn     = reshape(fn,[prod(df(1:3)) C]);
-    fn     = spm_mb_appearance('Mask',fn);
-    if do_updt_bf
-        val = 1e3;
-        scl = ones(1,C);
-        for c=1:C
-            msk    = isfinite(fn(:,c));
-            scl(c) = val./mean(fn(msk,c));
-        end
-    else
-        scl = ones(1,C);
-    end
- 
-    if do_updt_bf && any(dat(n).do_bf == true)
-        % Get bias field parameterisation struct
-        chan        = spm_mb_appearance('BiasFieldStruct',dat(n),C,df,reg,fwhm,scl);
-        dat(n).bf.T = {chan(:).T};
-
-        % Get bias field
-        bf = spm_mb_appearance('BiasField',chan,df);
-    else
-        bf = ones([1 C],'single');
-    end
- 
-    % Modulate with bias field
-    fn = bf.*fn;
- 
-    % Init GMM
-    [po,mx(:,n),mn(:,n),vr(:,n)] = PosteriorGMM(fn,K1);
-    mog.po     = po;
-    mog.lb     = lb;
-    dat(n).mog = mog;
-end
-
-% Init GMM empirical prior
-pr = PriorGMM(mx,mn,vr,K1);
-for n=1:numel(dat)                
-    dat(n).mog.pr = pr;
+p_ix = spm_mb_appearance('GetPopulationIdx',dat);
+Np   = numel(p_ix);
+for p=1:Np
+    dat(p_ix{p}) = InitPopulation(dat(p_ix{p}),K,sett);
 end
 end
 %==========================================================================
@@ -258,6 +204,7 @@ K          = size(mun0,4);
 K1         = K + 1;
 Mn         = datn.Mat;
 W          = 1;
+do_bf      = datn.do_bf;
 
 % Get image data
 fn = spm_mb_io('GetData',datn.f);
@@ -306,7 +253,7 @@ if nargout > 1
     mun = cat(2,mun,zeros([prod(d(1:3)) 1],'single'));
 
     % Bias field related
-    if do_updt_bf    
+    if do_updt_bf && any(do_bf == true) 
         chan       = BiasFieldStruct(datn,C,df,reg,fwhm,[],datn.bf.T,samp);
         [bf,pr_bf] = BiasField(chan,d);
         bffn       = bf.*fn;
@@ -340,7 +287,7 @@ if nargout > 1
         end
         ol = nl;
 
-        if do_updt_bf
+        if do_updt_bf && any(do_bf == true)
             % Update bias field parameters                    
             lx   = W*LowerBound('X',bffn,zn,code,{m,b},{V,n});
             lxb  = W*LowerBound('XB',bf);       
@@ -507,7 +454,7 @@ if samp > 1 || nargout == 1
     fn   = Mask(fn);
     code = spm_gmm_lib('obs2code', fn);
     mun0 = reshape(mun0,[prod(df(1:3)) K]);
-    if do_updt_bf
+    if do_updt_bf && any(do_bf == true)
         % Get full-sized bias field
         chan = BiasFieldStruct(datn,C,df,reg,fwhm,[],datn.bf.T);
         bf   = BiasField(chan,df);
@@ -616,8 +563,75 @@ end
 %==========================================================================
 % ApplyMask()
 function f = ApplyMask(f,C)
-if C == 1, f(~isfinite(f)) = NaN;
-else,      f(~isfinite(f) | f == 0 | f == min(f(:))) = NaN;
+if C == 1 && min(f(:)) >= 0, f(~isfinite(f)) = NaN;
+else,                        f(~isfinite(f) | f == 0 | f == min(f(:))) = NaN;
+end
+end
+%==========================================================================
+
+%==========================================================================
+% InitPopulation()
+function dat = InitPopulation(dat,K,sett)
+
+% Parse function settings
+do_gmm     = sett.do.gmm;
+fwhm       = sett.bf.fwhm;
+reg        = sett.bf.reg;
+do_updt_bf = sett.do.updt_bf;
+
+if (~do_gmm && ~do_updt_bf), return; end
+
+N  = numel(dat);
+K1 = K + 1;
+lb = struct('sum', NaN, 'X', [], 'XB', [], ...
+            'Z', [], 'P', [], 'MU', [], 'A', []);
+
+[~,C] = spm_mb_io('GetSize',dat(1).f);
+mx    = zeros(C,numel(dat));
+mn    = zeros(C,numel(dat));
+vr    = zeros(C,numel(dat));
+
+for n=1:N
+    [df,C] = spm_mb_io('GetSize',dat(n).f);
+    fn     = spm_mb_io('GetData',dat(n).f);
+    fn     = reshape(fn,[prod(df(1:3)) C]);
+    fn     = spm_mb_appearance('Mask',fn);
+    if do_updt_bf
+        val = 1e3;
+        scl = ones(1,C);
+        for c=1:C
+            msk    = isfinite(fn(:,c));
+            scl(c) = val./mean(fn(msk,c));
+        end
+    else
+        scl = ones(1,C);
+    end
+ 
+    if do_updt_bf && any(dat(n).do_bf == true)
+        % Get bias field parameterisation struct
+        chan        = spm_mb_appearance('BiasFieldStruct',dat(n),C,df,reg,fwhm,scl);
+        dat(n).bf.T = {chan(:).T};
+
+        % Get bias field
+        bf = spm_mb_appearance('BiasField',chan,df);
+    else
+        bf = ones([1 C],'single');
+    end
+ 
+    % Modulate with bias field
+    fn = bf.*fn;
+ 
+    % Init GMM
+    [po,mx(:,n),mn(:,n),vr(:,n)] = PosteriorGMM(fn,K1);
+    mog.po     = po;
+    mog.lb     = lb;
+    dat(n).mog = mog;
+end
+
+% Init GMM empirical prior
+pr = PriorGMM(mx,mn,vr,K1);
+for n=1:numel(dat)                
+    dat(n).mog.pr = pr;
 end
 end
 %==========================================================================
