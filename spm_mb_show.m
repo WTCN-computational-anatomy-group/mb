@@ -95,16 +95,14 @@ if d(3) > 1
     ShowCat(mu,2,2,3,2,fig_name);
     ShowCat(mu,3,2,3,3,fig_name);
     title(nam);
-    subplot(2,1,2); 
-    plot(Objective,'.-');        
-    title('Negative log-likelihood')
+    subplot(2,1,2);     
 else
     ShowCat(mu,3,1,2,1,fig_name);
     title(nam);
     subplot(1,2,2); 
-    plot(Objective,'.-');    
-    title('Negative log-likelihood')
 end
+plot(Objective,'.-');        
+title('Negative log-likelihood')
 drawnow
 end
 %==========================================================================
