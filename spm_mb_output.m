@@ -89,12 +89,13 @@ if isfield(datn,'mog') && (any(write_bf(:) == true) || any(write_im(:) == true) 
     end
     
     % Get image(s)
-    fn   = spm_mb_io('GetData',datn.f);
-    fn   = reshape(fn,[prod(df(1:3)) C]);
-    fn   = spm_mb_appearance('Mask',fn);
-    code = spm_gmm_lib('obs2code', fn);
-    L    = unique(code);
-
+    fn      = spm_mb_io('GetData',datn.f);
+    fn      = reshape(fn,[prod(df(1:3)) C]);
+    fn      = spm_mb_appearance('Mask',fn);
+    code    = spm_gmm_lib('obs2code', fn);
+    L       = unique(code);    
+    do_miss = numel(L) > 1;
+    
     % GMM posterior
     m = datn.mog.po.m;
     b = datn.mog.po.b;
@@ -107,7 +108,7 @@ if isfield(datn,'mog') && (any(write_bf(:) == true) || any(write_im(:) == true) 
 
     % Get bias field modulated image data
     fn = bf.*fn;
-    if do_infer
+    if do_infer && do_miss
         % Infer missing values
         sample_post = do_infer > 1;
         MU = datn.mog.po.m;    
