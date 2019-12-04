@@ -660,7 +660,6 @@ function pr = PriorGMM(mx,mn,vr,K)
 
 C   = size(mx,1);
 mvr = mean(vr,2);
-
 mu  = zeros(C,K);
 A   = zeros(C,C,K);        
 n   = 3;
@@ -670,14 +669,14 @@ for c=1:C
     sd       = sqrt(vrc);
     mu(c,:)  = abs(linspace(mnc - n*sd,mnc + n*sd,K));    
     A(c,c,:) = vrc;
-    A(c,c,:) = 1/A(c,c,:);
+    A(c,c,:) = 1/A(c,c,:); % precision
 end
 
 pr   = struct('m',[],'b',[],'n',[],'V',[]);
 pr.m = mu;
-pr.b = ones(1,K);
+pr.b = zeros(1,K) + 0.01;
 pr.n = C*ones(1,K);
-pr.V = bsxfun(@times, A, reshape(pr.n, [1 1 K])); % Expected precision
+pr.V = A/C;
 
 if 0
    %fig_name = sett.show.figname_int;
@@ -705,14 +704,14 @@ for c=1:C
     vr(c)    = var(fn(msk,c));
     mu(c,:)  = (0:(K - 1))'*mx(c)/(1.5*K);
     A(c,c,:) = mx(c)/(1.5*K);
-    A(c,c,:) = 1/A(c,c,:);
+    A(c,c,:) = 1/A(c,c,:); % precision
 end
 
 po   = struct('m',[],'b',[],'n',[],'V',[]);
 po.m = mu;
-po.b = ones(1,K);
+po.b = zeros(1,K) + 0.01;
 po.n = C*ones(1,K);
-po.V = bsxfun(@times, A, reshape(po.n, [1 1 K])); % Expected precision
+po.V = A/C;
 
 if 0
    %fig_name = sett.show.figname_int;
@@ -759,6 +758,4 @@ else
     t  = zeros(size(B1,1),size(B2,1));
 end
 end
-%==========================================================================
-
 %==========================================================================
