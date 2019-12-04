@@ -98,6 +98,7 @@ function Model(mu,Objective,N,sett)
 fig_name = sett.show.figname_model;
 
 d   = size(mu);
+d   = [d 1];
 mu  = cat(4,mu,zeros(d(1:3),'single'));
 mu  = spm_mb_shape('Softmax',mu,4);
 nam = ['K=' num2str(size(mu,4)) ', N=' num2str(N) ' (softmaxed)'];
