@@ -932,7 +932,7 @@ for c=1:C
     b3 = chan(c).B3(1,1);
     t1 = chan(c).T(1,1,1);
     
-    scl(c) = exp(b1*b2*b3*t1);
+    scl(c) = b1*b2*b3*t1;
 end
 end
 %==========================================================================
@@ -1017,122 +1017,10 @@ if 0
 end
 
 % Adjust bias field DC component
-scl = (1./mn_dc_int)';
 for n=1:numel(dat)
     for c=1:C
         dat(n).bf.T{c}(1,1,1) = dat(n).bf.T{c}(1,1,1) - mn_dc_ln(c);
     end
-end
-   
-% Correct GMM posterior parameters and lower bound/objective
-for n=1:numel(dat)
-    if all(dat(n).do_bf == false), continue; end
-    
-    dat(n) = ZeroMeanDCSub(dat(n),mu,scl,sett);
-end
-end
-%==========================================================================
-
-%==========================================================================
-% ZeroMeanDCSub()
-function datn = ZeroMeanDCSub(datn,mu,scl,sett)
-
-% Parse function settings
-B    = sett.registr.B;
-fwhm = sett.bf.fwhm;
-Mmu  = sett.var.Mmu;
-reg  = sett.bf.reg;
-samp = sett.gen.samp;
-
-[df,C] = spm_mb_io('GetSize',datn.f);
-Mat    = datn.Mat;
-q      = double(datn.q);
-Mn     = datn.Mat;
-W      = 1;
-Mr     = spm_dexpm(q,B);
-
-% Get image(s)
-fn = spm_mb_io('GetData',datn.f);
-if samp > 1      
-    [fn,W,d] = SubSample(samp,Mat,fn);
-else
-    d = df;
-end
-fn = reshape(fn,[prod(d(1:3)) C]);
-
-% GMM posterior
-m = datn.mog.po.m;
-b = datn.mog.po.b;
-V = datn.mog.po.V;
-n = datn.mog.po.n;
-
-% GMM prior
-m0 = datn.mog.pr.m;
-b0 = datn.mog.pr.b;
-V0 = datn.mog.pr.V;
-n0 = datn.mog.pr.n;
-
-% Get suffstats
-lSS0 = datn.bf.lSS0;
-lSS1 = datn.bf.lSS1;
-lSS2 = datn.bf.lSS2;
-L    = datn.bf.L;
-
-% Rescale suffstats
-K1 = size(m,2);
-K  = K1 - 1;
-A  = bsxfun(@times,V,reshape(n,[1 1 K1]));
-for l=2:numel(L)
-    obs = spm_gmm_lib('code2bin', L(l), C);
-    lSS1{l} = bsxfun(@times,lSS1{l},scl(obs));
-    for k=1:size(lSS2{l},3)
-        lSS2{l}(:,:,k) = (scl(obs)*scl(obs)').*lSS2{l}(:,:,k);
-    end     
-end
-
-% Update GMM posteriors
-[SS0,SS1,SS2] = spm_gmm_lib('SuffStat', 'infer', lSS0, lSS1, lSS2, {m,A}, L);        
-[m,~,b,V,n]   = spm_gmm_lib('UpdateClusters', SS0, SS1, SS2, {m0,b0,V0,n0});    
-
-% Save updated GMM posteriors
-datn.mog.po.m = m;
-datn.mog.po.b = b;
-datn.mog.po.V = V;
-datn.mog.po.n = n;
-
-% Get subject-space template (softmaxed K + 1)
-psi1 = spm_mb_io('GetData',datn.psi);
-psi0 = spm_mb_shape('Affine',df,Mmu\Mr*Mn);
-psi  = spm_mb_shape('Compose',psi1,psi0);
-psi0 = []; psi1 = [];  
-mu   = spm_mb_shape('Pull1',mu,psi);
-psi  = [];
-
-if samp > 1      
-    mu = SubSample(samp,Mat,mu);
-end
-mu = reshape(mu,[prod(d(1:3)) K]);
-mu = cat(2,mu,zeros([prod(d(1:3)) 1],'single'));
-
-% Get bias field
-chan       = BiasFieldStruct(datn,C,df,reg,fwhm,[],datn.bf.T,samp);
-[bf,pr_bf] = BiasField(chan,d);
-
-% Get responsibilities
-fn   = Mask(fn);
-code = spm_gmm_lib('obs2code', fn);
-zn   = Responsibility(m,b,V,n,bf.*fn,mu,L,code);
-mu   = [];
-
-% Update lower bound/objective
-lx  = W*LowerBound('X',bf.*fn,zn,code,{m,b},{V,n});
-lxb = W*LowerBound('XB',bf);
-
-datn.mog.lb.XB(end + 1) = lxb;
-datn.mog.lb.X(end  + 1) = lx;
-datn.mog.lb             = SumLowerBound(datn.mog.lb);
-
-datn.E(1) = -datn.mog.lb.sum(end);
-datn.E(3) = -sum(pr_bf);
+end   
 end
 %==========================================================================

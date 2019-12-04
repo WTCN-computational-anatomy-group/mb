@@ -134,7 +134,7 @@ if ~isfield(sett,'do')
     sett.do = struct;
 end
 if ~isfield(sett.do,'bf_norm')
-    sett.do.bf_norm = true;
+    sett.do.bf_norm = false;
 end
 if ~isfield(sett.do,'gmm')
     sett.do.gmm = true;
