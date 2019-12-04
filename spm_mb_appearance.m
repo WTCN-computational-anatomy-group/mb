@@ -47,37 +47,29 @@ end
 %==========================================================================
 % BiasField()
 function [bfn,lln] = BiasField(chan,d,varargin)
-C  = numel(chan);
 I  = prod(d);
 Iz = prod(d(1:2));
-nz = d(3);   
+nz = d(3);
 if numel(varargin) == 0
     % Compute full bias field (for all channels)
+    C   = numel(chan);
     bfn = zeros([I C],'single');
+    cr  = 1:C;
     lln = zeros(1,C);
-    for c=1:C           
-        lln(c) = double(-0.5*chan(c).T(:)'*chan(c).C*chan(c).T(:));    
-
-        for z=1:nz
-            ix        = IndexSlice2Vol(z,Iz);
-            bf_c      = TransformBF(chan(c).B1,chan(c).B2,chan(c).B3(z,:),chan(c).T);
-            bf_c      = bf_c(:);      
-            bfn(ix,c) = single(exp(bf_c));        
-        end
-    end
 else
     % Compute just for one channel
     bfn = varargin{1};
-    c   = varargin{2};
+    cr  = varargin{2};
     lln = varargin{3};
-
-    lln(c) = double(-0.5*chan(c).T(:)'*chan(c).C*chan(c).T(:));    
+end
+for c=cr
+    lln(c) = double(-0.5*chan(c).T(:)'*chan(c).C*chan(c).T(:));
 
     for z=1:nz
         ix        = IndexSlice2Vol(z,Iz);
         bf_c      = TransformBF(chan(c).B1,chan(c).B2,chan(c).B3(z,:),chan(c).T);
-        bf_c      = bf_c(:);      
-        bfn(ix,c) = single(exp(bf_c));        
+        bf_c      = bf_c(:);
+        bfn(ix,c) = single(exp(bf_c));
     end
 end
 end
@@ -89,14 +81,14 @@ function chan = BiasFieldStruct(datn,C,d,reg,fwhm,scl,T,samp)
 if nargin < 7, T    = {}; end
 if nargin < 8, samp = 1; end
 
-cl   = cell(C,1);    
+cl   = cell(C,1);
 args = {'C',cl,'B1',cl,'B2',cl,'B3',cl,'T',cl,'ll',cl};
 chan = struct(args{:});
 
 do_bf = datn.do_bf;
 Mn    = datn.Mat;
 
-vx = sqrt(sum(Mn(1:3,1:3).^2));                     
+vx = sqrt(sum(Mn(1:3,1:3).^2));
 sd = vx(1)*d(1)/fwhm; d3(1) = ceil(sd*2);
 sd = vx(2)*d(2)/fwhm; d3(2) = ceil(sd*2);
 sd = vx(3)*d(3)/fwhm; d3(3) = ceil(sd*2);
@@ -110,7 +102,7 @@ samp      = max([1 1 1],round(samp*[1 1 1]./vx));
 z0        = single(1:samp(3):d(3));
 
 for c=1:C
-    % GAUSSIAN REGULARISATION for bias correction                        
+    % GAUSSIAN REGULARISATION for bias correction
     chan(c).C = ICO;
 
     % Basis functions for bias correction
@@ -155,7 +147,6 @@ end
 function dat = Init(dat,K,sett)
 
 % Parse function settings
-do_bf_norm = sett.do.bf_norm;
 do_gmm     = sett.do.gmm;
 fwhm       = sett.bf.fwhm;
 reg        = sett.bf.reg;
@@ -175,45 +166,43 @@ vr    = zeros(C,numel(dat));
 
 for n=1:N
     [df,C] = spm_mb_io('GetSize',dat(n).f);
-    fn     = spm_mb_io('GetData',dat(n).f);                    
-    fn     = reshape(fn,[prod(df(1:3)) C]);                      
+    fn     = spm_mb_io('GetData',dat(n).f);
+    fn     = reshape(fn,[prod(df(1:3)) C]);
     fn     = spm_mb_appearance('Mask',fn);
     if do_updt_bf
-        val = 1e3;                    
-        scl = double(val./nanmean(fn,1)); 
-    else        
+        val = 1e3;
+        scl = ones(1,C);
+        for c=1:C
+            msk    = isfinite(fn(:,c));
+            scl(c) = val./mean(fn(msk,c));
+        end
+    else
         scl = ones(1,C);
     end
-    
+ 
     if do_updt_bf && any(dat(n).do_bf == true)
         % Get bias field parameterisation struct
         chan        = spm_mb_appearance('BiasFieldStruct',dat(n),C,df,reg,fwhm,scl);
         dat(n).bf.T = {chan(:).T};
 
-        % struct used for rescaling images using DC component of bias fields
-        dc            = struct;
-        dc.int        = zeros(1,C);
-        dc.ln         = zeros(1,C);
-        dat(n).bf.dc  = dc;    
-        
         % Get bias field
-        bf = spm_mb_appearance('BiasField',chan,df);     
+        bf = spm_mb_appearance('BiasField',chan,df);
     else
         bf = ones([1 C],'single');
     end
-    
-    % Modulate with bias field    
+ 
+    % Modulate with bias field
     fn = bf.*fn;
-    
+ 
     % Init GMM
-    [po,mx(:,n),mn(:,n),vr(:,n)] = PosteriorGMM(fn,K1,sett);            
-    mog.po     = po;    
-    mog.lb     = lb;    
+    [po,mx(:,n),mn(:,n),vr(:,n)] = PosteriorGMM(fn,K1);
+    mog.po     = po;
+    mog.lb     = lb;
     dat(n).mog = mog;
 end
 
 % Init GMM empirical prior
-pr = PriorGMM(mx,mn,vr,K1,sett);
+pr = PriorGMM(mx,mn,vr,K1);
 for n=1:numel(dat)                
     dat(n).mog.pr = pr;
 end
@@ -251,7 +240,6 @@ end
 function [zn,datn] = Update(datn,mun0,sett)
 
 % Parse function settings
-do_bf_norm   = sett.do.bf_norm;
 do_updt_bf   = sett.do.updt_bf;
 fwhm         = sett.bf.fwhm;
 nit_bf       = sett.nit.bf;
@@ -295,10 +283,10 @@ if nargout > 1
         [fn,mun,W,d] = SubSample(samp,Mn,fn,mun0);
         mun          = reshape(mun,[prod(d(1:3)) K]);
     else
-        d    = df;    
+        d    = df;
         mun  = reshape(mun0,[prod(d(1:3)) K]);
         mun0 = [];
-    end        
+    end
     nm = prod(d(1:3));
     fn = reshape(fn,[prod(d(1:3)) C]);
 
@@ -313,7 +301,7 @@ if nargout > 1
     % random values are added.
     rng('default'); rng(1);
     fn = fn + rand(size(fn)) - 1/2;
-    
+ 
     % Make K + 1 template
     mun = cat(2,mun,zeros([prod(d(1:3)) 1],'single'));
 
@@ -380,7 +368,7 @@ if nargout > 1
                         missing_channels  = ~observed_channels;
                         if missing_channels(c), continue; end
                         if isempty(code), selected_voxels = ones(size(code), 'logical');
-                        else,                   selected_voxels = (code == L(l));
+                        else,             selected_voxels = (code == L(l));
                         end
                         nb_channels_missing  = sum(missing_channels);
                         nb_voxels_coded      = sum(selected_voxels);
@@ -500,7 +488,7 @@ if nargout > 1
                             end
                         end
                     end
-                    oT = []; Update = [];      
+                    oT = []; Update = [];
                 end
             end   
 
@@ -510,23 +498,6 @@ if nargout > 1
         end
     end
     fn = []; bf = []; mun = [];
-
-    if do_bf_norm
-        [lSS0,lSS1,lSS2] = spm_gmm_lib('SuffStat', 'base', bffn, zn, 1, {code,L});   
-        datn.bf.lSS0     = lSS0;
-        datn.bf.lSS1     = lSS1;
-        datn.bf.lSS2     = lSS2;
-        datn.bf.L        = L;
-
-        % Get DC component
-        dc    = struct;
-        dc.ln = zeros(1,C);
-        for c=1:C
-            dc.ln(c) = chan(c).T(1,1,1);
-        end
-        dc.int     = SclFromBiasFieldDC(chan);
-        datn.bf.dc = dc;
-    end
 end
 
 if samp > 1 || nargout == 1
@@ -570,76 +541,67 @@ end
 % UpdatePrior()
 function dat = UpdatePrior(dat, mu, sett)
 
-% Parse function settings
-do_bf_norm  = sett.do.bf_norm;
-do_updt_int = sett.do.updt_int;
-
+if ~sett.do.updt_int,      return; end
 if ~isfield(dat(1),'mog'), return; end
 
 % Get population indices
 p_ix = GetPopulationIdx(dat);
 
 for p=1:numel(p_ix) % Loop over populations
-    if do_bf_norm
-        % Zero-mean the bias field DC component
-        dat(p_ix{p}) = ZeroMeanDC(dat(p_ix{p}),mu,sett);
+
+    N = numel(p_ix{p}); % Number of subjects in population
+
+    % Get old prior
+    pr = dat(p_ix{p}(1)).mog.pr;
+    pr = {pr.m,pr.b,pr.V,pr.n};
+    C  = size(pr{1},1);
+
+    % Get all posteriors
+    K     = size(mu,4);
+    K1    = K + 1;
+    po    = cell(1,N+1);
+    for n=1:N
+        n1          = p_ix{p}(n);
+        po{n}{1}{1} = dat(n1).mog.po.m;
+        po{n}{1}{2} = dat(n1).mog.po.b;
+        po{n}{2}{1} = dat(n1).mog.po.V;
+        po{n}{2}{2} = dat(n1).mog.po.n;
     end
 
-    if do_updt_int
-        N = numel(p_ix{p}); % Number of subjects in population
-        
-        % Get old prior
-        pr = dat(p_ix{p}(1)).mog.pr;
-        pr = {pr.m,pr.b,pr.V,pr.n};
-        C  = size(pr{1},1);
-        
-        % Get all posteriors
-        K     = size(mu,4);
-        K1    = K + 1;
-        po    = cell(1,N);
-        avgmn = 0;
-        avgvr = 0;
-        for n=p_ix{p}
-            po{n}{1}{1} = dat(n).mog.po.m;
-            avgmn       = avgmn + sum(po{n}{1}{1},2)./K1;
-            
-            po{n}{1}{2} = dat(n).mog.po.b;
-            po{n}{2}{1} = dat(n).mog.po.V;
-            po{n}{2}{2} = dat(n).mog.po.n;
-            
-            vr = bsxfun(@times, po{n}{2}{1}, reshape(po{n}{2}{2}, [1 1 K1]));
-            for k=1:K1
-                vr(:,:,k) = inv(vr(:,:,k));
-            end            
-            avgvr = avgvr + sum(vr,3)./K1;
+    % Get overall mean and variance for regularising
+    avgmn = 0;
+    sum_b = 0;
+    avgvr = 0;
+    sum_n = 0;
+    for n=1:N
+        pon = dat(p_ix{p}(n)).mog.po;
+        for k=1:K1
+            avgmn = avgmn + pon.m(:,k)*pon.b(k);
+            avgvr = avgvr + inv(pon.V(:,:,k));
         end
-        
-        % Average mean
-        avgmn = avgmn./N;
-        
-        % Average precision from average variance
-        avgvr = avgvr./N;        
-        avgvr = diag(diag(avgvr));
-        avgpr = inv(avgvr);
-        
-        % Add one artificial observation
-        po1{1}{1}   = repmat(avgmn,[1 K1]);     % m
-        po1{1}{2}   = ones(1,K1);               % b
-        po1{2}{1}   = repmat(C*avgpr,[1 1 K1]); % V
-        po1{2}{2}   = C*ones(1,K1);             % n
-        po{end + 1} = po1;
-        
-        % Update prior
-%         pr = DoIntensityPriorUpdate(pr,po);
-        pr = spm_gmm_lib('updatehyperpars',po,pr);
+        sum_n = sum_n + pon.n(k);
+        sum_b = sum_b + pon.b(k);
+    end
+    avgvr = avgvr/sum_n;
+    avgmn = avgmn/sum_b;
+    avgpr = diag(1./diag(avgvr));
 
-        % Assign new prior
-        for n=p_ix{p}
-            dat(n).mog.pr.m = pr{1};
-            dat(n).mog.pr.b = pr{2};
-            dat(n).mog.pr.V = pr{3};
-            dat(n).mog.pr.n = pr{4};
-        end             
+    % Add one artificial observation
+    po1{1}{1} = repmat(avgmn,[1 K1]);     % m
+    po1{1}{2} = zeros(1,K1) + 0.01;       % b
+    po1{2}{1} = repmat(avgpr/C,[1 1 K1]); % V
+    po1{2}{2} = C*ones(1,K1);             % n
+    po{end}   = po1;
+ 
+    % Update prior
+    pr = spm_gmm_lib('updatehyperpars',po,pr);
+
+    % Assign new prior
+    for n=p_ix{p}
+        dat(n).mog.pr.m = pr{1};
+        dat(n).mog.pr.b = pr{2};
+        dat(n).mog.pr.V = pr{3};
+        dat(n).mog.pr.n = pr{4};
     end
 end
 end
@@ -657,153 +619,6 @@ function f = ApplyMask(f,C)
 if C == 1, f(~isfinite(f)) = NaN;
 else,      f(~isfinite(f) | f == 0 | f == min(f(:))) = NaN;
 end
-end
-%==========================================================================
-
-%==========================================================================
-% DoIntensityPriorUpdate()
-function pr = DoIntensityPriorUpdate(pr,po)
-m0 = pr{1};
-b0 = pr{2};
-W0 = pr{3};
-n0 = pr{4};
-
-N = numel(po);
-D = size(m0,1);
-K = size(m0,2);
-
-for k=1:K % loop over classes
-    
-    % Compute m_0
-    g = zeros(D,1);
-    H = zeros(D,D);
-    for i=1:N    
-        [m,b,W,n] = GetPosterior(po,i);
-
-        g = g + b0(k)*n(k)*W(:,:,k)*(m(:,k)-m0(:,k));
-        H = H + b0(k)*n(k)*W(:,:,k);
-    end
-    m0(:,k) = m0(:,k) + H\g;
-
-    % Compute \beta_0
-    g_const = 0;
-    for i=1:N
-        [m,b,W,n] = GetPosterior(po,i);
-
-        g_const = g_const - 0.5*(D/b(k) + n(k)*(m(:,k)-m0(:,k))'*W(:,:,k)*(m(:,k)-m0(:,k)));
-    end
-    for subit=1:100
-        % Diff w.r.t. b0
-        g  = 0.5*N*D/b0(k) + g_const; % Gradient
-        H  = 0.5*N*D/b0(k)^2;         % Hessian
-        b0(k) = max(b0(k) + H\g,1e-5);
-        if norm(g)==0, break; end
-    end
-
-    % Set up some constants
-    nW_const = zeros(D);
-    for i=1:N
-        [m,b,W,n] = GetPosterior(po,i);
-
-        nW_const = nW_const + n(k)*W(:,:,k);
-    end
-
-    ElogLam = N*D*log(2);
-    for i=1:N
-        [m,b,W,n] = GetPosterior(po,i);
-
-        ElogLam = ElogLam + 2*sum(log(diag(chol(W(:,:,k)))));
-        for j=1:D
-            ElogLam = ElogLam + psi((n(k)+1-j)/2);
-        end
-    end
-
-    % convergence = [];
-    E = -realmax;
-
-    for it=1:1000    
-        % Compute objective function (Equation 10.74 of Bishop)
-
-        oE = E;
-        logB = -n0(k)*sum(log(diag(chol(W0(:,:,k))))) - n0(k)*D/2*log(2) - D*(D-1)/4*log(pi);
-        for j=1:D
-            logB = logB - gammaln((n0(k)+1-j)/2); 
-        end
-        E = (0.5*D*log(b0(k)/(2*pi)) + logB)*N + 0.5*(n0(k)-D-1)*ElogLam;
-        for i=1:N
-            [m,b,W,n] = GetPosterior(po,i);
-
-            e = 0.5*(-D*b0(k)/b(k) - b0(k)*n(k)*(m(:,k)-m0(:,k))'*W(:,:,k)*(m(:,k)-m0(:,k)))...
-              - 0.5*n(k)*trace(W0(:,:,k)\W(:,:,k));
-            E = E + e;
-        end
-        %if E-oE<abs(E)*eps*D^2, break; end
-        if E-oE==0, break; end
-
-    %     convergence = [convergence E];
-    %     plot(convergence,'.-'); drawnow;
-
-
-        % Compute \nu_0
-
-        % Objective function terms containing n0:
-        % NlogB = -n0*N*(sum(log(diag(chol(W0)))) + D/2*log(2));
-        % for j=1:D, NlogB = NlogB - N*gammaln((n0+1-j)/2); end
-        % E = NlogB + n0*0.5*ElogLam
-
-        g = (sum(log(diag(chol(W0(:,:,k))))) + D/2*log(2))*N - 0.5*ElogLam;
-        H = 0;
-        for j=1:D
-            g = g + N*psi(  (n0(k)+1-j)/2)/2;
-            H = H + N*psi(1,(n0(k)+1-j)/2)/4;
-        end
-        n0(k) = max(n0(k) - H\g,D-0.99999);
-
-        % Compute W_0
-
-        % Objective function terms containing W0:
-        % E = -n0*N*sum(log(diag(chol(W0))));
-        % for i=1:N
-        %    E = E - 0.5*n(i)*trace(W0\W(:,:,i));
-        % end
-
-        C = inv(chol(W0(:,:,k)));
-
-        % Objective function terms containing W0, after
-        % re-expressing using C = inv(chol(W0)):
-        % E = n0*N*sum(log(diag(C)));
-        % for i=1:N
-        %    E = E - 0.5*n(i)*trace(C'*W(:,:,i)*C);
-        % end
-
-        G  = -n0(k)*N*diag(1./diag(C)) + nW_const*C;
-        for d=1:D
-            c        = C(1:d,d);
-            g        = G(1:d,d);
-            H        = nW_const(1:d,1:d);
-            H(d,d)   = H(d,d) + n0(k)*N/c(d)^2;
-            C(1:d,d) = c - H\g;
-        end
-        C         = inv(C);
-        W0(:,:,k) = C'*C;
-    end
-end
-
-% Assign new prior
-pr{1} = m0;
-pr{2} = b0;
-pr{3} = W0;
-pr{4} = n0;
-end
-%==========================================================================
-
-%==========================================================================
-% GetPosterior()
-function [m,b,W,n] = GetPosterior(po,i)
-m = po{i}{1}{1};
-b = po{i}{1}{2};
-W = po{i}{2}{1};
-n = po{i}{2}{2};
 end
 %==========================================================================
 
@@ -841,34 +656,22 @@ end
 
 %==========================================================================    
 % PriorGMM()
-function pr = PriorGMM(mx,mn,vr,K,sett)
-
-% Parse function settings
-fig_name = sett.show.figname_int;
+function pr = PriorGMM(mx,mn,vr,K)
 
 C   = size(mx,1);
-mmx = max(mx,[],2);
-mmn = mean(mn,2);
 mvr = mean(vr,2);
 
-% pr   = struct('m',[],'b',[],'n',[],'V',[]);
-% pr.m = zeros(C,K);
-% pr.b = ones(1,K);
-% pr.n = C*ones(1,K);
-% pr.V = bsxfun(@times, repmat(eye(C),[1 1 K]), reshape(pr.n, [1 1 K]));
-mu = zeros(C,K);
-A  = zeros(C,C,K);        
-n  = 3;
+mu  = zeros(C,K);
+A   = zeros(C,C,K);        
+n   = 3;
 for c=1:C         
-%     mu(c,:)  = (0:(K - 1))'*mmx(c)/(1.5*K);
-%     A(c,c,:) = mmx(c)/(1.5*K);    
     vrc      = mvr(c)/(K + 1);
     mnc      = mn(c);
     sd       = sqrt(vrc);
     mu(c,:)  = abs(linspace(mnc - n*sd,mnc + n*sd,K));    
-    A(c,c,:) = vrc;        
+    A(c,c,:) = vrc;
     A(c,c,:) = 1/A(c,c,:);
-end   
+end
 
 pr   = struct('m',[],'b',[],'n',[],'V',[]);
 pr.m = mu;
@@ -877,6 +680,8 @@ pr.n = C*ones(1,K);
 pr.V = bsxfun(@times, A, reshape(pr.n, [1 1 K])); % Expected precision
 
 if 0
+   %fig_name = sett.show.figname_int;
+    fig_name = 'Prior';
     spm_gmm_lib('plot','gaussprior',{pr.m,pr.b,pr.V,pr.n},[],fig_name);
 end
 
@@ -885,31 +690,23 @@ end
 
 %==========================================================================    
 % PosteriorGMM()
-function [po,mx,mn,vr] = PosteriorGMM(fn,K,sett)
-
-% Parse function settings
-fig_name = sett.show.figname_int;
+function [po,mx,mn,vr] = PosteriorGMM(fn,K)
 
 C  = size(fn,2);
 mx = zeros(1,C);
 mn = zeros(1,C);
 vr = zeros(1,C);
 mu = zeros(C,K);
-A  = zeros(C,C,K);  
-n  = 3;
+A  = zeros(C,C,K);
 for c=1:C
-    mx(c)    = nanmax(fn(:,c));                         
-    mn(c)    = nanmean(fn(:,c));
-    vr(c)    = nanvar(fn(:,c));
+    msk      = isfinite(fn(:,c));
+    mx(c)    = max(fn(msk,c));
+    mn(c)    = mean(fn(msk,c));
+    vr(c)    = var(fn(msk,c));
     mu(c,:)  = (0:(K - 1))'*mx(c)/(1.5*K);
-    A(c,c,:) = mx(c)/(1.5*K);      
-%     vrc      = vr(c)/(K + 1);
-%     mnc      = 1.0*mn(c);
-%     sd       = sqrt(vrc);
-%     mu(c,:)  = abs(linspace(mnc - n*sd,mnc + n*sd,K));    
-%     A(c,c,:) = vrc;
+    A(c,c,:) = mx(c)/(1.5*K);
     A(c,c,:) = 1/A(c,c,:);
-end   
+end
 
 po   = struct('m',[],'b',[],'n',[],'V',[]);
 po.m = mu;
@@ -918,27 +715,13 @@ po.n = C*ones(1,K);
 po.V = bsxfun(@times, A, reshape(po.n, [1 1 K])); % Expected precision
 
 if 0
+   %fig_name = sett.show.figname_int;
+    fig_name = 'Posterior';
     spm_gmm_lib('plot','gaussprior',{po.m,po.b,po.V,po.n},[],fig_name);
 end
 
 end
 %==========================================================================  
-
-%==========================================================================
-% SclFromBiasFieldDC()
-function scl = SclFromBiasFieldDC(chan)
-C   = numel(chan);
-scl = zeros(1,C);
-for c=1:C
-    b1 = chan(c).B1(1,1);
-    b2 = chan(c).B2(1,1);
-    b3 = chan(c).B3(1,1);
-    t1 = chan(c).T(1,1,1);
-    
-    scl(c) = b1*b2*b3*t1;
-end
-end
-%==========================================================================
 
 %==========================================================================
 % SubSample()
@@ -949,13 +732,11 @@ N         = numel(varargin);
 varargout = cell(1,N + 2);
 for n=1:N
     f  = varargin{n};    
-    d0 = size(f);
-    d0 = [d0 1];
-    
+    d0 = [size(f) 1];
+ 
     f = f(1:samp:end,1:samp:end,1:samp:end,:);    
-    d = size(f); 
-    d = [d 1];    
-    
+    d = [size(f) 1]; 
+ 
     varargout{n} = f; 
 end
 
@@ -964,20 +745,6 @@ end
 W                = prod(d0(1:3))/prod(d(1:3));
 varargout{N + 1} = W;
 varargout{N + 2} = d(1:3);
-end
-%==========================================================================
-
-%==========================================================================
-% SumLowerBound()
-function lb = SumLowerBound(lb)
-fields          = fieldnames(lb);
-lb.sum(end + 1) = 0;
-for i=1:numel(fields)
-    field = fields{i};
-    if ~any(strcmpi(field, {'sum' 'last'})) && ~isempty(lb.(field)) && ~isnan(lb.(field)(end))
-        lb.sum(end) = lb.sum(end) + sum(lb.(field)(:,end));
-    end
-end
 end
 %==========================================================================
 
@@ -994,36 +761,4 @@ end
 end
 %==========================================================================
 
-%==========================================================================
-% ZeroMeanDC()
-function dat = ZeroMeanDC(dat,mu,sett)
-
-% Get correction factor
-sm_dc_ln  = 0;
-sm_dc_int = 0;
-for n=1:numel(dat)
-    sm_dc_ln  = sm_dc_ln  + dat(n).bf.dc.ln;
-    sm_dc_int = sm_dc_int + dat(n).bf.dc.int;
-end   
-mn_dc_ln  = sm_dc_ln./numel(dat);
-mn_dc_int = sm_dc_int./numel(dat);
-C         = numel(mn_dc_ln); 
-
-if 0     
-    % Some verbose (should tend towards 1, for all channels)
-    fprintf('mn_dc_int = [');
-    for c=1:C - 1
-        fprintf('%4.5f ',mn_dc_int(c));
-    end
-    fprintf('%4.5f',mn_dc_int(C))
-    fprintf(']\n');
-end
-
-% Adjust bias field DC component
-for n=1:numel(dat)
-    for c=1:C
-        dat(n).bf.T{c}(1,1,1) = dat(n).bf.T{c}(1,1,1) - mn_dc_ln(c);
-    end
-end   
-end
 %==========================================================================
