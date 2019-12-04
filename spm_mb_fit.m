@@ -27,7 +27,7 @@ do_zoom     = sett.do.zoom;
 K           = sett.model.K; 
 nit_init    = sett.nit.init;
 nit_init_mu = sett.nit.init_mu;
-nit_zm      = sett.nit.zm;
+nit_zm0     = sett.nit.zm;
 vx          = sett.model.vx;
 
 sett.model.groupwise = true;
@@ -69,7 +69,7 @@ dat = spm_mb_shape('Init',dat,sett);
 dat = spm_mb_appearance('Init',dat,K,sett);
 
 %------------------
-% Start algorithm (Groupwise)
+% Start algorithm
 %------------------
 
 spm_mb_show('Speak','Groupwise',N,K);
@@ -126,7 +126,7 @@ if do_updt_aff
 end
 
 %------------------
-% Iteratively decrease the template resolution (Groupwise)
+% Iteratively decrease the template resolution
 %------------------
 
 spm_mb_show('Speak','Iter',numel(sz)); tic;
@@ -147,7 +147,8 @@ for zm=numel(sz):-1:1 % loop over zoom levels
         E0 = sum(sum(cat(2,dat.E),2),1) + te;
     end    
         
-    E4 = Inf;
+    E4     = Inf;
+    nit_zm = nit_zm0 + (zm - 1);
     for iter=1:nit_zm
 
         % Update template, bias field and intensity model
