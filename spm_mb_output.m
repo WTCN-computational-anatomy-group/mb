@@ -212,10 +212,10 @@ if any(write_df == true) || any(reshape(write_tc(:,[2 3]),[],1) == true) ||  any
         pths    = {};
         for c=1:C
             if ~write_im(c,3), continue; end
-            nam  = ['wim' num2str(c) '_' namn '.nii'];
-            fpth = fullfile(dir_res,nam);            
-            img   = spm_mb_shape('Push1',fn(:,:,:,c)./bf(:,:,:,c),psi,dmu,sd);
-            spm_mb_io('WriteNii',fpth,img,Mmu,[descrip 'c=' num2str(c) ')']);            
+            nam     = ['wim' num2str(c) '_' namn '.nii'];
+            fpth    = fullfile(dir_res,nam);            
+            [img,c] = spm_mb_shape('Push1',fn(:,:,:,c)./bf(:,:,:,c),psi,dmu,sd);
+            spm_mb_io('WriteNii',fpth,img./(c + eps('single')),Mmu,[descrip 'c=' num2str(c) ')']);            
             pths{end + 1} = fpth;
         end
         resn.wim = pths;
@@ -227,10 +227,10 @@ if any(write_df == true) || any(reshape(write_tc(:,[2 3]),[],1) == true) ||  any
         pths    = {};
         for c=1:C
             if ~write_im(c,4), continue; end
-            nam  = ['wimc' num2str(c) '_' namn '.nii'];
-            fpth = fullfile(dir_res,nam);            
-            img   = spm_mb_shape('Push1',fn(:,:,:,c),psi,dmu,sd);
-            spm_mb_io('WriteNii',fpth,img,Mmu,[descrip 'c=' num2str(c) ')']);            
+            nam     = ['wimc' num2str(c) '_' namn '.nii'];
+            fpth    = fullfile(dir_res,nam);            
+            [img,c] = spm_mb_shape('Push1',fn(:,:,:,c),psi,dmu,sd);
+            spm_mb_io('WriteNii',fpth,img./(c + eps('single')),Mmu,[descrip 'c=' num2str(c) ')']);            
             pths{end + 1} = fpth;
         end
         resn.wimc = pths;
@@ -242,10 +242,10 @@ if any(write_df == true) || any(reshape(write_tc(:,[2 3]),[],1) == true) ||  any
         pths    = {};
         for k=1:K1           
             if ~write_tc(k,2), continue; end
-            nam  = ['wc' num2str(k) '_' namn '.nii'];
-            fpth = fullfile(dir_res,nam);            
-            img   = spm_mb_shape('Push1',zn(:,:,:,k),psi,dmu,sd);
-            spm_mb_io('WriteNii',fpth,img,Mmu,[descrip 'k=' num2str(k) ')']);            
+            nam     = ['wc' num2str(k) '_' namn '.nii'];
+            fpth    = fullfile(dir_res,nam);            
+            [img,c] = spm_mb_shape('Push1',zn(:,:,:,k),psi,dmu,sd);
+            spm_mb_io('WriteNii',fpth,img./(c + eps('single')),Mmu,[descrip 'k=' num2str(k) ')']);            
             pths{end + 1} = fpth;
         end    
         resn.wc = pths;
@@ -257,10 +257,10 @@ if any(write_df == true) || any(reshape(write_tc(:,[2 3]),[],1) == true) ||  any
         pths    = {};
         for k=1:K1           
             if ~write_tc(k,3), continue; end
-            nam   = ['mwc' num2str(k) '_' namn '.nii'];
-            fpth  = fullfile(dir_res,nam);
-            img   = spm_mb_shape('Push1',zn(:,:,:,k),psi,dmu);
-            img   = img*abs(det(Mn(1:3,1:3))/det(Mmu(1:3,1:3)));
+            nam  = ['mwc' num2str(k) '_' namn '.nii'];
+            fpth = fullfile(dir_res,nam);
+            img  = spm_mb_shape('Push1',zn(:,:,:,k),psi,dmu);
+            img  = img*abs(det(Mn(1:3,1:3))/det(Mmu(1:3,1:3)));
             spm_mb_io('WriteNii',fpth,img,Mmu,[descrip 'k=' num2str(k) ')']);            
             pths{end + 1} = fpth;
         end    
