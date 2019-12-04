@@ -210,7 +210,7 @@ do_bf      = datn.do_bf;
 fn = spm_mb_io('GetData',datn.f);
 
 % Get amount to jitter by
-jitter = spm_mb_io('GetScale',datn.f);
+jitter = spm_mb_io('GetScale',datn.f,sett);
 
 % GMM posterior
 m  = datn.mog.po.m;

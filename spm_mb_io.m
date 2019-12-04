@@ -8,8 +8,8 @@ function varargout = spm_mb_io(varargin)
 % FORMAT out        = spm_mb_io('GetData',in)
 % FORMAT Mat        = spm_mb_io('GetMat',fin)
 % FORMAT [d,M]      = spm_mb_io('GetSize',fin)
-% FORMAT s          = spm_mb_io('GetScale',fin);
-% FORMAT dat        = spm_mb_io('InitDat',F,sett)
+% FORMAT s          = spm_mb_io('GetScale',fin,sett);
+% FORMAT dat        = spm_mb_io('InitDat',in,sett)
 % FORMAT [psi,fpth] = spm_mb_io('SavePsiSub',datn,sett) 
 % FORMAT dat        = spm_mb_io('SaveTemplate',dat,mu,sett)
 % FORMAT              spm_mb_io('SetBoundCond')
@@ -122,13 +122,17 @@ end
 %==========================================================================
 
 %==========================================================================
-function out = GetScale(in)
+function out = GetScale(in,sett)
 % Return a scale for adding random numbers
+
+% Parse function settings
+run2d = sett.gen.run2d;
+
 if isnumeric(in)
-    if isa(a,'integer')
-        out = ones([1,1,1,size(a,4)]);
+    if isa(in,'integer') || run2d
+        out = ones([1,1,1,size(in,4)]);
     else
-        out = zeros([1,1,1,size(a,4)]);;
+        out = zeros([1,1,1,size(in,4)]);
     end
     return;
 end
@@ -136,16 +140,16 @@ if isa(in,'char')
     in = nifti(in);
 end
 if isa(in,'nifti')
-    M   = numel(in);
+    C   = numel(in);
     d   = size(in(1).dat,[1 2 3 4 5]);
-    if d(4)>1 && M>1, error('Don''t know what to do with this image data.'); end
-    d(4) = max(d(4),M);
+    if d(4)>1 && C>1, error('Don''t know what to do with this image data.'); end
+    d(4) = max(d(4),C);
     out  = zeros([1,1,1,d(4)]);
-    if M>1
-        for m=1:M
-            dt1 = in(m).dat.dtype(1);
+    if C>1
+        for c=1:C
+            dt1 = in(c).dat.dtype(1);
             if dt1=='I' || dt1=='U'
-                out(m) = in(m).dat.scl_slope(1);
+                out(c) = in(c).dat.scl_slope(1);
             end
         end
     else
