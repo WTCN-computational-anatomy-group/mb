@@ -225,7 +225,7 @@ end
 function fn = Mask(fn)
 C = size(fn,2);
 for c=1:C
-    fn(:,c) = ApplyMask(fn(:,c));
+    fn(:,c) = ApplyMask(fn(:,c),C);
 end
 end
 %==========================================================================
@@ -307,7 +307,7 @@ if nargout > 1
     code    = spm_gmm_lib('obs2code', fn);
     L       = unique(code);
     nL      = numel(L);
-    do_miss = numel(L) > 1;
+    do_miss = nL > 1;
 
     % Data is an integer type, so to prevent aliasing in the histogram, small
     % random values are added.
@@ -652,8 +652,10 @@ end
 
 %==========================================================================
 % ApplyMask()
-function f = ApplyMask(f)
-f(~isfinite(f) | f == 0 | f == min(f(:))) = NaN;
+function f = ApplyMask(f,C)
+if C == 1, f(~isfinite(f)) = NaN;
+else,      f(~isfinite(f) | f == 0 | f == min(f(:))) = NaN;
+end
 end
 %==========================================================================
 
