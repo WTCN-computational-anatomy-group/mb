@@ -7,7 +7,7 @@ function varargout = spm_mb_appearance(varargin)
 % FORMAT chan      = spm_mb_appearance('BiasFieldStruct',datn,C,d,reg,fwhm,scl,T,samp)
 % FORMAT p_ix      = spm_mb_appearance('GetPopulationIdx',dat)
 % FORMAT dat       = spm_mb_appearance('Init',dat,K,sett)
-% FORMAT fn        = spm_mb_appearance('Mask',fn)
+% FORMAT fn        = spm_mb_appearance('Mask',fn,is_ct)
 % FORMAT zn        = spm_mb_appearance('Responsibility',m,b,V,n,fn,mu,L,code)
 % FORMAT [zn,datn] = spm_mb_appearance('Update',datn,mun0,sett)
 % FORMAT dat       = spm_mb_appearance('UpdatePrior',dat,mu,sett)
@@ -133,12 +133,12 @@ end
 %==========================================================================
 % GetPopulationIdx()
 function p_ix = GetPopulationIdx(dat)
-int_pr_ix = [dat.int_pr_ix];
-un        = unique(int_pr_ix);
-p_ix      = cell(1,numel(un));
-cnt       = 1;
+ix_pop = [dat.ix_pop];
+un     = unique(ix_pop);
+p_ix   = cell(1,numel(un));
+cnt    = 1;
 for i=un
-    p_ix{cnt} = find(int_pr_ix == i);
+    p_ix{cnt} = find(ix_pop == i);
     cnt       = cnt + 1;
 end
 end
@@ -157,10 +157,10 @@ end
 
 %==========================================================================
 % Mask()
-function fn = Mask(fn)
+function fn = Mask(fn,is_ct)
 C = size(fn,2);
 for c=1:C
-    fn(:,c) = ApplyMask(fn(:,c),C);
+    fn(:,c) = ApplyMask(fn(:,c),C,is_ct(c));
 end
 end
 %==========================================================================
@@ -205,6 +205,7 @@ K1         = K + 1;
 Mn         = datn.Mat;
 W          = 1;
 do_bf      = datn.do_bf;
+is_ct      = datn.is_ct;
 
 % Get image data
 fn = spm_mb_io('GetData',datn.f);
@@ -242,7 +243,7 @@ if nargout > 1
     fn = reshape(fn,[prod(d(1:3)) C]);
 
     % Missing data stuff
-    fn      = Mask(fn);
+    fn      = Mask(fn,is_ct);
     code    = spm_gmm_lib('obs2code', fn);
     L       = unique(code);
     nL      = numel(L);
@@ -457,7 +458,7 @@ if samp > 1 || nargout == 1
     % Compute responsibilities on original data
     fn   = spm_mb_io('GetData',datn.f);
     fn   = reshape(fn,[prod(df(1:3)) C]);
-    fn   = Mask(fn);
+    fn   = Mask(fn,is_ct);
     code = spm_gmm_lib('obs2code', fn);
     mun0 = reshape(mun0,[prod(df(1:3)) K]);
     if do_updt_bf && any(do_bf == true)
@@ -568,9 +569,10 @@ end
 
 %==========================================================================
 % ApplyMask()
-function f = ApplyMask(f,C)
-if C == 1 && min(f(:)) >= 0, f(~isfinite(f)) = NaN;
-else,                        f(~isfinite(f) | f == 0 | f == min(f(:))) = NaN;
+function f = ApplyMask(f,C,is_ct)
+if     is_ct,  f(~isfinite(f) | f == 0 | f <= - 1020)    = NaN;
+elseif C == 1, f(~isfinite(f))                           = NaN;
+else,          f(~isfinite(f) | f == 0 | f == min(f(:))) = NaN;
 end
 end
 %==========================================================================
@@ -601,7 +603,7 @@ for n=1:N
     [df,C] = spm_mb_io('GetSize',dat(n).f);
     fn     = spm_mb_io('GetData',dat(n).f);
     fn     = reshape(fn,[prod(df(1:3)) C]);
-    fn     = spm_mb_appearance('Mask',fn);
+    fn     = spm_mb_appearance('Mask',fn,dat(n).is_ct);
     if do_updt_bf && any(dat(n).do_bf == true)
         val = 1e3;
         scl = ones(1,C);

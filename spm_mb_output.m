@@ -53,8 +53,10 @@ K1     = K + 1;
 if isa(datn.f(1),'nifti'), [~,namn] = fileparts(datn.f(1).dat.fname);                
 else,                         namn  = ['n' num2str(ix)];
 end            
-Mr = spm_dexpm(double(datn.q),B);
-Mn = datn.Mat;                
+Mr    = spm_dexpm(double(datn.q),B);
+Mn    = datn.Mat;                
+do_bf = datn.do_bf;
+is_ct = datn.is_ct;
 
 % Integrate K1 and C into write settings
 if size(write_bf,1) == 1 && C  > 1, write_bf = repmat(write_bf,[C  1]); end    
@@ -80,7 +82,7 @@ if isfield(datn,'mog') && (any(write_bf(:) == true) || any(write_im(:) == true) 
     mu = reshape(mu,[prod(df(1:3)) K]);
     mu = cat(2,mu,zeros([prod(df(1:3)) 1],'single'));        
 
-    if do_updt_bf
+    if do_updt_bf && any(do_bf == true)
         % Get bias field
         chan = spm_mb_appearance('BiasFieldStruct',datn,C,df,reg,fwhm,[],datn.bf.T);
         bf   = spm_mb_appearance('BiasField',chan,df);
@@ -89,7 +91,7 @@ if isfield(datn,'mog') && (any(write_bf(:) == true) || any(write_im(:) == true) 
     end
     
     % Get image(s)
-    fn      = spm_mb_io('GetData',datn.f);
+    fn      = spm_mb_io('GetData',datn.f,is_ct);
     fn      = reshape(fn,[prod(df(1:3)) C]);
     fn      = spm_mb_appearance('Mask',fn);
     code    = spm_gmm_lib('obs2code', fn);
@@ -118,13 +120,12 @@ if isfield(datn,'mog') && (any(write_bf(:) == true) || any(write_im(:) == true) 
 
     % TODO: Possible post-processing (MRF + clean-up)
 
-
     % Make 3D        
     bf = reshape(bf,[df(1:3) C]);
     fn = reshape(fn,[df(1:3) C]);
     zn = reshape(zn,[df(1:3) K1]);
 
-    if any(write_bf == true)
+    if any(write_bf == true) && do_updt_bf && any(do_bf == true)
         % Write bias field
         descrip = 'Bias field (';
         pths    = {};

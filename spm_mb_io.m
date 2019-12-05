@@ -302,10 +302,19 @@ for n=1:N
         dat(n).do_bf = repmat(dat(n).do_bf,[1 C]); 
     end
     
-    if isstruct(in(n)) && isfield(in(n),'int_pr_ix') && ~isempty(in(n).int_pr_ix)
-        dat(n).int_pr_ix = in(n).int_pr_ix;
+    if isstruct(in(n)) && isfield(in(n),'ix_pop') && ~isempty(in(n).ix_pop)
+        dat(n).ix_pop = in(n).ix_pop;
     else
-        dat(n).int_pr_ix = 1;
+        dat(n).ix_pop = 1;
+    end
+    
+    if isstruct(in(n)) && isfield(in(n),'is_ct') && ~isempty(in(n).is_ct)
+        dat(n).is_ct = true;
+    else
+        dat(n).is_ct = false;
+    end
+    if numel(dat(n).is_ct) < C 
+        dat(n).is_ct = repmat(dat(n).is_ct,[1 C]); 
     end
     
     % Orientation matrix (image voxel-to-world)    
