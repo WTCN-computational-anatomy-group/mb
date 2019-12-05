@@ -3,9 +3,10 @@ function varargout = spm_mb_param(varargin)
 %
 % Functions for settings and parameters related.
 %
-% FORMAT B    = spm_mb_param('AffineBases',code)
-% FORMAT sett = spm_mb_param('Settings')
-% FORMAT sz   = spm_mb_param('ZoomSettings',d, Mmu, v_settings, mu_settings, n)
+% FORMAT B                                  = spm_mb_param('AffineBases',code)
+% FORMAT [sett,template_given,appear_given] = spm_mb_param('SetFit',model,sett,N)
+% FORMAT sett                               = spm_mb_param('Settings')
+% FORMAT sz                                 = spm_mb_param('ZoomSettings',d, Mmu, v_settings, mu_settings, n)
 %
 %__________________________________________________________________________
 % Copyright (C) 2019 Wellcome Trust Centre for Neuroimaging
@@ -19,6 +20,8 @@ varargin = varargin(2:end);
 switch id
     case 'AffineBases'
         [varargout{1:nargout}] = AffineBases(varargin{:});                      
+    case 'SetFit'
+        [varargout{1:nargout}] = SetFit(varargin{:});        
     case 'Settings'
         [varargout{1:nargout}] = Settings(varargin{:});   
     case 'ZoomSettings'
@@ -95,6 +98,37 @@ end
 %==========================================================================
 
 %==========================================================================
+% SetFit()
+function [sett,template_given,appear_given] = SetFit(model,sett,N)
+
+template_given = (isfield(model,'shape') && isfield(model.shape,'template'));
+appear_given   = isfield(model,'appear');
+
+if N == 1 || template_given && appear_given
+    % Fit learned shape and appearance model
+    sett.model.groupwise  = false;
+    sett.do.updt_int      = false;
+    sett.do.updt_template = false;
+elseif template_given
+    % Fit learned shape model, learn appearance model
+    sett.model.groupwise  = false;
+    sett.do.updt_int      = true;
+    sett.do.updt_template = false;
+elseif appear_given
+    % Fit learned appearance model, learn shape model
+    sett.model.groupwise  = true;
+    sett.do.updt_int      = false;
+    sett.do.updt_template = true;
+else
+    % Learn both shape and appearance model
+    sett.model.groupwise  = true;
+    sett.do.updt_int      = true;
+    sett.do.updt_template = true;
+end
+end
+%==========================================================================
+
+%==========================================================================
 % Settings()
 function sett = Settings(sett)
 
@@ -150,6 +184,9 @@ if ~isfield(sett.do,'updt_bf')
 end
 if ~isfield(sett.do,'updt_int')
     sett.do.updt_int = true;
+end
+if ~isfield(sett.do,'updt_template')
+    sett.do.updt_template = true;
 end
 if ~isfield(sett.do,'updt_vel')
     sett.do.updt_vel = true;

@@ -58,8 +58,20 @@ function Clear(sett)
 fn = {sett.show.figname_bf, sett.show.figname_int, sett.show.figname_model, ...
       sett.show.figname_subjects, sett.show.figname_parameters};
 for i=1:numel(fn)
-    f  = findobj('Type', 'Figure', 'Name', fn{i});
-    if ~isempty(f), clf(f); drawnow; end    
+    f = findobj('Type', 'Figure', 'Name', fn{i});
+    if ~isempty(f), clf(f); drawnow; end
+    p = 1;
+    while true
+        fnp = [fn{i} ' (p=' num2str(p) ')'];
+        f   = findobj('Type', 'Figure', 'Name', fnp);
+        if ~isempty(f) 
+            clf(f); 
+            drawnow; 
+        else 
+            break
+        end    
+        p = p + 1;
+    end
 end
 end
 %==========================================================================
@@ -115,7 +127,7 @@ switch nam
         t = varargin{1}; 
         
         fprintf('Algorithm finished in %.1f seconds.\n', t);
-    case 'Init'
+    case 'InitAff'
         nit = varargin{1}; 
         
         fprintf('Optimising parameters at largest zoom level (nit = %i)\n',nit)
@@ -203,6 +215,7 @@ for n=1:nd
     Mr     = spm_dexpm(q,B);
     Mn     = dat(n).Mat;
     do_bf  = dat(n).do_bf;
+    is_ct  = dat(n).is_ct;
     
     % Warp template
     psi1 = spm_mb_io('GetData',dat(n).psi);
@@ -210,17 +223,32 @@ for n=1:nd
     mu   = spm_mb_shape('Pull1',mu0,psi);            
     psi1 = [];
     
+    % Get template (K + 1)
+%     mu = cat(4,mu,zeros(df(1:3),'single'));
+    
     % Get segmentation
     if isfield(dat,'mog')
         fn = spm_mb_io('GetData',dat(n).f); 
         zn = spm_mb_io('GetClasses',dat(n),mu,sett); % Just compute responsibilties
         zn = reshape(zn,[df(1:3) K1]);
+%         fn   = spm_mb_io('GetData',dat(n).f);         
+%         fn   = reshape(fn,[prod(df(1:3)) C]);
+%         fn   = spm_mb_appearance('Mask',fn,is_ct);
+%         code = spm_gmm_lib('obs2code', fn);
+%         L    = unique(code);
+%         mu   = reshape(mu,[prod(df(1:3)) K1]);
+%         
+%         zn = spm_mb_appearance('Responsibility',dat(n).mog.po.m,dat(n).mog.po.b, ...
+%                                dat(n).mog.po.V,dat(n).mog.po.n,fn,mu,L,code);
+%         zn = reshape(zn,[df(1:3) K1]);
+%         fn = reshape(fn,[df(1:3) C]);
+%         mu = reshape(mu,[df(1:3) K1]);
     else
         zn = spm_mb_io('GetData',dat(n).f); 
         zn = cat(4,zn,1 - sum(zn,4));
     end
     
-    % Get template (K + 1)
+    % Softmax template
     mu = cat(4,mu,zeros(df(1:3),'single'));
     mu = spm_mb_shape('Softmax',mu,4);
     

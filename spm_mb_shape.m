@@ -356,10 +356,15 @@ end
 function E = TemplateEnergy(mu,sett)
 
 % Parse function settings
-mu_settings = sett.var.mu_settings;
+do_updt_template = sett.do.updt_template;
+mu_settings      = sett.var.mu_settings;
 
-g    = spm_field('vel2mom', mu, mu_settings);
-E    = 0.5*mu(:)'*g(:);
+if do_updt_template
+    g = spm_field('vel2mom', mu, mu_settings);
+    E = 0.5*mu(:)'*g(:);
+else
+    E = 0;
+end
 end
 %==========================================================================
 
@@ -396,9 +401,12 @@ end
 function [mu,dat] = UpdateMean(dat, mu, sett)
 
 % Parse function settings
-accel       = sett.gen.accel;
-mu_settings = sett.var.mu_settings;
-s_settings  = sett.shoot.s_settings;
+accel            = sett.gen.accel;
+do_updt_template = sett.do.updt_template;
+mu_settings      = sett.var.mu_settings;
+s_settings       = sett.shoot.s_settings;
+
+if ~do_updt_template, return; end
 
 g  = spm_field('vel2mom', mu, mu_settings);
 M  = size(mu,4);

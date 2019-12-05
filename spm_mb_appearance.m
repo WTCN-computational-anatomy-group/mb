@@ -6,7 +6,7 @@ function varargout = spm_mb_appearance(varargin)
 % FORMAT [bfn,lln] = spm_mb_appearance('BiasField',chan,d,varargin)
 % FORMAT chan      = spm_mb_appearance('BiasFieldStruct',datn,C,d,reg,fwhm,scl,T,samp)
 % FORMAT p_ix      = spm_mb_appearance('GetPopulationIdx',dat)
-% FORMAT dat       = spm_mb_appearance('Init',dat,K,sett)
+% FORMAT dat       = spm_mb_appearance('Init',dat,model,K,sett)
 % FORMAT fn        = spm_mb_appearance('Mask',fn,is_ct)
 % FORMAT zn        = spm_mb_appearance('Responsibility',m,b,V,n,fn,mu,L,code)
 % FORMAT [zn,datn] = spm_mb_appearance('Update',datn,mun0,sett)
@@ -146,11 +146,24 @@ end
 
 %==========================================================================
 % Init()
-function dat = Init(dat,K,sett)
+function dat = Init(dat,model,K,sett)
 p_ix = spm_mb_appearance('GetPopulationIdx',dat);
 Np   = numel(p_ix);
+
+appear_given   = isfield(model,'appear');
+template_given = (isfield(model,'shape') && isfield(model.shape,'template'));
+
+% Get template
+if template_given, mu = spm_mb_io('GetData',model.shape.template);
+else,              mu = [];
+end
+
 for p=1:Np
-    dat(p_ix{p}) = InitPopulation(dat(p_ix{p}),K,sett);
+    datn = dat(p_ix{p});
+    if appear_given, pr = model.appear(num2str(datn(1).ix_pop));
+    else,            pr = [];
+    end
+    dat(p_ix{p}) = InitPopulation(datn,mu,pr,K,sett);
 end
 end
 %==========================================================================
@@ -579,7 +592,7 @@ end
 
 %==========================================================================
 % InitPopulation()
-function dat = InitPopulation(dat,K,sett)
+function dat = InitPopulation(dat,mu,pr,K,sett)
 
 % Parse function settings
 do_gmm     = sett.do.gmm;
@@ -630,14 +643,16 @@ for n=1:N
     fn = bf.*fn;
  
     % Init GMM
-    [po,mx(:,n),mn(:,n),vr(:,n)] = PosteriorGMM(fn,K1);
+    [po,mx(:,n),mn(:,n),vr(:,n)] = PosteriorGMM(dat(n),fn,mu,pr,K1,sett);
     mog.po     = po;
     mog.lb     = lb;
     dat(n).mog = mog;
 end
 
-% Init GMM empirical prior
-pr = PriorGMM(mx,mn,vr,K1);
+if isempty(pr)
+    % Init GMM empirical prior
+    pr = PriorGMM(mx,mn,vr,mu,K1);
+end
 for n=1:numel(dat)                
     dat(n).mog.pr = pr;
 end
@@ -678,20 +693,25 @@ end
 
 %==========================================================================    
 % PriorGMM()
-function pr = PriorGMM(mx,mn,vr,K)
+function pr = PriorGMM(mx,mn,vr,mu0,K)
 
 C   = size(mx,1);
 mvr = mean(vr,2);
+mmn = mean(mn,2);
 mu  = zeros(C,K);
 ico = zeros(C,C,K);        
 n   = 3;
 for c=1:C         
     vrc        = mvr(c)/(K + 1);
-    mnc        = mn(c);
+    mnc        = mmn(c);
     sd         = sqrt(vrc);
     mu(c,:)    = abs(linspace(mnc - n*sd,mnc + n*sd,K));    
     ico(c,c,:) = vrc;
     ico(c,c,:) = 1/ico(c,c,:); % precision
+end
+
+if ~isempty(mu0)
+    mu = repmat(mean(mu,2),[1 K]);
 end
 
 pr   = struct('m',[],'b',[],'n',[],'V',[]);
@@ -701,7 +721,6 @@ pr.n = C*ones(1,K);
 pr.V = ico/C;
 
 if 0
-   %fig_name = sett.show.figname_int;
     fig_name = 'Prior';
     spm_gmm_lib('plot','gaussprior',{pr.m,pr.b,pr.V,pr.n},[],fig_name);
 end
@@ -711,37 +730,78 @@ end
 
 %==========================================================================    
 % PosteriorGMM()
-function [po,mx,mn,vr] = PosteriorGMM(fn,K)
+function [po,mx,mn,vr] = PosteriorGMM(datn,fn,mu,pr,K,sett)
+
+% Parse function settings
+B   = sett.registr.B;
+Mmu = sett.var.Mmu;
 
 C   = size(fn,2);
 mx  = zeros(1,C);
 mn  = zeros(1,C);
 vr  = zeros(1,C);
-mu  = zeros(C,K);
+m   = zeros(C,K);
 ico = zeros(C,C,K);
 for c=1:C
-    msk        = isfinite(fn(:,c));
-    mx(c)      = max(fn(msk,c));
-    minc       = min(fn(msk,c));
-    mn(c)      = mean(fn(msk,c));
-    vr(c)      = var(fn(msk,c));
+    msk   = isfinite(fn(:,c));
+    mx(c) = max(fn(msk,c));
+    minc  = min(fn(msk,c));
+    mn(c) = mean(fn(msk,c));
+    vr(c) = var(fn(msk,c));
     
-    rng     = linspace(minc,mx(c),K);
-    rng     = -sum(rng<0):sum(rng>=0) - 1;
-    mu(c,:) = rng'*mx(c)/(1.5*K);
+    rng    = linspace(minc,mx(c),K);
+    rng    = -sum(rng<0):sum(rng>=0) - 1;
+    m(c,:) = rng'*mx(c)/(1.5*K);
     
     ico(c,c,:) = mx(c)/(1.5*K);
     ico(c,c,:) = 1/ico(c,c,:); % precision
 end
 
-po   = struct('m',[],'b',[],'n',[],'V',[]);
-po.m = mu;
-po.b = zeros(1,K) + 0.01;
-po.n = C*ones(1,K);
-po.V = ico/C;
+if isempty(pr)  
+    po   = struct('m',[],'b',[],'n',[],'V',[]);
+    po.m = m;
+    po.b = zeros(1,K) + 0.01;
+    po.n = C*ones(1,K);
+    po.V = ico/C;
+else
+    po.m = pr.m;
+    po.b = pr.b;
+    po.n = pr.n;
+    po.V = pr.V;
+end
+
+if isempty(pr) && ~isempty(mu)
+    po.m = repmat(mean(po.m,2),[1 K]);
+end
+   
+if ~isempty(mu)
+    % Use template as resposibilities to compute initial values for GMM
+    % posterior
+    df = spm_mb_io('GetSize',datn.f);          
+    q  = double(datn.q);
+    Mr = spm_dexpm(q,B);
+    Mn = datn.Mat;    
+    
+    % Warp template
+    psi1 = spm_mb_io('GetData',datn.psi);
+    psi  = spm_mb_shape('Compose',psi1,spm_mb_shape('Affine',df,Mmu\Mr*Mn));
+    mu   = spm_mb_shape('Pull1',mu,psi);            
+    psi1 = [];
+
+    mu = cat(4,mu,zeros(df(1:3),'single'));
+    mu = spm_mb_shape('Softmax',mu,4);
+    mu = reshape(mu,[prod(df(1:3)) K]);        
+        
+    [SS0,SS1,SS2] = spm_gmm_lib('SuffStat',fn,mu,1);
+    [MU,~,b,V,n]  = spm_gmm_lib('UpdateClusters', SS0, SS1, SS2, {po.m,po.b,po.V,po.n});
+    
+    po.m = MU;
+    po.b = b;
+    po.n = n;
+    po.V = V;
+end
 
 if 0
-   %fig_name = sett.show.figname_int;
     fig_name = 'Posterior';
     spm_gmm_lib('plot','gaussprior',{po.m,po.b,po.V,po.n},[],fig_name);
 end

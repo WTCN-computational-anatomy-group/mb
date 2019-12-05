@@ -5,11 +5,12 @@ function varargout = spm_mb_io(varargin)
 %
 % FORMAT to         = spm_mb_io('CopyFields',from,to)
 % FORMAT [P,datn]   = spm_mb_io('GetClasses',datn,mu,sett)
-% FORMAT out        = spm_mb_io('GetData',in)
+% FORMAT [out,M]    = spm_mb_io('GetData',in)
 % FORMAT Mat        = spm_mb_io('GetMat',fin)
 % FORMAT [d,M]      = spm_mb_io('GetSize',fin)
 % FORMAT s          = spm_mb_io('GetScale',fin,sett);
-% FORMAT dat        = spm_mb_io('InitDat',in,sett)
+% FORMAT dat        = spm_mb_io('InitDat',data,sett)
+% FORMAT model      = spm_mb_io('MakeModel',dat,model,sett)
 % FORMAT [psi,fpth] = spm_mb_io('SavePsiSub',datn,sett) 
 % FORMAT dat        = spm_mb_io('SaveTemplate',dat,mu,sett)
 % FORMAT              spm_mb_io('SetBoundCond')
@@ -41,6 +42,8 @@ switch id
         [varargout{1:nargout}] = GetScale(varargin{:});
     case 'InitDat' 
         [varargout{1:nargout}] = InitDat(varargin{:});
+    case 'MakeModel' 
+        [varargout{1:nargout}] = MakeModel(varargin{:});        
     case 'SavePsiSub' 
         [varargout{1:nargout}] = SavePsiSub(varargin{:});
     case 'SaveTemplate'
@@ -166,7 +169,8 @@ end
 
 %==========================================================================
 % GetData()
-function out = GetData(in)
+function [out,Mn] = GetData(in)
+Mn = eye(4);
 if isnumeric(in)
     out = single(in);
     return
@@ -175,12 +179,13 @@ if isa(in,'char')
     in = nifti(in);
 end
 if isa(in,'nifti')
-    M = numel(in);
-    d = size(in(1).dat,[1 2 3 4 5]);
-    if M>1
-        d(4) = M;
+    C  = numel(in);
+    d  = size(in(1).dat,[1 2 3 4 5]);
+    Mn = in(1).mat;
+    if C>1
+        d(4) = C;
         out = zeros(d,'single');
-        for m=1:M
+        for m=1:C
             out(:,:,:,m) = single(in(m).dat(:,:,:,:,:));
         end
     else
@@ -224,19 +229,19 @@ end
 
 %==========================================================================
 % InitDat()
-function dat = InitDat(in,sett)
+function dat = InitDat(data,sett)
 
 % Parse function settings
 do_gmm = sett.do.gmm;
 run2d  = sett.gen.run2d;
 
 % Initialise for each subject
-N  = numel(in);
+N  = numel(data);
 M0 = eye(4);
 for n=1:N
 
-    if isstruct(in(n)) && isfield(in(n),'F'), F = in(n).F;
-    else,                                     F = in(n);
+    if isstruct(data(n)) && isfield(data(n),'F'), F = data(n).F;
+    else,                                         F = data(n);
     end
 
     % Init datn.f
@@ -293,8 +298,8 @@ for n=1:N
     end
     
     % Subject-level 'extras'
-    if isstruct(in(n)) && isfield(in(n),'do_bf') && ~isempty(in(n).do_bf)
-        dat(n).do_bf = in(n).do_bf;
+    if isstruct(data(n)) && isfield(data(n),'do_bf') && ~isempty(data(n).do_bf)
+        dat(n).do_bf = data(n).do_bf;
     else
         dat(n).do_bf = true;        
     end
@@ -302,13 +307,13 @@ for n=1:N
         dat(n).do_bf = repmat(dat(n).do_bf,[1 C]); 
     end
     
-    if isstruct(in(n)) && isfield(in(n),'ix_pop') && ~isempty(in(n).ix_pop)
-        dat(n).ix_pop = in(n).ix_pop;
+    if isstruct(data(n)) && isfield(data(n),'ix_pop') && ~isempty(data(n).ix_pop)
+        dat(n).ix_pop = data(n).ix_pop;
     else
         dat(n).ix_pop = 1;
     end
     
-    if isstruct(in(n)) && isfield(in(n),'is_ct') && ~isempty(in(n).is_ct)
+    if isstruct(data(n)) && isfield(data(n),'is_ct') && ~isempty(data(n).is_ct)
         dat(n).is_ct = true;
     else
         dat(n).is_ct = false;
@@ -328,6 +333,43 @@ for n=1:N
             dat(n).Mat = Nii(1).mat;        
         end
     end
+end
+end
+%==========================================================================
+
+%==========================================================================
+% MakeModel()
+function model = MakeModel(dat,model,sett)
+
+% Parse function settings
+do_updt_int      = sett.do.updt_int;
+do_updt_template = sett.do.updt_template;
+dir_res          = sett.write.dir_res;
+
+if do_updt_template
+    % Shape related
+    f                    = fullfile(dir_res ,'mu_log.nii');
+    model.shape.template = f;
+end
+
+if do_updt_int
+    % Appearance related
+    p_ix = spm_mb_appearance('GetPopulationIdx',dat);
+    Npop = numel(p_ix);
+
+    model.appear = containers.Map;
+    for p=1:Npop
+        n      = p_ix{p}(1);
+        datn   = dat(n);
+        ix_pop = datn.ix_pop;
+        pr     = datn.mog.pr;
+        model.appear(num2str(ix_pop)) = pr;
+    end
+end
+
+if do_updt_template || do_updt_int
+    % Save model
+    save(fullfile(dir_res,'model.mat'),'model')
 end
 end
 %==========================================================================
@@ -369,10 +411,11 @@ end
 function dat = SaveTemplate(dat,mu,sett)
 
 % Parse function settings
-dir_res = sett.write.dir_res;
-Mmu     = sett.var.Mmu;
+dir_res          = sett.write.dir_res;
+do_updt_template = sett.do.updt_template;
+Mmu              = sett.var.Mmu;
 
-if ~isempty(mu)
+if ~isempty(mu) && do_updt_template
     % Save mu (log)
     f        = fullfile(dir_res ,'mu_log.nii');
     fa       = file_array(f,size(mu),'float32',0);

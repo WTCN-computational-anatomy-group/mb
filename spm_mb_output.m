@@ -1,4 +1,4 @@
-function res = spm_mb_output(dat,mu,sett)
+function res = spm_mb_output(dat,model,sett)
 %__________________________________________________________________________
 %
 % Write output from groupwise normalisation and segmentation of images.
@@ -10,6 +10,10 @@ function res = spm_mb_output(dat,mu,sett)
 N   = numel(dat);
 cl  = cell(N,1);
 res = struct('bf',cl,'im',cl,'imc',cl,'c',cl,'y',cl,'iy',cl,'wim',cl,'wimc',cl,'wc',cl,'mwc',cl);
+
+% Get template
+mu = spm_mb_io('GetData',model.shape.template);
+
 for n=1:N % Loop over subjects
     res(n) = ProcessSubject(dat(n),res(n),mu,n,sett);
 end
@@ -91,9 +95,9 @@ if isfield(datn,'mog') && (any(write_bf(:) == true) || any(write_im(:) == true) 
     end
     
     % Get image(s)
-    fn      = spm_mb_io('GetData',datn.f,is_ct);
+    fn      = spm_mb_io('GetData',datn.f);
     fn      = reshape(fn,[prod(df(1:3)) C]);
-    fn      = spm_mb_appearance('Mask',fn);
+    fn      = spm_mb_appearance('Mask',fn,is_ct);
     code    = spm_gmm_lib('obs2code', fn);
     L       = unique(code);    
     do_miss = numel(L) > 1;
