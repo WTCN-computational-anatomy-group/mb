@@ -302,7 +302,7 @@ if ~isfield(sett.show,'level')
     sett.show.level = 1; % 0, 1, 2, 3
 end
 if ~isfield(sett.show,'mx_subjects')
-    sett.show.mx_subjects = 8;
+    sett.show.mx_subjects = 4;
 end
 
 %------------------
