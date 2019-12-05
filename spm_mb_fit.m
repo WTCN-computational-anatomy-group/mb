@@ -33,6 +33,9 @@ vx          = sett.model.vx;
 
 sett.model.groupwise = true;
 
+% Clear figures
+spm_mb_show('Clear',sett);
+
 %------------------
 % Init dat
 %------------------

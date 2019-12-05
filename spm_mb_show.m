@@ -382,7 +382,8 @@ function ShowGMMFit(f,PI,mog,nr,nd,n,c)
 K      = size(mog.po.m,2);
 colors = hsv(K);
 
-subplot(nr,nd,n)
+sp = subplot(nr,nd,n);
+cla(sp); % clear subplot
 hold on
 
 % ---------
