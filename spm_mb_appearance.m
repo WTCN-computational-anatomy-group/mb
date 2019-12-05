@@ -602,7 +602,7 @@ for n=1:N
     fn     = spm_mb_io('GetData',dat(n).f);
     fn     = reshape(fn,[prod(df(1:3)) C]);
     fn     = spm_mb_appearance('Mask',fn);
-    if do_updt_bf
+    if do_updt_bf && any(dat(n).do_bf == true)
         val = 1e3;
         scl = ones(1,C);
         for c=1:C
@@ -681,22 +681,22 @@ function pr = PriorGMM(mx,mn,vr,K)
 C   = size(mx,1);
 mvr = mean(vr,2);
 mu  = zeros(C,K);
-A   = zeros(C,C,K);        
+ico = zeros(C,C,K);        
 n   = 3;
 for c=1:C         
-    vrc      = mvr(c)/(K + 1);
-    mnc      = mn(c);
-    sd       = sqrt(vrc);
-    mu(c,:)  = abs(linspace(mnc - n*sd,mnc + n*sd,K));    
-    A(c,c,:) = vrc;
-    A(c,c,:) = 1/A(c,c,:); % precision
+    vrc        = mvr(c)/(K + 1);
+    mnc        = mn(c);
+    sd         = sqrt(vrc);
+    mu(c,:)    = abs(linspace(mnc - n*sd,mnc + n*sd,K));    
+    ico(c,c,:) = vrc;
+    ico(c,c,:) = 1/ico(c,c,:); % precision
 end
 
 pr   = struct('m',[],'b',[],'n',[],'V',[]);
 pr.m = mu;
 pr.b = zeros(1,K) + 0.01;
 pr.n = C*ones(1,K);
-pr.V = A/C;
+pr.V = ico/C;
 
 if 0
    %fig_name = sett.show.figname_int;
@@ -711,27 +711,32 @@ end
 % PosteriorGMM()
 function [po,mx,mn,vr] = PosteriorGMM(fn,K)
 
-C  = size(fn,2);
-mx = zeros(1,C);
-mn = zeros(1,C);
-vr = zeros(1,C);
-mu = zeros(C,K);
-A  = zeros(C,C,K);
+C   = size(fn,2);
+mx  = zeros(1,C);
+mn  = zeros(1,C);
+vr  = zeros(1,C);
+mu  = zeros(C,K);
+ico = zeros(C,C,K);
 for c=1:C
-    msk      = isfinite(fn(:,c));
-    mx(c)    = max(fn(msk,c));
-    mn(c)    = mean(fn(msk,c));
-    vr(c)    = var(fn(msk,c));
-    mu(c,:)  = (0:(K - 1))'*mx(c)/(1.5*K);
-    A(c,c,:) = mx(c)/(1.5*K);
-    A(c,c,:) = 1/A(c,c,:); % precision
+    msk        = isfinite(fn(:,c));
+    mx(c)      = max(fn(msk,c));
+    minc       = min(fn(msk,c));
+    mn(c)      = mean(fn(msk,c));
+    vr(c)      = var(fn(msk,c));
+    
+    rng     = linspace(minc,mx(c),K);
+    rng     = -sum(rng<0):sum(rng>=0) - 1;
+    mu(c,:) = rng'*mx(c)/(1.5*K);
+    
+    ico(c,c,:) = mx(c)/(1.5*K);
+    ico(c,c,:) = 1/ico(c,c,:); % precision
 end
 
 po   = struct('m',[],'b',[],'n',[],'V',[]);
 po.m = mu;
 po.b = zeros(1,K) + 0.01;
 po.n = C*ones(1,K);
-po.V = A/C;
+po.V = ico/C;
 
 if 0
    %fig_name = sett.show.figname_int;
