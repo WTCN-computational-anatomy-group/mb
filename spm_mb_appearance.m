@@ -342,10 +342,9 @@ if nargout > 1
                         if nb_voxels_coded == 0, continue; end
 
                         % Convert channel indices to observed indices
-                        mapped_c     = 1:C;
-                        mapped_c     = mapped_c(observed_channels);
-                        mapped_c     = find(mapped_c == c);
-                        cc           = mapped_c; % short alias
+                        mapped_c = 1:C;
+                        mapped_c = mapped_c(observed_channels);
+                        mapped_c = find(mapped_c == c);
 
                         selected_obs = bffn(selected_voxels,observed_channels);
                         gi = 0; % Gradient accumulated accross clusters
@@ -362,8 +361,8 @@ if nargout > 1
                             MUo = m(observed_channels,k);
 
                             % Compute statistics
-                            gk = bsxfun(@minus, selected_obs, MUo.') * Ao(cc,:).';
-                            Hk = Ao(cc,cc);
+                            gk = bsxfun(@minus, selected_obs, MUo.') * Ao(mapped_c,:).';
+                            Hk = Ao(mapped_c,mapped_c);
 
                             selected_resp = zn(selected_voxels,k);
                             gk = bsxfun(@times, gk, selected_resp);
@@ -376,8 +375,8 @@ if nargout > 1
                         end
 
                         % Multiply with bias corrected value (chain rule)
-                        gi = gi .* selected_obs(:,cc);
-                        Hi = Hi .* (selected_obs(:,cc).^2);
+                        gi = gi .* selected_obs(:,mapped_c);
+                        Hi = Hi .* (selected_obs(:,mapped_c).^2);
                         selected_obs = [];
 
                         % Normalisation term
