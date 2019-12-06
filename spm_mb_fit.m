@@ -85,7 +85,7 @@ sz       = spm_mb_param('ZoomSettings',d,Mmu,sett.var.v_settings,sett.var.mu_set
 sett.var = spm_mb_io('CopyFields',sz(end), sett.var);
 
 %------------------
-% Init deformation, bias field and GMM
+% Init shape and apperance model parameters
 %------------------
 
 dat = spm_mb_shape('Init',dat,sett);
@@ -174,7 +174,7 @@ for zm=numel(sz):-1:1 % loop over zoom levels
     end
     
     E0 = 0;
-    if zm ~= numel(sz) || zm == 1 && do_updt_template
+    if do_updt_template && (zm ~= numel(sz) || zm == 1)
         % Runs only at finest resolution
         for i=1:nit_init_mu
             % Update template, bias field and intensity model                        

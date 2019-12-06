@@ -273,7 +273,7 @@ if nargout > 1
     mun = cat(2,mun,zeros([prod(d(1:3)) 1],'single'));
 
     % Bias field related
-    if do_updt_bf && any(do_bf == true) 
+    if any(do_bf == true) 
         chan       = BiasFieldStruct(datn,C,df,reg,fwhm,[],datn.bf.T,samp);
         [bf,pr_bf] = BiasField(chan,d);
         bffn       = bf.*fn;
@@ -474,7 +474,7 @@ if samp > 1 || nargout == 1
     fn   = Mask(fn,is_ct);
     code = spm_gmm_lib('obs2code', fn);
     mun0 = reshape(mun0,[prod(df(1:3)) K]);
-    if do_updt_bf && any(do_bf == true)
+    if any(do_bf == true)
         % Get full-sized bias field
         chan = BiasFieldStruct(datn,C,df,reg,fwhm,[],datn.bf.T);
         bf   = BiasField(chan,df);
@@ -654,7 +654,7 @@ if isempty(pr)
     pr = PriorGMM(mx,mn,vr,mu,K1);
 end
 for n=1:numel(dat)                
-    dat(n).mog.pr = pr;
+    dat(n).mog.pr = pr; 
 end
 end
 %==========================================================================
@@ -776,7 +776,7 @@ else
     po.V = pr.V;
 end
 
-if isempty(pr) && ~isempty(mu)
+if (isempty(pr) && ~isempty(mu))
     % Template is given, but not prior, so make sure that m parameter is the
     % same for all classes
     po.m = repmat(mean(po.m,2),[1 K]);
