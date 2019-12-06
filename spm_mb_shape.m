@@ -3,25 +3,26 @@ function varargout = spm_mb_shape(varargin)
 %
 % Functions for shape model related.
 %
-% FORMAT psi0     = spm_mb_shape('Affine',d,Mat)
-% FORMAT psi      = spm_mb_shape('Compose',psi1,psi0)
-% FORMAT id       = spm_mb_shape('Identity',d)
-% FORMAT dat      = spm_mb_shape('Init',dat,sett)
-% FORMAT l        = spm_mb_shape('LSE',mu,dr)
-% FORMAT a1       = spm_mb_shape('Pull1',a0,psi,r)
-% FORMAT [f1,w1]  = spm_mb_shape('Push1',f,psi,d,r)
-% FORMAT mu1      = spm_mb_shape('ShrinkTemplate',mu,oMmu,sett)
-% FORMAT P        = spm_mb_shape('Softmax',mu,dr)
-% FORMAT [Mmu,d]  = spm_mb_shape('SpecifyMean',dat,vx)
-% FORMAT E        = spm_mb_shape('TemplateEnergy',mu,sett)
-% FORMAT dat      = spm_mb_shape('UpdateAffines',dat,mu,sett)
-% FORMAT [mu,dat] = spm_mb_shape('UpdateMean',dat, mu, sett)
-% FORMAT dat      = spm_mb_shape('UpdateSimpleAffines',dat,mu,sett)
-% FORMAT [mu,dat] = spm_mb_shape('UpdateSimpleMean',dat, mu, sett)
-% FORMAT dat      = spm_mb_shape('UpdateVelocities',dat,mu,sett)
-% FORMAT dat      = spm_mb_shape('UpdateWarps',dat,sett)
-% FORMAT dat      = spm_mb_shape('VelocityEnergy',dat,sett)
-% FORMAT [dat,mu] = spm_mb_shape('ZoomVolumes',dat,mu,sett,oMmu)
+% FORMAT psi0          = spm_mb_shape('Affine',d,Mat)
+% FORMAT psi           = spm_mb_shape('Compose',psi1,psi0)
+% FORMAT id            = spm_mb_shape('Identity',d)
+% FORMAT dat           = spm_mb_shape('Init',dat,sett)
+% FORMAT [dat,mu,sett] = spm_mb_shape('InitMu',dat,K,sett)
+% FORMAT l             = spm_mb_shape('LSE',mu,dr)
+% FORMAT a1            = spm_mb_shape('Pull1',a0,psi,r)
+% FORMAT [f1,w1]       = spm_mb_shape('Push1',f,psi,d,r)
+% FORMAT mu1           = spm_mb_shape('ShrinkTemplate',mu,oMmu,sett)
+% FORMAT P             = spm_mb_shape('Softmax',mu,dr)
+% FORMAT [Mmu,d]       = spm_mb_shape('SpecifyMean',dat,vx)
+% FORMAT E             = spm_mb_shape('TemplateEnergy',mu,sett)
+% FORMAT dat           = spm_mb_shape('UpdateAffines',dat,mu,sett)
+% FORMAT [mu,dat]      = spm_mb_shape('UpdateMean',dat, mu, sett)
+% FORMAT dat           = spm_mb_shape('UpdateSimpleAffines',dat,mu,sett)
+% FORMAT [mu,dat]      = spm_mb_shape('UpdateSimpleMean',dat, mu, sett)
+% FORMAT dat           = spm_mb_shape('UpdateVelocities',dat,mu,sett)
+% FORMAT dat           = spm_mb_shape('UpdateWarps',dat,sett)
+% FORMAT dat           = spm_mb_shape('VelocityEnergy',dat,sett)
+% FORMAT [dat,mu]      = spm_mb_shape('ZoomVolumes',dat,mu,sett,oMmu)
 %
 %__________________________________________________________________________
 % Copyright (C) 2019 Wellcome Trust Centre for Neuroimaging
@@ -41,6 +42,8 @@ switch id
         [varargout{1:nargout}] = Identity(varargin{:});
     case 'Init'
         [varargout{1:nargout}] = Init(varargin{:});                
+    case 'InitMu'
+        [varargout{1:nargout}] = InitMu(varargin{:});         
     case 'LSE'
         [varargout{1:nargout}] = LSE(varargin{:});
     case 'Pull1'
@@ -142,6 +145,62 @@ for n=1:numel(dat)
         end
     end
 end
+end
+%==========================================================================
+
+%==========================================================================
+% InitMu()
+function [dat,mu,sett] = InitMu(dat,K,sett)
+% Make 'quick' initial estimates of GMM posteriors and template on very coarse
+% scale
+
+% Uniform template
+mu = zeros([sett.var.d K],'single');
+
+% Change some settings
+do_updt_bf      = sett.do.updt_bf;
+samp            = sett.gen.samp;
+nit_appear      = sett.nit.appear;
+nit_gmm         = sett.nit.gmm;
+sett.nit.gmm    = 100;
+sett.gen.samp   = 5;
+sett.nit.appear = 1;
+sett.do.updt_bf = false;
+
+% Get population indices
+p_ix = spm_mb_appearance('GetPopulationIdx',dat);
+Npop = numel(p_ix);
+for p=2:Npop
+    % To make the algorithm more robust when using multiple populations,
+    % set posterior and prior means (m) of GMMs of all but the first population to
+    % uniform  
+    mpo = 0;
+    mpr = 0;
+    for n=p_ix{p}
+        mpo = mpo + dat(n).mog.po.m;
+        mpr = mpr + dat(n).mog.pr.m;
+    end
+    mpo = mpo./numel(p_ix{p});
+    mpo = mean(mpo,2);
+    mpr = mpr./numel(p_ix{p});
+    mpr = mean(mpr,2);
+    
+    for n=p_ix{p}
+        dat(n).mog.po.m = repmat(mpo,[1 K + 1]);
+        dat(n).mog.pr.m = repmat(mpr,[1 K + 1]);
+    end
+end
+
+% Update template based on only first subject, then propagate to all other
+% subjects
+[mu,dat(1)] = spm_mb_shape('UpdateSimpleMean',dat(1), mu, sett);
+[mu,dat]    = spm_mb_shape('UpdateSimpleMean',dat,    mu, sett);    
+
+% Restore settings
+sett.do.updt_bf = do_updt_bf;
+sett.gen.samp   = samp;
+sett.nit.appear = nit_appear;
+sett.nit.gmm    = nit_gmm;
 end
 %==========================================================================
 

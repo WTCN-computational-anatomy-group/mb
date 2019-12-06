@@ -95,17 +95,18 @@ dat = spm_mb_appearance('Init',dat,model,K,sett);
 % Start algorithm
 %------------------
 
-spm_mb_show('Speak','Groupwise',N,K);
-
 Objective = [];
 E         = Inf;
 prevt     = Inf;
+
+spm_mb_show('Speak','Groupwise',N,K);
+
 if template_given    
     % Shrink given template
     mu = spm_mb_shape('ShrinkTemplate',mu0,Mmu,sett);
 else
-    % Initial template (uniform)
-    mu = zeros([sett.var.d K],'single');
+    % Initial template
+    [dat,mu,sett] = spm_mb_shape('InitMu',dat,K,sett);
 end
 
 spm_mb_show('All',dat,mu,Objective,N,sett);
