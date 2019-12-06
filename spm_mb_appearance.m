@@ -4,7 +4,7 @@ function varargout = spm_mb_appearance(varargin)
 % Functions for appearance model related.
 %
 % FORMAT [bfn,lln] = spm_mb_appearance('BiasField',chan,d,varargin)
-% FORMAT chan      = spm_mb_appearance('BiasFieldStruct',datn,C,d,reg,fwhm,scl,T,samp)
+% FORMAT chan      = spm_mb_appearance('BiasFieldStruct',datn,C,df,reg,fwhm,scl,T,samp)
 % FORMAT p_ix      = spm_mb_appearance('GetPopulationIdx',dat)
 % FORMAT dat       = spm_mb_appearance('Init',dat,model,K,sett)
 % FORMAT fn        = spm_mb_appearance('Mask',fn,is_ct)
@@ -63,7 +63,7 @@ else
     lln = varargin{3};
 end
 for c=cr
-    lln(c) = double(-0.5*chan(c).T(:)'*chan(c).C*chan(c).T(:));
+    lln(c) = double(-0.5*chan(c).T(:)'*chan(c).ICO*chan(c).T(:));
 
     for z=1:nz
         ix        = IndexSlice2Vol(z,Iz);
@@ -77,7 +77,7 @@ end
 
 %==========================================================================
 % BiasFieldStruct()
-function chan = BiasFieldStruct(datn,C,d,reg,fwhm,scl,T,samp)
+function chan = BiasFieldStruct(datn,C,df,reg,fwhm,scl,T,samp)
 if nargin < 7, T    = {}; end
 if nargin < 8, samp = 1; end
 
@@ -89,30 +89,30 @@ do_bf = datn.do_bf;
 Mn    = datn.Mat;
 
 vx = sqrt(sum(Mn(1:3,1:3).^2));
-sd = vx(1)*d(1)/fwhm; d3(1) = ceil(sd*2);
-sd = vx(2)*d(2)/fwhm; d3(2) = ceil(sd*2);
-sd = vx(3)*d(3)/fwhm; d3(3) = ceil(sd*2);
+sd = vx(1)*df(1)/fwhm; d3(1) = ceil(sd*2);
+sd = vx(2)*df(2)/fwhm; d3(2) = ceil(sd*2);
+sd = vx(3)*df(3)/fwhm; d3(3) = ceil(sd*2);
 
 % Precision (inverse covariance) of Gaussian prior on bias field parameters
-ICO = spm_bias_lib('regulariser','bending',d,d3,vx);
-ICO = single(ICO*reg);
+ICO = spm_bias_lib('regulariser','bending',df,d3,vx);
+ICO = ICO*reg;
 
 samp      = max([1 1 1],round(samp*[1 1 1]./vx));
-[x0,y0,~] = ndgrid(single(1:samp(1):d(1)),single(1:samp(2):d(2)),1);
-z0        = single(1:samp(3):d(3));
+[x0,y0,~] = ndgrid(single(1:samp(1):df(1)),single(1:samp(2):df(2)),1);
+z0        = single(1:samp(3):df(3));
 
 for c=1:C
     % GAUSSIAN REGULARISATION for bias correction
-    chan(c).C = ICO;
+    chan(c).ICO = ICO;
 
     % Basis functions for bias correction
-    chan(c).B3 = single(spm_dctmtx(d(3),d3(3),z0));
-    chan(c).B2 = single(spm_dctmtx(d(2),d3(2),y0(1,:)'));
-    chan(c).B1 = single(spm_dctmtx(d(1),d3(1),x0(:,1)));
+    chan(c).B3 = spm_dctmtx(df(3),d3(3),z0);
+    chan(c).B2 = spm_dctmtx(df(2),d3(2),y0(1,:)');
+    chan(c).B1 = spm_dctmtx(df(1),d3(1),x0(:,1));
 
     if isempty(T) || ~do_bf(c)
         % Initial parameterisation of bias field
-        chan(c).T = zeros(d3,'single');
+        chan(c).T = zeros(d3);
     else
         % Parameterisation given
         chan(c).T = T{c};
@@ -311,7 +311,7 @@ if nargout > 1
         if do_updt_bf && any(do_bf == true)        
             
             % Recompute parts of objective function that depends on bf
-            lx  = W*LowerBound('P(X|Z)',bffn,zn,code,{m,b},{V,n});
+            lx  = LowerBound('ln(P(X|Z))',bffn,zn,code,{m,b},{V,n},W);
             lxb = W*LowerBound('ln(|bf|)',bf);                     
             
             done = false(1,C);
@@ -344,7 +344,7 @@ if nargout > 1
                         if nvx == 0, continue; end
 
                         % Convert channel indices to observed indices
-                        ixc = 1:C;
+                        ixc = 1:C; % mapped_c
                         ixc = ixc(ixo);
                         ixc = find(ixc == c);
 
@@ -362,10 +362,10 @@ if nargout > 1
                             Vmo = V(ixm,ixo,k);
                             Ao  = Voo - Vom*(Vmm\Vmo);
                             Ao  = (n(k) - nm) * Ao;
-                            MUo = m(ixo,k);
+                            mo  = m(ixo,k);
 
                             % Compute statistics
-                            gk = bsxfun(@minus, obffn, MUo.') * Ao(ixc,:).';
+                            gk = bsxfun(@minus, obffn, mo.') * Ao(ixc,:).';
                             Hk = Ao(ixc,ixc);
 
                             oznk = zn(ixvx,k);
@@ -379,21 +379,21 @@ if nargout > 1
                         end
 
                         % Multiply with bias corrected value (chain rule)
-                        go    = go .* obffn(:,ixc);
+                        go    = go .* obffn(:,ixc) - 1;
                         Ho    = Ho .* (obffn(:,ixc).^2);
                         obffn = [];
-
-                        % Normalisation term
-                        go = go - 1;
+                        
+                        % See spm_preproc8..
+%                         Ho = Ho + 1;
 
                         % Accumulate across missing codes
                         gr_im(ixvx) = gr_im(ixvx) + go;
-                        H_im(ixvx)  = H_im(ixvx) + Ho;
+                        H_im(ixvx)  = H_im(ixvx)  + Ho;
                         ixvx        = [];
                     end
                     zn = [];
 
-                     % Compute gradient and Hessian (in parameter space)
+                     % Compute gradient and Hessian (transform from image space to parameter space)
                     d3 = numel(chan(c).T); % Number of DCT parameters
                     H  = zeros(d3,d3);     
                     gr = zeros(d3,1);      
@@ -404,8 +404,11 @@ if nargout > 1
                     end
                     b3 = [];                    
 
+%                     H = H + mean(diag(H)) * eye(size(H));
+%                     H = H + 1E-3 * max(diag(H)) * eye(size(H));
+                    
                     % Gauss-Newton update of bias field parameters
-                    Update = reshape((H + chan(c).C)\(gr + chan(c).C*chan(c).T(:)),size(chan(c).T));
+                    Update = reshape((H + chan(c).ICO)\(gr + chan(c).ICO*chan(c).T(:)),size(chan(c).T));
                     H = []; gr = [];
 
                     % Line-search
@@ -428,7 +431,7 @@ if nargout > 1
                         zn = Responsibility(m,b,V,n,bffn,mun,L,code);
 
                         % Compute new lower bound
-                        lx  = W*LowerBound('P(X|Z)',bffn,zn,code,{m,b},{V,n});            
+                        lx  = LowerBound('ln(P(X|Z))',bffn,zn,code,{m,b},{V,n},W);            
                         lxb = W*LowerBound('ln(|bf|)',bf);
 
                         % Check new lower bound
@@ -678,15 +681,16 @@ if strcmpi(type,'ln(|bf|)')
     bf(isnan(bf)) = 1;        
     bf            = log(prod(bf,2)); 
     lb            = sum(double(bf));
-elseif strcmpi(type,'P(X|Z)')    
+elseif strcmpi(type,'ln(P(X|Z))')    
     fn   = varargin{1};
     zn   = varargin{2};
     code = varargin{3};
     mean = varargin{4};
     prec = varargin{5};
+    W    = varargin{6};
     L    = unique(code);
     
-    [lSS0,lSS1,lSS2] = spm_gmm_lib('SuffStat', 'base', fn, zn, 1, {code,L});
+    [lSS0,lSS1,lSS2] = spm_gmm_lib('SuffStat', 'base', fn, zn, W, {code,L});
     lb               = spm_gmm_lib('MarginalSum', lSS0, lSS1, lSS2, mean, prec, L);
 else
     error('Undefined type!');
