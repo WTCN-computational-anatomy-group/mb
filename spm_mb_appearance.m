@@ -257,6 +257,7 @@ if nargout > 1
 
     % Missing data stuff
     fn      = Mask(fn,is_ct);
+    obs_msk = ~isnan(fn);
     code    = spm_gmm_lib('obs2code', fn);
     L       = unique(code);
     nL      = numel(L);
@@ -312,7 +313,7 @@ if nargout > 1
             
             % Recompute parts of objective function that depends on bf
             lx  = LowerBound('ln(P(X|Z))',bffn,zn,code,{m,b},{V,n},W);
-            lxb = W*LowerBound('ln(|bf|)',bf);                     
+            lxb = W*LowerBound('ln(|bf|)',bf,obs_msk);                     
             
             done = false(1,C);
             for it_bf=1:nit_bf
@@ -432,8 +433,11 @@ if nargout > 1
 
                         % Compute new lower bound
                         lx  = LowerBound('ln(P(X|Z))',bffn,zn,code,{m,b},{V,n},W);            
-                        lxb = W*LowerBound('ln(|bf|)',bf);
+                        lxb = W*LowerBound('ln(|bf|)',bf,obs_msk);
 
+                        fprintf('olx+olxb=%0.7f\n',olx + olxb);
+                        fprintf('lx+lxb=%0.7f\n',lx + lxb);
+                        
                         % Check new lower bound
                         if (lx + lxb + sum(pr_bf)) > (olx + olxb + sum(opr_bf))                                                                          
                             lb.XB(end + 1) = lxb;
@@ -676,11 +680,10 @@ end
 % LowerBound()
 function lb = LowerBound(type,varargin)
 if strcmpi(type,'ln(|bf|)')    
-    bf = varargin{1};
-    
-    bf(isnan(bf)) = 1;        
-    bf            = log(prod(bf,2)); 
-    lb            = sum(double(bf));
+    bf      = varargin{1};
+    obs_msk = varargin{2};
+        
+    lb = sum(log(bf(obs_msk)),'double');
 elseif strcmpi(type,'ln(P(X|Z))')    
     fn   = varargin{1};
     zn   = varargin{2};
