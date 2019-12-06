@@ -706,7 +706,7 @@ for c=1:C
     vrc        = mvr(c)/(K + 1);
     mnc        = mmn(c);
     sd         = sqrt(vrc);
-    m(c,:)     = abs(linspace(mnc - nsd*sd,mnc + nsd*sd,K)); % set pr.m as a range with a spread nsd stds from mean of means
+    m(c,:)     = linspace(mnc - nsd*sd,mnc + nsd*sd,K); % set pr.m as a range with a spread nsd stds from mean of means
     ico(c,c,:) = vrc;
     ico(c,c,:) = 1/ico(c,c,:); % precision
 end
