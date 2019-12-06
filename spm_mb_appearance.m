@@ -695,27 +695,30 @@ end
 % PriorGMM()
 function pr = PriorGMM(mx,mn,vr,mu0,K)
 
+mvr = mean(vr,2); % mean variance across all subjects in population
+mmn = mean(mn,2); % mean mean across all subjects in population
+
 C   = size(mx,1);
-mvr = mean(vr,2);
-mmn = mean(mn,2);
-mu  = zeros(C,K);
+m   = zeros(C,K);
 ico = zeros(C,C,K);        
-n   = 3;
+nsd = 3;
 for c=1:C         
     vrc        = mvr(c)/(K + 1);
     mnc        = mmn(c);
     sd         = sqrt(vrc);
-    mu(c,:)    = abs(linspace(mnc - n*sd,mnc + n*sd,K));    
+    m(c,:)     = abs(linspace(mnc - nsd*sd,mnc + nsd*sd,K)); % set pr.m as a range with a spread nsd stds from mean of means
     ico(c,c,:) = vrc;
     ico(c,c,:) = 1/ico(c,c,:); % precision
 end
 
 if ~isempty(mu0)
-    mu = repmat(mean(mu,2),[1 K]);
+    % If template is given, make sure that pr.m is the same for all classes
+    m = repmat(mean(m,2),[1 K]);
 end
 
+% Define prior
 pr   = struct('m',[],'b',[],'n',[],'V',[]);
-pr.m = mu;
+pr.m = m;
 pr.b = zeros(1,K) + 0.01;
 pr.n = C*ones(1,K);
 pr.V = ico/C;
@@ -757,13 +760,16 @@ for c=1:C
     ico(c,c,:) = 1/ico(c,c,:); % precision
 end
 
-if isempty(pr)  
+% Initialise posterior
+if isempty(pr)
+    % No prior given, initialise from image statistics (mean, min, max, var)
     po   = struct('m',[],'b',[],'n',[],'V',[]);
     po.m = m;
     po.b = zeros(1,K) + 0.01;
     po.n = C*ones(1,K);
     po.V = ico/C;
 else
+    % Use given prior
     po.m = pr.m;
     po.b = pr.b;
     po.n = pr.n;
@@ -771,12 +777,14 @@ else
 end
 
 if isempty(pr) && ~isempty(mu)
+    % Template is given, but not prior, so make sure that m parameter is the
+    % same for all classes
     po.m = repmat(mean(po.m,2),[1 K]);
 end
    
 if ~isempty(mu)
-    % Use template as resposibilities to compute initial values for GMM
-    % posterior
+    % Use template as resposibilities to compute values for GMM
+    % posterior from suffstats
     df = spm_mb_io('GetSize',datn.f);          
     q  = double(datn.q);
     Mr = spm_dexpm(q,B);
@@ -788,10 +796,12 @@ if ~isempty(mu)
     mu   = spm_mb_shape('Pull1',mu,psi);            
     psi1 = [];
 
+    % Add class, then softmax -> can now be used as resps
     mu = cat(4,mu,zeros(df(1:3),'single'));
     mu = spm_mb_shape('Softmax',mu,4);
     mu = reshape(mu,[prod(df(1:3)) K]);        
         
+    % Compute posterior estimates
     [SS0,SS1,SS2] = spm_gmm_lib('SuffStat',fn,mu,1);
     [MU,~,b,V,n]  = spm_gmm_lib('UpdateClusters', SS0, SS1, SS2, {po.m,po.b,po.V,po.n});
     
@@ -805,7 +815,6 @@ if 0
     fig_name = 'Posterior';
     spm_gmm_lib('plot','gaussprior',{po.m,po.b,po.V,po.n},[],fig_name);
 end
-
 end
 %==========================================================================  
 
