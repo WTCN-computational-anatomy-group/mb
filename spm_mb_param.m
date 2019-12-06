@@ -154,7 +154,7 @@ if ~isfield(sett.bf,'fwhm')
     sett.bf.fwhm = 60;
 end
 if ~isfield(sett.bf,'reg')
-    sett.bf.reg = 1e6;
+    sett.bf.reg = 1e5;
 end
 if ~isfield(sett.bf,'tol')
     sett.bf.tol = 1e-4;
