@@ -173,7 +173,7 @@ end
 function fn = Mask(fn,is_ct)
 C = size(fn,2);
 for c=1:C
-    fn(:,c) = ApplyMask(fn(:,c),C,is_ct(c));
+    fn(:,c) = ApplyMask(fn(:,c),is_ct(c));
 end
 end
 %==========================================================================
@@ -581,10 +581,9 @@ end
 
 %==========================================================================
 % ApplyMask()
-function f = ApplyMask(f,C,is_ct)
-if     is_ct,  f(~isfinite(f) | f == 0 | f <= - 1020)    = NaN;
-elseif C == 1, f(~isfinite(f))                           = NaN;
-else,          f(~isfinite(f) | f == 0 | f == min(f(:))) = NaN;
+function f = ApplyMask(f,is_ct)
+if is_ct, f(~isfinite(f) | f == 0 | f <= - 1020) = NaN;
+else,     f(~isfinite(f) | f == 0) = NaN;
 end
 end
 %==========================================================================
