@@ -249,7 +249,7 @@ if ~isfield(sett.nit,'appear')
     sett.nit.appear = 8;
 end
 if ~isfield(sett.nit,'bf')   
-    sett.nit.bf = 2;
+    sett.nit.bf = 1;
 end
 if ~isfield(sett.nit,'gmm')   
     sett.nit.gmm = 32;
