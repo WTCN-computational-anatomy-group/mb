@@ -307,10 +307,13 @@ if nargout > 1
         end
         ol = nl;
 
-        if do_updt_bf && any(do_bf == true)
-            % Update bias field parameters                    
-            lx   = W*LowerBound('X',bffn,zn,code,{m,b},{V,n});
-            lxb  = W*LowerBound('XB',bf);       
+        % Update bias field parameters
+        if do_updt_bf && any(do_bf == true)        
+            
+            % Recompute parts of objective function that depends on bf
+            lx  = W*LowerBound('P(X|Z)',bffn,zn,code,{m,b},{V,n});
+            lxb = W*LowerBound('ln(|bf|)',bf);                     
+            
             done = false(1,C);
             for it_bf=1:nit_bf
 
@@ -319,83 +322,85 @@ if nargout > 1
 
                     if done(c) || ~datn.do_bf(c)
                         % Channel c finished
-                        %fprintf('Done! c=%i, it=%i\n',c,it);
+                        fprintf('Done! c=%i, it=%i\n',c,it);
                         continue; 
                     end
 
-                    % Compute gradient and Hessian    
-                    gr_l = zeros(d(1:3),'single');
-                    H_l  = zeros(d(1:3),'single');
-
-                    % For each combination of missing voxels
-                    for l=1:nL
+                    % Compute gradient and Hessian (in image space)
+                    gr_im = zeros(d(1:3),'single');
+                    H_im  = zeros(d(1:3),'single');                    
+                    for l=1:nL % loop over combinations of missing voxels
 
                         % Get mask of missing modalities (with this particular code)        
-                        observed_channels = spm_gmm_lib('code2bin', L(l), C);
-                        missing_channels  = ~observed_channels;
-                        if missing_channels(c), continue; end
-                        if isempty(code), selected_voxels = ones(size(code), 'logical');
-                        else,             selected_voxels = (code == L(l));
+                        ixo = spm_gmm_lib('code2bin', L(l), C);
+                        ixm = ~ixo;
+                        if ixm(c), continue; end
+                        
+                        if isempty(code), ixvx = ones(size(code), 'logical');
+                        else,             ixvx = (code == L(l));
                         end
-                        nb_channels_missing  = sum(missing_channels);
-                        nb_voxels_coded      = sum(selected_voxels);
-                        if nb_voxels_coded == 0, continue; end
+                        nm  = sum(ixm);
+                        nvx = sum(ixvx);
+                        if nvx == 0, continue; end
 
                         % Convert channel indices to observed indices
-                        mapped_c = 1:C;
-                        mapped_c = mapped_c(observed_channels);
-                        mapped_c = find(mapped_c == c);
+                        ixc = 1:C;
+                        ixc = ixc(ixo);
+                        ixc = find(ixc == c);
 
-                        selected_obs = bffn(selected_voxels,observed_channels);
-                        gi = 0; % Gradient accumulated accross clusters
-                        Hi = 0; % Hessian accumulated accross clusters
+                        % Get bias-field modulated image data
+                        obffn = bffn(ixvx,ixo);
+                        
+                        go = 0; % Gradient accumulated accross clusters
+                        Ho = 0; % Hessian accumulated accross clusters
                         for k=1:K1
 
-                            % Compute expected precision (see GMM+missing data)
-                            Voo = V(observed_channels,observed_channels,k);
-                            Vom = V(observed_channels,missing_channels,k);
-                            Vmm = V(missing_channels,missing_channels,k);
-                            Vmo = V(missing_channels,observed_channels,k);
+                            % Compute expected precision (see GMM + missing data)
+                            Voo = V(ixo,ixo,k);
+                            Vom = V(ixo,ixm,k);
+                            Vmm = V(ixm,ixm,k);
+                            Vmo = V(ixm,ixo,k);
                             Ao  = Voo - Vom*(Vmm\Vmo);
-                            Ao  = (n(k) - nb_channels_missing) * Ao;
-                            MUo = m(observed_channels,k);
+                            Ao  = (n(k) - nm) * Ao;
+                            MUo = m(ixo,k);
 
                             % Compute statistics
-                            gk = bsxfun(@minus, selected_obs, MUo.') * Ao(mapped_c,:).';
-                            Hk = Ao(mapped_c,mapped_c);
+                            gk = bsxfun(@minus, obffn, MUo.') * Ao(ixc,:).';
+                            Hk = Ao(ixc,ixc);
 
-                            selected_resp = zn(selected_voxels,k);
-                            gk = bsxfun(@times, gk, selected_resp);
-                            Hk = bsxfun(@times, Hk, selected_resp);
-                            selected_resp = [];
+                            oznk = zn(ixvx,k);
+                            gk   = bsxfun(@times, gk, oznk);
+                            Hk   = bsxfun(@times, Hk, oznk);
+                            oznk = [];
 
                             % Accumulate across clusters
-                            gi = gi + gk;
-                            Hi = Hi + Hk;
+                            go = go + gk;
+                            Ho = Ho + Hk;
                         end
 
                         % Multiply with bias corrected value (chain rule)
-                        gi = gi .* selected_obs(:,mapped_c);
-                        Hi = Hi .* (selected_obs(:,mapped_c).^2);
-                        selected_obs = [];
+                        go    = go .* obffn(:,ixc);
+                        Ho    = Ho .* (obffn(:,ixc).^2);
+                        obffn = [];
 
                         % Normalisation term
-                        gi = gi - 1;
+                        go = go - 1;
 
                         % Accumulate across missing codes
-                        gr_l(selected_voxels) = gr_l(selected_voxels) + gi;
-                        H_l(selected_voxels)  = H_l(selected_voxels) + Hi;
-                        selected_voxels = [];
+                        gr_im(ixvx) = gr_im(ixvx) + go;
+                        H_im(ixvx)  = H_im(ixvx) + Ho;
+                        ixvx        = [];
                     end
                     zn = [];
 
+                     % Compute gradient and Hessian (in parameter space)
                     d3 = numel(chan(c).T); % Number of DCT parameters
                     H  = zeros(d3,d3);     
                     gr = zeros(d3,1);      
                     for z=1:d(3)
                         b3 = double(chan(c).B3(z,:)');
-                        gr = gr + kron(b3,spm_krutil(double(gr_l(:,:,z)),double(chan(c).B1),double(chan(c).B2),0));
-                        H  = H  + kron(b3*b3',spm_krutil(double(H_l(:,:,z)),double(chan(c).B1),double(chan(c).B2),1));
+                        gr = gr + kron(b3,spm_krutil(double(gr_im(:,:,z)),double(chan(c).B1),double(chan(c).B2),0));
+                        H  = H  + kron(b3*b3',spm_krutil(double(H_im(:,:,z)),double(chan(c).B1),double(chan(c).B2),1));
                     end
                     b3 = [];                    
 
@@ -423,8 +428,8 @@ if nargout > 1
                         zn = Responsibility(m,b,V,n,bffn,mun,L,code);
 
                         % Compute new lower bound
-                        lx  = W*LowerBound('X',bffn,zn,code,{m,b},{V,n});            
-                        lxb = W*LowerBound('XB',bf);
+                        lx  = W*LowerBound('P(X|Z)',bffn,zn,code,{m,b},{V,n});            
+                        lxb = W*LowerBound('ln(|bf|)',bf);
 
                         % Check new lower bound
                         if (lx + lxb + sum(pr_bf)) > (olx + olxb + sum(opr_bf))                                                                          
@@ -433,7 +438,7 @@ if nargout > 1
 
                             nl = lx + lxb + sum(pr_bf);
                             ol = olx + olxb + sum(opr_bf);  
-    %                         fprintf('it2=%i\tc=%i\tls=%i\tnl=%0.7f\tgain=%0.7f :o)\n',it_bf,c,ls,nl,nl - ol);
+                            fprintf('it2=%i\tc=%i\tls=%i\tarmijo=%0.7f\tnl=%0.7f\tgain=%0.7f :o)\n',it_bf,c,ls,armijo,nl,nl - ol);
                             if (nl - ol) < nm*tol_bf
                                 % Finished for channel c
                                 done(c) = true;
@@ -444,7 +449,7 @@ if nargout > 1
                             chan(c).T = oT;
                             if ls == nit_lsbf   
                                 % Did not converge -> reset
-    %                             fprintf('it2=%i\tc=%i\tls=%i :o(\n',it_bf,c,ls);
+                                fprintf('it2=%i\tc=%i\tls=%i :o(\n',it_bf,c,ls);
                                 lx    = olx;
                                 lxb   = olxb;
                                 bf    = BiasField(chan,d,bf,c,opr_bf);    
@@ -667,13 +672,13 @@ end
 %==========================================================================
 % LowerBound()
 function lb = LowerBound(type,varargin)
-if strcmpi(type,'XB')    
+if strcmpi(type,'ln(|bf|)')    
     bf = varargin{1};
     
     bf(isnan(bf)) = 1;        
     bf            = log(prod(bf,2)); 
     lb            = sum(double(bf));
-elseif strcmpi(type,'X')    
+elseif strcmpi(type,'P(X|Z)')    
     fn   = varargin{1};
     zn   = varargin{2};
     code = varargin{3};
