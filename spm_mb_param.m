@@ -154,7 +154,7 @@ if ~isfield(sett.bf,'fwhm')
     sett.bf.fwhm = 60;
 end
 if ~isfield(sett.bf,'reg')
-    sett.bf.reg = 1e5;
+    sett.bf.reg = 1e6;
 end
 if ~isfield(sett.bf,'tol')
     sett.bf.tol = 1e-4;
@@ -246,7 +246,7 @@ if ~isfield(sett,'nit')
     sett.nit = struct;
 end
 if ~isfield(sett.nit,'appear')   
-    sett.nit.appear = 8;
+    sett.nit.appear = 2;
 end
 if ~isfield(sett.nit,'bf')   
     sett.nit.bf = 1;
@@ -281,7 +281,7 @@ if ~isfield(sett,'optim')
 end
 if ~isfield(sett.optim,'nls_bf')
      % Scaling of q GN updates
-    sett.optim.nls_bf = 12;
+    sett.optim.nls_bf = 4;
 end
 if ~isfield(sett.optim,'scal_q')
      % Scaling of q GN updates
