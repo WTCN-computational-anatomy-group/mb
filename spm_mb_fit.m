@@ -91,15 +91,11 @@ sett.var = spm_mb_io('CopyFields',sz(end), sett.var);
 dat = spm_mb_shape('Init',dat,sett);
 dat = spm_mb_appearance('Init',dat,model,K,sett);
 
-%------------------
-% Start algorithm
-%------------------
-
-Objective = [];
-E         = Inf;
-prevt     = Inf;
-
 spm_mb_show('Speak','Groupwise',N,K);
+
+%------------------
+% Init template
+%------------------
 
 if template_given    
     % Shrink given template
@@ -111,18 +107,34 @@ end
 
 spm_mb_show('All',dat,mu,Objective,N,sett);
 
+%------------------
+% Start algorithm
+%------------------
+
+Objective = [];
+E         = Inf;
+prevt     = Inf;
+
 if do_updt_aff
+    
+    %------------------
+    % Update shape (only affine) and appearance on coarsest resolution
+    %------------------
+        
     spm_mb_show('Speak','InitAff',sett.nit.init);
     for it_init=1:nit_init
-
-        %------------------
-        % Updates template, affine and GMM parameters (at largest template resolution)    
-        %------------------
-
-        te = 0;
+        
+        % Update affine
+        te   = 0;
+        Eold = E; tic;
+        dat  = spm_mb_shape('UpdateSimpleAffines',dat,mu,sett);
+        dat  = spm_mb_appearance('UpdatePrior',dat, mu, sett);
+        E    = sum(sum(cat(2,dat.E),2),1) + te;
+        t    = toc;
+                
         if do_updt_template
             for subit=1:nit_init_mu
-                % Update template, bias field and intensity model
+                % Update template and intensity prior
                 Eold     = E; tic;                        
                 [mu,dat] = spm_mb_shape('UpdateMean',dat, mu, sett);
                 te       = spm_mb_shape('TemplateEnergy',mu,sett);
@@ -138,14 +150,7 @@ if do_updt_aff
                 % Show stuff
                 spm_mb_show('All',dat,mu,Objective,N,sett);
             end
-        end
-        
-        % Update affine
-        Eold = E; tic;
-        dat  = spm_mb_shape('UpdateSimpleAffines',dat,mu,sett);
-        dat  = spm_mb_appearance('UpdatePrior',dat, mu, sett);
-        E    = sum(sum(cat(2,dat.E),2),1) + te;
-        t    = toc;
+        end        
         
         % Print stuff
         fprintf('it=%i q  \t%g\t%g\t%g\n', it_init, E, t, (Eold - E)/prevt);
