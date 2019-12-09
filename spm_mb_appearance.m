@@ -756,7 +756,7 @@ function pr = InitPriorGMM(mx,mn,vr,mu0,K)
 %   This function is only used to initialise the GMM parameters at the
 %   beginning of the algorithm.
 % 
-% FORMAT pr = PriorGMM(mx,mn,vr,mu0,K)
+% FORMAT pr = InitPriorGMM(mx,mn,vr,mu0,K)
 % mx   - Maximum observed value [per channel]
 % mn   - Mean observed value [per channel]
 % vr   - Variance of observed value [per channel]
@@ -808,7 +808,7 @@ function [po,mx,mn,vr] = InitPosteriorGMM(datn,fn,mu,pr,K,sett)
 %   This function is only used to initialise the GMM parameters at the
 %   beginning of the algorithm.
 % 
-% FORMAT [po,mx,mn,vr] = PosteriorGMM(datn,fn,mu,pr,K,sett)
+% FORMAT [po,mx,mn,vr] = InitPosteriorGMM(datn,fn,mu,pr,K,sett)
 % datn - Structure holding data of a single subject
 % fn   - Bias corrected observed image, in matrix form [nbvox nbchannel]
 % mu   - Log template
