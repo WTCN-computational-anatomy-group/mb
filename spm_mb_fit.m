@@ -131,7 +131,12 @@ if do_updt_aff
         dat  = spm_mb_appearance('UpdatePrior',dat, mu, sett);
         E    = sum(sum(cat(2,dat.E),2),1) + te;
         t    = toc;
-                
+             
+        % Print stuff
+        fprintf('it=%i q  \t%g\t%g\t%g\n', it_init, E, t, (Eold - E)/prevt);
+        prevt     = t;
+        Objective = [Objective; E];
+        
         if do_updt_template
             for subit=1:nit_init_mu
                 % Update template and intensity prior
@@ -145,17 +150,9 @@ if do_updt_aff
                 % Print stuff
                 fprintf('it=%i mu \t%g\t%g\t%g\n', it_init, E, t, (Eold - E)/prevt);
                 prevt     = t;
-                Objective = [Objective; E];
-
-                % Show stuff
-                spm_mb_show('All',dat,mu,Objective,N,sett);
+                Objective = [Objective; E];               
             end
-        end        
-        
-        % Print stuff
-        fprintf('it=%i q  \t%g\t%g\t%g\n', it_init, E, t, (Eold - E)/prevt);
-        prevt = t;
-        Objective = [Objective; E];
+        end                
 
         if do_updt_template || do_updt_int
             % Save stuff
