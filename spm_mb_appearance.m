@@ -662,7 +662,7 @@ for n=1:N
     fn = bf.*fn;
  
     % Init GMM
-    [po,mx(:,n),mn(:,n),vr(:,n)] = PosteriorGMM(dat(n),fn,mu,pr,K1,sett);
+    [po,mx(:,n),mn(:,n),vr(:,n)] = InitPosteriorGMM(dat(n),fn,mu,pr,K1,sett);
     mog.po     = po;
     mog.lb     = lb;
     dat(n).mog = mog;
@@ -670,7 +670,7 @@ end
 
 if isempty(pr)
     % Init GMM empirical prior
-    pr = PriorGMM(mx,mn,vr,mu,K1);
+    pr = InitPriorGMM(mx,mn,vr,mu,K1);
 end
 for n=1:numel(dat)                
     dat(n).mog.pr = pr; 
@@ -711,8 +711,8 @@ end
 %==========================================================================
 
 %==========================================================================    
-% PriorGMM()
-function pr = PriorGMM(mx,mn,vr,mu0,K)
+% InitPriorGMM()
+function pr = InitPriorGMM(mx,mn,vr,mu0,K)
 
 mvr = mean(vr,2); % mean variance across all subjects in population
 mmn = mean(mn,2); % mean mean across all subjects in population
@@ -751,8 +751,8 @@ end
 %==========================================================================   
 
 %==========================================================================    
-% PosteriorGMM()
-function [po,mx,mn,vr] = PosteriorGMM(datn,fn,mu,pr,K,sett)
+% InitPosteriorGMM()
+function [po,mx,mn,vr] = InitPosteriorGMM(datn,fn,mu,pr,K,sett)
 
 % Parse function settings
 B   = sett.registr.B;
