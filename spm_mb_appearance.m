@@ -193,6 +193,18 @@ end
 %==========================================================================
 % Responsibility()
 function zn = Responsibility(m,b,V,n,fn,mu,L,code)
+% Compute responsibilities.
+%
+% FORMAT zn = Responsibility(m,b,V,n,fn,mu,L,code)
+% m    - GMM Means
+% b    - GMM Mean d.f.
+% V    - GMM Scale matrices
+% n    - GMM Scale d.f.
+% fn   - Bias-corrected observed image in matrix form [nbvox nbchannel]
+% mu   - Deformed and exponentiated template
+% L    - List of unique missing codes
+% code - Image of missing codes [nbvox 1]
+% zn   - Image of responsibilities [nbvox K]
 
 % Is there missing data?
 do_miss = numel(L) > 1;
@@ -209,6 +221,12 @@ end
 %==========================================================================
 % Update()
 function [zn,datn] = Update(datn,mun0,sett)
+% Update appearance model for a single subject (GMM & bias field)
+%
+% FORMAT [zn,datn] = Update(datn,mun0,sett)
+% datn - Structure holding data for a single subject
+% mun0 - Log template
+% sett - Structure of settings
 
 % Parse function settings
 do_updt_bf   = sett.do.updt_bf;
@@ -397,12 +415,13 @@ if nargout > 1
                         end
 
                         % Multiply with bias corrected value (chain rule)
-                        go    = go .* obffn(:,ixc) - 1;
+                        go    = go .* obffn(:,ixc);
                         Ho    = Ho .* (obffn(:,ixc).^2);
                         obffn = [];
                         
-                        % Substitute gr = 0 in the Hessian
-                        Ho = Ho + 1;
+                        % Add terms related to the normalisation (log(b))
+                        go = go - 1;
+                        Ho = Ho + 1; % Comes from subs(H,g,0)
 
                         % Accumulate across missing codes
                         gr_im(ixvx) = gr_im(ixvx) + go;
@@ -683,6 +702,25 @@ end
 %==========================================================================
 % LowerBound()
 function lb = LowerBound(type,varargin)
+% Compute parts of the lower bound
+%
+% FORMAT lb = LowerBound('ln(|bf|)',bf,obs_msk)
+% bf      - Exponentiated bias field [one channel]
+% obs_msk - Mask of observed values [one channel]
+% lb      - Sum of the log bias field
+%   >> This is part of the normalisation term in the GMM
+%
+% FORMAT lb = LowerBound('ln(P(X|Z))',fn,zn,code,mean,prec,W,L)
+% fn   - Bias corrected observed image in matrix form [nbvox nbchannel]
+% zn   - Responsibilities in matrix form [nbvox nbclass]
+% code - Image encoding missing pattern missing [nbvox 1]
+% mean - Mean parameters {m b}
+% prec - Precision parameters {V n}
+% W    - Image of weights [nbvox 1]
+% L    - List of uniaue missing codes
+% lb   - Marginal log-likelihood
+%   >> Marginal log-likelihood of the observed data, without the
+%      bias-related normalisation.
 if strcmpi(type,'ln(|bf|)')    
     bf      = varargin{1};
     obs_msk = varargin{2};
@@ -708,6 +746,18 @@ end
 %==========================================================================    
 % InitPriorGMM()
 function pr = InitPriorGMM(mx,mn,vr,mu0,K)
+% Initialise the prior parameters of a Gaussian mixture model. 
+%
+%   This function is only used to initialise the GMM parameters at the
+%   beginning of the algorithm.
+% 
+% FORMAT pr = InitPriorGMM(mx,mn,vr,mu0,K)
+% mx   - Maximum observed value [per channel]
+% mn   - Mean observed value [per channel]
+% vr   - Variance of observed value [per channel]
+% mu0  - Log template
+% K    - Number of classes
+% pr   - Structure holding prior GMM parameters (m, b, V, n)
 
 mvr = mean(vr,2); % mean variance across all subjects in population
 mmn = mean(mn,2); % mean mean across all subjects in population
@@ -748,6 +798,22 @@ end
 %==========================================================================    
 % InitPosteriorGMM()
 function [po,mx,mn,vr] = InitPosteriorGMM(datn,fn,mu,pr,K,sett)
+% Initialise the posterior parameters of a Gaussian mixture model. 
+%
+%   This function is only used to initialise the GMM parameters at the
+%   beginning of the algorithm.
+% 
+% FORMAT [po,mx,mn,vr] = InitPosteriorGMM(datn,fn,mu,pr,K,sett)
+% datn - Structure holding data of a single subject
+% fn   - Bias corrected observed image, in matrix form [nbvox nbchannel]
+% mu   - Log template
+% pr   - Structure holding prior GMM parameters (m, b, V, n)
+% K    - Number of classes
+% sett - Structure of settings
+% po   - Structure of posterior parameters (m, b, V, n)
+% mx   - Maximum observed value [per channel]
+% mn   - Mean observed value [per channel]
+% vr   - Variance of observed value [per channel]
 
 % Parse function settings
 B   = sett.registr.B;
@@ -835,6 +901,19 @@ end
 %==========================================================================
 % SubSample()
 function varargout = SubSample(samp,Mat,varargin)
+% Subsample a series of volumes.
+%
+%   This subsampling scheme does not interpolate the data, but selects one
+%   every few voxels. The provided distance between sampled voxels is
+%   rounded to avoid interpolation.
+%
+% FORMAT [g1,g2,...,w,dm] = SubSample(samp,Mat,f1,f2,...)
+% samp - Sampling distance in mm
+% Mat  - Original orientation matrix
+% f#   - Original volumes
+% g#   - Undersampled volumes
+% w    - Proportion of sampled voxels
+% dm   - Output dimensions
 vx        = sqrt(sum(Mat(1:3,1:3).^2));
 samp      = max([1 1 1],round(samp*[1 1 1]./vx));
 N         = numel(varargin);
@@ -860,6 +939,14 @@ end
 %==========================================================================
 % TransformBF()
 function t = TransformBF(B1,B2,B3,T)
+% Create an image-space log bias field from its basis function encoding.
+%
+% FORMAT t = TransformBF(B1,B2,B3,T)
+% B1 - x-dim DCT basis [nx kx]
+% B2 - y-dim DCT basis [ny ky]
+% B3 - z-dim DCT basis [nz kz]
+% T  - DCT encoding of the log bias field [kx ky kz]
+% t  - Reconstructed log bias field [nx ny nz]
 if ~isempty(T)
     d2 = [size(T) 1];
     t1 = reshape(reshape(T, d2(1)*d2(2),d2(3))*B3', d2(1), d2(2));
