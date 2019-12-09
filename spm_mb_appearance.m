@@ -8,7 +8,7 @@ function varargout = spm_mb_appearance(varargin)
 % FORMAT p_ix      = spm_mb_appearance('GetPopulationIdx',dat)
 % FORMAT dat       = spm_mb_appearance('Init',dat,model,K,sett)
 % FORMAT fn        = spm_mb_appearance('Mask',fn,is_ct)
-% FORMAT zn        = spm_mb_appearance('Responsibility',m,b,V,n,fn,mu,L,code)
+% FORMAT zn        = spm_mb_appearance('Responsibility',m,b,W,n,fn,mu,L,code)
 % FORMAT [zn,datn] = spm_mb_appearance('Update',datn,mun0,sett)
 % FORMAT dat       = spm_mb_appearance('UpdatePrior',dat,mu,sett)
 %__________________________________________________________________________
@@ -192,13 +192,13 @@ end
 
 %==========================================================================
 % Responsibility()
-function zn = Responsibility(m,b,V,n,fn,mu,L,code)
+function zn = Responsibility(m,b,W,n,fn,mu,L,code)
 % Compute responsibilities.
 %
-% FORMAT zn = Responsibility(m,b,V,n,fn,mu,L,code)
+% FORMAT zn = Responsibility(m,b,W,n,fn,mu,L,code)
 % m    - GMM Means
 % b    - GMM Mean d.f.
-% V    - GMM Scale matrices
+% W    - GMM Scale matrices
 % n    - GMM Scale d.f.
 % fn   - Bias-corrected observed image in matrix form [nbvox nbchannel]
 % mu   - Deformed and exponentiated template
@@ -209,11 +209,11 @@ function zn = Responsibility(m,b,V,n,fn,mu,L,code)
 % Is there missing data?
 do_miss = numel(L) > 1;
 
-if do_miss, const = spm_gmm_lib('Const', {m,b}, {V,n}, L);
-else,       const = spm_gmm_lib('Const', {m,b}, {V,n});
+if do_miss, const = spm_gmm_lib('Const', {m,b}, {W,n}, L);
+else,       const = spm_gmm_lib('Const', {m,b}, {W,n});
 end
 
-fn = spm_gmm_lib('Marginal', fn, {m,V,n}, const, {code,L});
+fn = spm_gmm_lib('Marginal', fn, {m,W,n}, const, {code,L});
 zn = spm_gmm_lib('Responsibility', fn, mu);
 end
 %==========================================================================
@@ -259,13 +259,13 @@ jitter = reshape(jitter,[1 C]);
 % GMM posterior
 m  = datn.mog.po.m;
 b  = datn.mog.po.b;
-V  = datn.mog.po.V;
+W  = datn.mog.po.W;
 n  = datn.mog.po.n;
 
 % GMM prior
 m0 = datn.mog.pr.m;
 b0 = datn.mog.pr.b;
-V0 = datn.mog.pr.V;
+W0 = datn.mog.pr.W;
 n0 = datn.mog.pr.n;
 
 % Lower bound
@@ -316,8 +316,8 @@ for it_appear=1:nit_appear
     % Update GMM and get responsibilities (zn)
     %------------------------------------------------------------
 
-    [zn,mog,~,lb] = spm_gmm_loop({bffn,scl_samp},{{m,b},{V,n}},{'LogProp', mun}, ...
-                                 'GaussPrior',   {m0,b0,V0,n0}, ...
+    [zn,mog,~,lb] = spm_gmm_loop({bffn,scl_samp},{{m,b},{W,n}},{'LogProp', mun}, ...
+                                 'GaussPrior',   {m0,b0,W0,n0}, ...
                                  'Missing',      do_miss, ...
                                  'LowerBound',   lb, ...
                                  'MissingCode',  {code,L}, ...
@@ -328,7 +328,7 @@ for it_appear=1:nit_appear
                                  'Verbose',      [0 0]);
     m = mog.MU;
     b = mog.b;
-    V = mog.V;
+    W = mog.V;
     n = mog.n;           
 
     nl = lb.sum(end);        
@@ -348,10 +348,10 @@ for it_appear=1:nit_appear
     if do_updt_bf && any(do_bf == true)        
 
         % Make sure to use the latest responsibilties
-        zn = Responsibility(m,b,V,n,bffn,mun,L,code);
+        zn = Responsibility(m,b,W,n,bffn,mun,L,code);
 
         % Recompute parts of objective function that depends on bf
-        lx  = LowerBound('ln(P(X|Z))',bffn,zn,code,{m,b},{V,n},scl_samp);
+        lx  = LowerBound('ln(P(X|Z))',bffn,zn,code,{m,b},{W,n},scl_samp);
         lxb = scl_samp*LowerBound('ln(|bf|)',bf,obs_msk);                     
 
         for it_bf=1:nit_bf
@@ -392,11 +392,11 @@ for it_appear=1:nit_appear
                     Ho = 0; % Hessian accumulated accross clusters
                     for k=1:K1
                         % Compute expected precision (see GMM + missing data)
-                        Voo = V(ixo,ixo,k);
-                        Vom = V(ixo,ixm,k);
-                        Vmm = V(ixm,ixm,k);
-                        Vmo = V(ixm,ixo,k);
-                        Ao  = Voo - Vom*(Vmm\Vmo);
+                        Woo = W(ixo,ixo,k);
+                        Wom = W(ixo,ixm,k);
+                        Wmm = W(ixm,ixm,k);
+                        Wmo = W(ixm,ixo,k);
+                        Ao  = Woo - Wom*(Wmm\Wmo);
                         Ao  = (n(k) - nm) * Ao;
                         mo  = m(ixo,k);
 
@@ -462,10 +462,10 @@ for it_appear=1:nit_appear
                     bffn       = bf.*fn;
 
                     % Recompute responsibilities (with updated bias field)
-                    zn = Responsibility(m,b,V,n,bffn,mun,L,code);
+                    zn = Responsibility(m,b,W,n,bffn,mun,L,code);
 
                     % Compute new lower bound
-                    lx  = LowerBound('ln(P(X|Z))',bffn,zn,code,{m,b},{V,n},scl_samp);            
+                    lx  = LowerBound('ln(P(X|Z))',bffn,zn,code,{m,b},{W,n},scl_samp);            
                     lxb = scl_samp*LowerBound('ln(|bf|)',bf,obs_msk);
 
                     % Check new lower bound
@@ -484,7 +484,7 @@ for it_appear=1:nit_appear
                             bf    = BiasField(chan,d,bf,c,opr_bf);    
                             bffn  = bf.*fn;
                             pr_bf = opr_bf;
-                            zn    = Responsibility(m,b,V,n,bffn,mun,L,code);
+                            zn    = Responsibility(m,b,W,n,bffn,mun,L,code);
                         end
                     end
                 end
@@ -518,7 +518,7 @@ if samp > 1
     fn   = [];
     L    = unique(code);
     mun0 = cat(2,mun0,zeros([prod(df(1:3)) 1],'single'));
-    zn   = Responsibility(m,b,V,n,bffn,mun0,L,code);
+    zn   = Responsibility(m,b,W,n,bffn,mun0,L,code);
 end       
 
 % Get 4D versions of K1 - 1 classes
@@ -528,7 +528,7 @@ zn = reshape(zn(:,1:K),[df(1:3) K]);
 datn.E(1)     = -lb.sum(end);
 datn.mog.po.m = m;
 datn.mog.po.b = b;
-datn.mog.po.V = V;
+datn.mog.po.W = W;
 datn.mog.po.n = n;          
 datn.mog.lb   = lb;  
 end
@@ -550,7 +550,7 @@ for p=1:numel(p_ix) % Loop over populations
 
     % Get old prior
     pr = dat(p_ix{p}(1)).mog.pr;
-    pr = {pr.m,pr.b,pr.V,pr.n};
+    pr = {pr.m,pr.b,pr.W,pr.n};
     C  = size(pr{1},1);
 
     % Get all posteriors
@@ -561,7 +561,7 @@ for p=1:numel(p_ix) % Loop over populations
         n1          = p_ix{p}(n);
         po{n}{1}{1} = dat(n1).mog.po.m;
         po{n}{1}{2} = dat(n1).mog.po.b;
-        po{n}{2}{1} = dat(n1).mog.po.V;
+        po{n}{2}{1} = dat(n1).mog.po.W;
         po{n}{2}{2} = dat(n1).mog.po.n;
     end
 
@@ -574,7 +574,7 @@ for p=1:numel(p_ix) % Loop over populations
         pon = dat(p_ix{p}(n)).mog.po;
         for k=1:K1
             avgmn = avgmn + pon.m(:,k)*pon.b(k);
-            avgvr = avgvr + inv(pon.V(:,:,k));
+            avgvr = avgvr + inv(pon.W(:,:,k));
         end
         sum_n = sum_n + pon.n(k);
         sum_b = sum_b + pon.b(k);
@@ -586,7 +586,7 @@ for p=1:numel(p_ix) % Loop over populations
     % Add one artificial observation
     po1{1}{1} = repmat(avgmn,[1 K1]);     % m
     po1{1}{2} = zeros(1,K1) + 0.01;       % b
-    po1{2}{1} = repmat(avgpr/C,[1 1 K1]); % V
+    po1{2}{1} = repmat(avgpr/C,[1 1 K1]); % W
     po1{2}{2} = C*ones(1,K1);             % n
     po{end}   = po1;
  
@@ -597,7 +597,7 @@ for p=1:numel(p_ix) % Loop over populations
     for n=p_ix{p}
         dat(n).mog.pr.m = pr{1};
         dat(n).mog.pr.b = pr{2};
-        dat(n).mog.pr.V = pr{3};
+        dat(n).mog.pr.W = pr{3};
         dat(n).mog.pr.n = pr{4};
     end
 end
@@ -712,7 +712,7 @@ function lb = LowerBound(type,varargin)
 % zn       - Responsibilities in matrix form [nbvox nbclass]
 % code     - Image encoding missing pattern missing [nbvox 1]
 % mean     - Mean parameters {m b}
-% prec     - Precision parameters {V n}
+% prec     - Precision parameters {W n}
 % scl_samp - Image of weights [nbvox 1]
 % L        - List of uniaue missing codes
 % lb       - Marginal log-likelihood
@@ -754,7 +754,7 @@ function pr = InitPriorGMM(mx,mn,vr,mu0,K)
 % vr   - Variance of observed value [per channel]
 % mu0  - Log template
 % K    - Number of classes
-% pr   - Structure holding prior GMM parameters (m, b, V, n)
+% pr   - Structure holding prior GMM parameters (m, b, W, n)
 
 mvr = mean(vr,2); % mean variance across all subjects in population
 mmn = mean(mn,2); % mean mean across all subjects in population
@@ -778,15 +778,15 @@ if ~isempty(mu0)
 end
 
 % Define prior
-pr   = struct('m',[],'b',[],'n',[],'V',[]);
+pr   = struct('m',[],'b',[],'n',[],'W',[]);
 pr.m = m;
 pr.b = zeros(1,K) + 0.01;
 pr.n = C*ones(1,K);
-pr.V = ico/C;
+pr.W = ico/C;
 
 if 0
     fig_name = 'Prior';
-    spm_gmm_lib('plot','gaussprior',{pr.m,pr.b,pr.V,pr.n},[],fig_name);
+    spm_gmm_lib('plot','gaussprior',{pr.m,pr.b,pr.W,pr.n},[],fig_name);
 end
 
 end
@@ -804,10 +804,10 @@ function [po,mx,mn,vr] = InitPosteriorGMM(datn,fn,mu,pr,K,sett)
 % datn - Structure holding data of a single subject
 % fn   - Bias corrected observed image, in matrix form [nbvox nbchannel]
 % mu   - Log template
-% pr   - Structure holding prior GMM parameters (m, b, V, n)
+% pr   - Structure holding prior GMM parameters (m, b, W, n)
 % K    - Number of classes
 % sett - Structure of settings
-% po   - Structure of posterior parameters (m, b, V, n)
+% po   - Structure of posterior parameters (m, b, W, n)
 % mx   - Maximum observed value [per channel]
 % mn   - Mean observed value [per channel]
 % vr   - Variance of observed value [per channel]
@@ -840,17 +840,17 @@ end
 % Initialise posterior
 if isempty(pr)
     % No prior given, initialise from image statistics (mean, min, max, var)
-    po   = struct('m',[],'b',[],'n',[],'V',[]);
+    po   = struct('m',[],'b',[],'n',[],'W',[]);
     po.m = m;
     po.b = zeros(1,K) + 0.01;
     po.n = C*ones(1,K);
-    po.V = ico/C;
+    po.W = ico/C;
 else
     % Use given prior
     po.m = pr.m;
     po.b = pr.b;
     po.n = pr.n;
-    po.V = pr.V;
+    po.W = pr.W;
 end
 
 if (isempty(pr) && ~isempty(mu))
@@ -880,17 +880,17 @@ if ~isempty(mu)
         
     % Compute posterior estimates
     [SS0,SS1,SS2] = spm_gmm_lib('SuffStat',fn,mu,1);
-    [MU,~,b,V,n]  = spm_gmm_lib('UpdateClusters', SS0, SS1, SS2, {po.m,po.b,po.V,po.n});
+    [MU,~,b,W,n]  = spm_gmm_lib('UpdateClusters', SS0, SS1, SS2, {po.m,po.b,po.W,po.n});
     
     po.m = MU;
     po.b = b;
     po.n = n;
-    po.V = V;
+    po.W = W;
 end
 
 if 0
     fig_name = 'Posterior';
-    spm_gmm_lib('plot','gaussprior',{po.m,po.b,po.V,po.n},[],fig_name);
+    spm_gmm_lib('plot','gaussprior',{po.m,po.b,po.W,po.n},[],fig_name);
 end
 end
 %==========================================================================  

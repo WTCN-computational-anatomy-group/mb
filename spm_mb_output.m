@@ -105,11 +105,11 @@ if isfield(datn,'mog') && (any(write_bf(:) == true) || any(write_im(:) == true) 
     % GMM posterior
     m = datn.mog.po.m;
     b = datn.mog.po.b;
-    V = datn.mog.po.V;
+    W = datn.mog.po.W;
     n = datn.mog.po.n;
 
     % Get responsibilities
-    zn = spm_mb_appearance('Responsibility',m,b,V,n,bf.*fn,mu,L,code); 
+    zn = spm_mb_appearance('Responsibility',m,b,W,n,bf.*fn,mu,L,code); 
     mu = [];     
 
     % Get bias field modulated image data
@@ -118,7 +118,7 @@ if isfield(datn,'mog') && (any(write_bf(:) == true) || any(write_im(:) == true) 
         % Infer missing values
         sample_post = do_infer > 1;
         MU = datn.mog.po.m;    
-        A  = bsxfun(@times, datn.mog.po.V, reshape(datn.mog.po.n, [1 1 K1]));            
+        A  = bsxfun(@times, datn.mog.po.W, reshape(datn.mog.po.n, [1 1 K1]));            
         fn = spm_gmm_lib('InferMissing',fn,zn,{MU,A},{code,unique(code)},sample_post);        
     end
 

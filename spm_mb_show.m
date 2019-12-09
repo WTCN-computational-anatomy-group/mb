@@ -162,10 +162,10 @@ if ~isfield(dat(1),'mog'), return; end
 n  = 1;
 m0 = dat(n).mog.pr.m;
 b0 = dat(n).mog.pr.b;
-V0 = dat(n).mog.pr.V;
+W0 = dat(n).mog.pr.W;
 n0 = dat(n).mog.pr.n;
 
-spm_gmm_lib('plot','gaussprior',{m0,b0,V0,n0},[],fig_name);
+spm_gmm_lib('plot','gaussprior',{m0,b0,W0,n0},[],fig_name);
 end
 %==========================================================================
 
@@ -244,7 +244,7 @@ for n=1:nd
         mu   = reshape(mu,[prod(df(1:3)) K1]);
         % Get responsibility
         zn = spm_mb_appearance('Responsibility',dat(n).mog.po.m,dat(n).mog.po.b, ...
-                               dat(n).mog.po.V,dat(n).mog.po.n,bf.*fn,mu,L,code);   
+                               dat(n).mog.po.W,dat(n).mog.po.n,bf.*fn,mu,L,code);   
         code = [];
         % Reshape back
         zn = reshape(zn,[df(1:3) K1]);
@@ -427,7 +427,7 @@ bar(centres, H, 'EdgeColor', 'none', 'FaceColor', [0.7 0.7 0.7]);
 
 % -----------
 % GMM Density
-A     = bsxfun(@times, mog.po.V, reshape(mog.po.n, [1 1 K])); % Expected precision
+A     = bsxfun(@times, mog.po.W, reshape(mog.po.n, [1 1 K])); % Expected precision
 xlims = [inf -inf];
 for k=1:K
     MU   = mog.po.m(c,k);    
