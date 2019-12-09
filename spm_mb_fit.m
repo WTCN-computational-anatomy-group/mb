@@ -105,7 +105,7 @@ else
     [dat,mu,sett] = spm_mb_shape('InitMu',dat,K,sett);
 end
 
-spm_mb_show('All',dat,mu,Objective,N,sett);
+spm_mb_show('All',dat,mu,[],N,sett);
 
 %------------------
 % Start algorithm
