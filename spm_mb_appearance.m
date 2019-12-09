@@ -470,6 +470,8 @@ for it_appear=1:nit_appear
 
                     % Check new lower bound
                     if  ((lx + lxb + sum(pr_bf)) - (olx + olxb + sum(opr_bf)))/abs(lx + lxb + sum(pr_bf)) > -eps('single')*10
+                        % Converged
+                        %fprintf('it2=%i\tc=%i\tls=%i\tarmijo=%0.7f\tnl=%0.7f\tgain=%0.7f :o)\n',it_bf,c,ls,armijo,lx + lxb + sum(pr_bf),lx + lxb + sum(pr_bf) - olx + olxb + sum(opr_bf));
                         lb.XB(end + 1) = lxb;
                         lb.X(end  + 1) = lx;
                         break;
@@ -478,7 +480,7 @@ for it_appear=1:nit_appear
                         chan(c).T = oT;
                         if ls == nit_lsbf   
                             % Did not converge -> reset
-%                                 fprintf('it2=%i\tc=%i\tls=%i :o(\n',it_bf,c,ls);
+                            %fprintf('it2=%i\tc=%i\tls=%i :o(\n',it_bf,c,ls);
                             lx    = olx;
                             lxb   = olxb;
                             bf    = BiasField(chan,d,bf,c,opr_bf);    
