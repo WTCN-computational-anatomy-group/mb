@@ -187,13 +187,12 @@ for p=1:Npop
     mpr = mean(mpr,2);
     
     for n=p_ix{p}
-        if first_subj
+        dat(n).mog.pr.m = repmat(mpr,[1 K + 1]);        
+        if first_subj            
             first_subj = false;
             continue
-        end
-        
-        dat(n).mog.po.m = repmat(mpo,[1 K + 1]);
-        dat(n).mog.pr.m = repmat(mpr,[1 K + 1]);
+        end        
+        dat(n).mog.po.m = repmat(mpo,[1 K + 1]);        
     end
 end
 
