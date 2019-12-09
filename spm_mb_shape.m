@@ -171,7 +171,7 @@ sett.do.updt_bf = false;
 p_ix       = spm_mb_appearance('GetPopulationIdx',dat);
 Npop       = numel(p_ix);
 first_subj = true;
-for p=2:Npop
+for p=1:Npop
     % To make the algorithm more robust when using multiple populations,
     % set posterior and prior means (m) of GMMs of all but the first population to
     % uniform  
