@@ -330,6 +330,9 @@ if nargout > 1
         
         if do_updt_bf && any(do_bf == true)        
             
+            % Make sure to use the latest responsibilties
+            zn = Responsibility(m,b,V,n,bffn,mun,L,code);
+        
             % Recompute parts of objective function that depends on bf
             lx  = LowerBound('ln(P(X|Z))',bffn,zn,code,{m,b},{V,n},W);
             lxb = W*LowerBound('ln(|bf|)',bf,obs_msk);                     
