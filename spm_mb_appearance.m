@@ -220,8 +220,6 @@ nit_appear   = sett.nit.appear;
 nit_lsbf     = sett.optim.nls_bf;
 reg          = sett.bf.reg;
 samp         = sett.gen.samp;
-tol_bf       = sett.bf.tol;
-tol_appear   = sett.appear.tol;
 
 % Parameters
 [df,C]     = spm_mb_io('GetSize',datn.f);
@@ -314,11 +312,11 @@ if nargout > 1
         m = mog.MU;
         b = mog.b;
         V = mog.V;
-        n = mog.n;    
+        n = mog.n;           
 
         nl = lb.sum(end);        
     %     fprintf('it1=%i\tnl=%0.7f\tgain=%0.7f\n',it_likel,nl,nl - ol);
-        if it_appear > 1 && ((nl - ol) < 2*nm*tol_appear || it_appear == nit_appear)
+        if it_appear > 1 && ((nl - ol)/abs(nl) > -eps('single')*10 || it_appear == nit_appear)
             % Finished
             break
         end
@@ -336,15 +334,12 @@ if nargout > 1
             lx  = LowerBound('ln(P(X|Z))',bffn,zn,code,{m,b},{V,n},W);
             lxb = W*LowerBound('ln(|bf|)',bf,obs_msk);                     
             
-            done = false(1,C);
             for it_bf=1:nit_bf
 
                 % Update bias field parameters for each channel separately
                 for c=1:C % Loop over channels
 
-                    if done(c) || ~datn.do_bf(c)
-                        % Channel c finished
-%                         fprintf('Done! c=%i, it=%i\n',c,it);
+                    if ~datn.do_bf(c)
                         continue; 
                     end
 
@@ -428,9 +423,6 @@ if nargout > 1
                         H  = H  + kron(b3*b3',spm_krutil(double(H_im(:,:,z)),double(chan(c).B1),double(chan(c).B2),1));
                     end
                     b3 = [];                    
-
-%                     H = H + mean(diag(H)) * eye(size(H));
-%                     H = H + 1E-3 * max(diag(H)) * eye(size(H));
                     
                     % Gauss-Newton update of bias field parameters
                     Update = reshape((H + chan(c).ICO)\(gr + chan(c).ICO*chan(c).T(:)),size(chan(c).T));
@@ -459,9 +451,6 @@ if nargout > 1
                         lx  = LowerBound('ln(P(X|Z))',bffn,zn,code,{m,b},{V,n},W);            
                         lxb = W*LowerBound('ln(|bf|)',bf,obs_msk);
 
-%                         fprintf('olx+olxb=%0.7f\n',olx + olxb);
-%                         fprintf('lx+lxb=%0.7f\n',lx + lxb);
-                        
                         % Check new lower bound
                         if (lx + lxb + sum(pr_bf)) > (olx + olxb + sum(opr_bf))                                                                          
                             lb.XB(end + 1) = lxb;
@@ -480,7 +469,7 @@ if nargout > 1
                             chan(c).T = oT;
                             if ls == nit_lsbf   
                                 % Did not converge -> reset
-                                fprintf('it2=%i\tc=%i\tls=%i :o(\n',it_bf,c,ls);
+%                                 fprintf('it2=%i\tc=%i\tls=%i :o(\n',it_bf,c,ls);
                                 lx    = olx;
                                 lxb   = olxb;
                                 bf    = BiasField(chan,d,bf,c,opr_bf);    
@@ -659,7 +648,8 @@ for n=1:N
             scl(c) = val./mean(fn(msk,c));
         end
     else
-        scl = ones(1,C);
+        dat(n).do_bf = false;
+        scl          = ones(1,C);
     end
  
     if do_updt_bf && any(dat(n).do_bf == true)
