@@ -88,15 +88,27 @@ chan = struct(args{:});
 do_bf = datn.do_bf;
 Mn    = datn.Mat;
 
-vx = sqrt(sum(Mn(1:3,1:3).^2));
-sd = vx(1)*df(1)/fwhm; d3(1) = ceil(sd*2);
-sd = vx(2)*df(2)/fwhm; d3(2) = ceil(sd*2);
-sd = vx(3)*df(3)/fwhm; d3(3) = ceil(sd*2);
+vx  = sqrt(sum(Mn(1:3,1:3).^2));
+sd1 = vx(1)*df(1)/fwhm; d3(1) = ceil(sd1*2);
+sd2 = vx(2)*df(2)/fwhm; d3(2) = ceil(sd2*2);
+sd3 = vx(3)*df(3)/fwhm; d3(3) = ceil(sd3*2);
 
 % Precision (inverse covariance) of Gaussian prior on bias field parameters
-ICO = spm_bias_lib('regulariser','bending',df,d3,vx);
-ICO = ICO*reg;
-
+if 1    
+    % Bending energy
+    ICO = spm_bias_lib('regulariser','bending',df,d3,vx);
+    ICO = ICO*reg;
+else
+    % spm_preproc8
+    kron  = @(a,b) spm_krutil(a,b);
+    krn_x = exp(-(0:(d3(1)-1)).^2/sd.^2)/sqrt(vx(1));
+    krn_y = exp(-(0:(d3(2)-1)).^2/sd.^2)/sqrt(vx(2));
+    krn_z = exp(-(0:(d3(3)-1)).^2/sd.^2)/sqrt(vx(3));
+    reg   = 1e-3;
+    ICO   = kron(krn_z,kron(krn_y,krn_x)).^(-2)*reg;
+    ICO   = sparse(1:length(ICO),1:length(ICO),ICO,length(ICO),length(ICO));
+end
+    
 samp      = max([1 1 1],round(samp*[1 1 1]./vx));
 [x0,y0,~] = ndgrid(single(1:samp(1):df(1)),single(1:samp(2):df(2)),1);
 z0        = single(1:samp(3):df(3));
@@ -284,7 +296,11 @@ if nargout > 1
 
     ol = lb.sum(end);
     for it_appear=1:nit_appear
+        
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
         % Update GMM and get responsibilities (zn)
+        %------------------------------------------------------------
+        
         [zn,mog,~,lb] = spm_gmm_loop({bffn,W},{{m,b},{V,n}},{'LogProp', mun}, ...
                                      'GaussPrior',   {m0,b0,V0,n0}, ...
                                      'Missing',      do_miss, ...
@@ -308,7 +324,12 @@ if nargout > 1
         end
         ol = nl;
 
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
         % Update bias field parameters
+        % This computes the derivatives of the negative logarithm of the
+        % joint probability distribution
+        %------------------------------------------------------------
+        
         if do_updt_bf && any(do_bf == true)        
             
             % Recompute parts of objective function that depends on bf
@@ -323,7 +344,7 @@ if nargout > 1
 
                     if done(c) || ~datn.do_bf(c)
                         % Channel c finished
-                        fprintf('Done! c=%i, it=%i\n',c,it);
+%                         fprintf('Done! c=%i, it=%i\n',c,it);
                         continue; 
                     end
 
@@ -355,7 +376,6 @@ if nargout > 1
                         go = 0; % Gradient accumulated accross clusters
                         Ho = 0; % Hessian accumulated accross clusters
                         for k=1:K1
-
                             % Compute expected precision (see GMM + missing data)
                             Voo = V(ixo,ixo,k);
                             Vom = V(ixo,ixm,k);
@@ -384,8 +404,8 @@ if nargout > 1
                         Ho    = Ho .* (obffn(:,ixc).^2);
                         obffn = [];
                         
-                        % See spm_preproc8..
-%                         Ho = Ho + 1;
+                        % Substitute gr = 0 in the Hessian
+                        Ho = Ho + 1;
 
                         % Accumulate across missing codes
                         gr_im(ixvx) = gr_im(ixvx) + go;
@@ -394,7 +414,7 @@ if nargout > 1
                     end
                     zn = [];
 
-                    % Make gradient consistent when down-sampling
+                    % Make derivatives consistent when down-sampling
                     gr_im = W*gr_im;
                     H_im  = W*H_im;
                     
@@ -414,7 +434,7 @@ if nargout > 1
                     
                     % Gauss-Newton update of bias field parameters
                     Update = reshape((H + chan(c).ICO)\(gr + chan(c).ICO*chan(c).T(:)),size(chan(c).T));
-                    H = []; gr = [];
+                    H      = []; gr = [];
 
                     % Line-search
                     armijo = 1;        
@@ -439,8 +459,8 @@ if nargout > 1
                         lx  = LowerBound('ln(P(X|Z))',bffn,zn,code,{m,b},{V,n},W);            
                         lxb = W*LowerBound('ln(|bf|)',bf,obs_msk);
 
-                        fprintf('olx+olxb=%0.7f\n',olx + olxb);
-                        fprintf('lx+lxb=%0.7f\n',lx + lxb);
+%                         fprintf('olx+olxb=%0.7f\n',olx + olxb);
+%                         fprintf('lx+lxb=%0.7f\n',lx + lxb);
                         
                         % Check new lower bound
                         if (lx + lxb + sum(pr_bf)) > (olx + olxb + sum(opr_bf))                                                                          
@@ -476,7 +496,7 @@ if nargout > 1
 
             % Update datn     
             datn.bf.T = {chan(:).T};
-            datn.E(3) = -sum(pr_bf);
+            datn.E(3) = -sum(pr_bf); % global objective function is negative log-likelihood..
         end
     end
     fn = []; bf = []; mun = [];
