@@ -139,6 +139,9 @@ function sett = Settings(sett)
 if ~isfield(sett,'appear')
     sett.appear = struct;
 end
+if ~isfield(sett.appear,'tol')
+    sett.appear.tol_gmm = 1e-6;
+end
 
 %------------------
 % .bf (bias field related)
