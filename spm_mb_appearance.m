@@ -455,17 +455,9 @@ if nargout > 1
                         lxb = W*LowerBound('ln(|bf|)',bf,obs_msk);
 
                         % Check new lower bound
-                        if (lx + lxb + sum(pr_bf)) > (olx + olxb + sum(opr_bf))                                                                          
+                        if  ((lx + lxb + sum(pr_bf)) - (olx + olxb + sum(opr_bf)))/abs(lx + lxb + sum(pr_bf)) > -eps('single')*10
                             lb.XB(end + 1) = lxb;
                             lb.X(end  + 1) = lx;
-
-                            nl = lx + lxb + sum(pr_bf);
-                            ol = olx + olxb + sum(opr_bf);  
-                            fprintf('it2=%i\tc=%i\tls=%i\tarmijo=%0.7f\tnl=%0.7f\tgain=%0.7f :o)\n',it_bf,c,ls,armijo,nl,nl - ol);
-                            if (nl - ol) < nm*tol_bf
-                                % Finished for channel c
-                                done(c) = true;
-                            end
                             break;
                         else                                
                             armijo    = armijo*0.5;
