@@ -410,10 +410,6 @@ if nargout > 1
                         ixvx        = [];
                     end
                     zn = [];
-
-                    % Make derivatives consistent when down-sampling
-                    gr_im = W*gr_im;
-                    H_im  = W*H_im;
                     
                      % Compute gradient and Hessian (transform from image space to parameter space)
                     d3 = numel(chan(c).T); % Number of DCT parameters
