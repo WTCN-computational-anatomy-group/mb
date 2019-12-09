@@ -262,7 +262,6 @@ if nargout > 1
         mun  = reshape(mun0,[prod(d(1:3)) K]);
         mun0 = [];
     end
-    nm = prod(d(1:3));
     fn = reshape(fn,[prod(d(1:3)) C]);
 
     % Missing data stuff

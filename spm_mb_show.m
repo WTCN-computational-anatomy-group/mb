@@ -248,7 +248,7 @@ for n=1:nd
         zn = cat(4,zn,1 - sum(zn,4));
     end
     
-%     figure(111);zn1=reshape(zn,[df K1]);montage(squeeze(zn1(:,:,round(0.55*df(3)),:))) zn1=[];
+%     figure(111); zn1=reshape(zn,[df K1]); six = round(0.55*df(2)); montage(squeeze(zn1(:,six,:,:))); zn1=[];
     
     % Softmax template
     mu = cat(4,mu,zeros(df(1:3),'single'));
