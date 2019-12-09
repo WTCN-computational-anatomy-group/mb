@@ -92,13 +92,8 @@ if ~isfield(datn,'mog')
         datn.E(1) = -sum(tmp(msk));
     end
 else
-    if nargout > 1
-        % Update appearance model
-        [P,datn] = spm_mb_appearance('Update',datn,mu,sett);
-    else
-        % Just get responsibilities
-        P        = spm_mb_appearance('Update',datn,mu,sett);
-    end
+    % Update appearance model
+    [P,datn] = spm_mb_appearance('Update',datn,mu,sett);
 end
 
 if 0

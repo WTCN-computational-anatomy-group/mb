@@ -223,46 +223,47 @@ for n=1:nd
     mu   = spm_mb_shape('Pull1',mu0,psi);            
     psi1 = [];
     
-    % Get template (K + 1)
-%     mu = cat(4,mu,zeros(df(1:3),'single'));
-    
-    % Get segmentation
-    if isfield(dat,'mog')
-        fn = spm_mb_io('GetData',dat(n).f); 
-        zn = spm_mb_io('GetClasses',dat(n),mu,sett); % Just compute responsibilties
-        zn = reshape(zn,[df(1:3) K1]);
-%         fn   = spm_mb_io('GetData',dat(n).f);         
-%         fn   = reshape(fn,[prod(df(1:3)) C]);
-%         fn   = spm_mb_appearance('Mask',fn,is_ct);
-%         code = spm_gmm_lib('obs2code', fn);
-%         L    = unique(code);
-%         mu   = reshape(mu,[prod(df(1:3)) K1]);
-%         
-%         zn = spm_mb_appearance('Responsibility',dat(n).mog.po.m,dat(n).mog.po.b, ...
-%                                dat(n).mog.po.V,dat(n).mog.po.n,fn,mu,L,code);
-%         zn = reshape(zn,[df(1:3) K1]);
-%         fn = reshape(fn,[df(1:3) C]);
-%         mu = reshape(mu,[df(1:3) K1]);
-    else
-        zn = spm_mb_io('GetData',dat(n).f); 
-        zn = cat(4,zn,1 - sum(zn,4));
-    end
-    
-%     figure(111); zn1=reshape(zn,[df K1]); six = round(0.55*df(2)); montage(squeeze(zn1(:,six,:,:))); zn1=[];
-    
-    % Softmax template
-    mu = cat(4,mu,zeros(df(1:3),'single'));
-    mu = spm_mb_shape('Softmax',mu,4);
-    
     % Get bias field    
     if updt_bf && any(do_bf == true)
         chan = spm_mb_appearance('BiasFieldStruct',dat(n),C,df,reg,fwhm,[],dat(n).bf.T);
-        bf   = spm_mb_appearance('BiasField',chan,df);
-        bf   = reshape(bf,[df C]);
+        bf   = spm_mb_appearance('BiasField',chan,df);        
     else
-        bf = ones([1 1 1 C]);
+        bf = 1;
+    end  
+    
+    % Get template (K + 1)
+    mu = cat(4,mu,zeros(df(1:3),'single'));
+    
+    % Get segmentation
+    if isfield(dat,'mog')
+        fn   = spm_mb_io('GetData',dat(n).f);         
+        fn   = reshape(fn,[prod(df(1:3)) C]);
+        fn   = spm_mb_appearance('Mask',fn,is_ct);
+        code = spm_gmm_lib('obs2code', fn);
+        L    = unique(code);
+        mu   = reshape(mu,[prod(df(1:3)) K1]);
+        % Get responsibility
+        zn = spm_mb_appearance('Responsibility',dat(n).mog.po.m,dat(n).mog.po.b, ...
+                               dat(n).mog.po.V,dat(n).mog.po.n,bf.*fn,mu,L,code);   
+        code = [];
+        % Reshape back
+        zn = reshape(zn,[df(1:3) K1]);
+        fn = reshape(fn,[df(1:3) C]);
+        mu = reshape(mu,[df(1:3) K1]);
+    else
+        zn = spm_mb_io('GetData',dat(n).f); 
+        zn = cat(4,zn,1 - sum(zn,4));
     end    
+    
+    % Softmax template
+    mu = spm_mb_shape('Softmax',mu,4);     
 
+    if updt_bf && any(do_bf == true)
+        bf = reshape(bf,[df C]);
+    else        
+        bf = reshape(bf,[1 1 1 C]);
+    end  
+    
     % Show template, segmentation
     ShowCat(mu,ax,nr_tiss,nd,n,fig_name_tiss);
     ShowCat(zn,ax,nr_tiss,nd,n + nd,fig_name_tiss);        

@@ -245,7 +245,7 @@ tol_gmm      = sett.appear.tol_gmm;
 K          = size(mun0,4);
 K1         = K + 1;
 Mn         = datn.Mat;
-W          = 1;
+scl_samp   = 1; % sampling scaling (defined as W = prod(d0(1:3))/prod(d(1:3)), when samp > 1)
 do_bf      = datn.do_bf;
 is_ct      = datn.is_ct;
 
@@ -268,240 +268,238 @@ b0 = datn.mog.pr.b;
 V0 = datn.mog.pr.V;
 n0 = datn.mog.pr.n;
 
-if nargout > 1
-    % Lower bound
-    lb = datn.mog.lb;
+% Lower bound
+lb = datn.mog.lb;
 
-    if samp > 1
-        % Subsample (runs faster, lower bound is corrected by scalar W)              
-        [fn,mun,W,d] = SubSample(samp,Mn,fn,mun0);
-        mun          = reshape(mun,[prod(d(1:3)) K]);
-    else
-        d    = df;
-        mun  = reshape(mun0,[prod(d(1:3)) K]);
-        mun0 = [];
-    end
-    fn = reshape(fn,[prod(d(1:3)) C]);
+if samp > 1
+    % Subsample (runs faster, lower bound is corrected by scalar W)              
+    [fn,mun,scl_samp,d] = SubSample(samp,Mn,fn,mun0);
+    mun                 = reshape(mun,[prod(d(1:3)) K]);
+else
+    d    = df;
+    mun  = reshape(mun0,[prod(d(1:3)) K]);
+    mun0 = [];
+end
+fn = reshape(fn,[prod(d(1:3)) C]);
 
-    % Missing data stuff
-    fn      = Mask(fn,is_ct);
-    obs_msk = ~isnan(fn);
-    code    = spm_gmm_lib('obs2code', fn);
-    L       = unique(code);
-    nL      = numel(L);
-    do_miss = nL > 1;
+% Missing data stuff
+fn      = Mask(fn,is_ct);
+obs_msk = ~isnan(fn);
+code    = spm_gmm_lib('obs2code', fn);
+L       = unique(code);
+nL      = numel(L);
+do_miss = nL > 1;
 
-    if any(jitter~=0)
-        % Data is an integer type, so to prevent aliasing in the histogram, small
-        % random values are added.
-        rng('default'); rng(1);
-        fn = fn + bsxfun(@times,rand(size(fn)) - 1/2,jitter);
-    end
- 
-    % Make K + 1 template
-    mun = cat(2,mun,zeros([prod(d(1:3)) 1],'single'));
-
-    % Bias field related
-    if any(do_bf == true) 
-        chan       = BiasFieldStruct(datn,C,df,reg,fwhm,[],datn.bf.T,samp);
-        [bf,pr_bf] = BiasField(chan,d);
-        bffn       = bf.*fn;
-    else
-        bffn       = fn;
-    end
-
-    ol = lb.sum(end);
-    for it_appear=1:nit_appear
-        
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        % Update GMM and get responsibilities (zn)
-        %------------------------------------------------------------
-        
-        [zn,mog,~,lb] = spm_gmm_loop({bffn,W},{{m,b},{V,n}},{'LogProp', mun}, ...
-                                     'GaussPrior',   {m0,b0,V0,n0}, ...
-                                     'Missing',      do_miss, ...
-                                     'LowerBound',   lb, ...
-                                     'MissingCode',  {code,L}, ...
-                                     'IterMax',      nit_gmm, ...
-                                     'Tolerance',    tol_gmm, ...
-                                     'SubIterMax',   nit_gmm_miss, ...
-                                     'SubTolerance', tol_gmm, ...
-                                     'Verbose',      [0 0]);
-        m = mog.MU;
-        b = mog.b;
-        V = mog.V;
-        n = mog.n;           
-
-        nl = lb.sum(end);        
-    %     fprintf('it1=%i\tnl=%0.7f\tgain=%0.7f\n',it_likel,nl,nl - ol);
-        if it_appear > 1 && ((nl - ol)/abs(nl) > -eps('single')*10 || it_appear == nit_appear)
-            % Finished
-            break
-        end
-        ol = nl;
-
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        % Update bias field parameters
-        % This computes the derivatives of the negative logarithm of the
-        % joint probability distribution
-        %------------------------------------------------------------
-        
-        if do_updt_bf && any(do_bf == true)        
-            
-            % Make sure to use the latest responsibilties
-            zn = Responsibility(m,b,V,n,bffn,mun,L,code);
-        
-            % Recompute parts of objective function that depends on bf
-            lx  = LowerBound('ln(P(X|Z))',bffn,zn,code,{m,b},{V,n},W);
-            lxb = W*LowerBound('ln(|bf|)',bf,obs_msk);                     
-            
-            for it_bf=1:nit_bf
-
-                % Update bias field parameters for each channel separately
-                for c=1:C % Loop over channels
-
-                    if ~datn.do_bf(c)
-                        continue; 
-                    end
-
-                    % Compute gradient and Hessian (in image space)
-                    gr_im = zeros(d(1:3),'single');
-                    H_im  = zeros(d(1:3),'single');                    
-                    for l=1:nL % loop over combinations of missing voxels
-
-                        % Get mask of missing modalities (with this particular code)        
-                        ixo = spm_gmm_lib('code2bin', L(l), C);
-                        ixm = ~ixo;
-                        if ixm(c), continue; end
-                        
-                        if isempty(code), ixvx = ones(size(code), 'logical');
-                        else,             ixvx = (code == L(l));
-                        end
-                        nm  = sum(ixm);
-                        nvx = sum(ixvx);
-                        if nvx == 0, continue; end
-
-                        % Convert channel indices to observed indices
-                        ixc = 1:C; % mapped_c
-                        ixc = ixc(ixo);
-                        ixc = find(ixc == c);
-
-                        % Get bias-field modulated image data
-                        obffn = bffn(ixvx,ixo);
-                        
-                        go = 0; % Gradient accumulated accross clusters
-                        Ho = 0; % Hessian accumulated accross clusters
-                        for k=1:K1
-                            % Compute expected precision (see GMM + missing data)
-                            Voo = V(ixo,ixo,k);
-                            Vom = V(ixo,ixm,k);
-                            Vmm = V(ixm,ixm,k);
-                            Vmo = V(ixm,ixo,k);
-                            Ao  = Voo - Vom*(Vmm\Vmo);
-                            Ao  = (n(k) - nm) * Ao;
-                            mo  = m(ixo,k);
-
-                            % Compute statistics
-                            gk = bsxfun(@minus, obffn, mo.') * Ao(ixc,:).';
-                            Hk = Ao(ixc,ixc);
-
-                            oznk = zn(ixvx,k);
-                            gk   = bsxfun(@times, gk, oznk);
-                            Hk   = bsxfun(@times, Hk, oznk);
-                            oznk = [];
-
-                            % Accumulate across clusters
-                            go = go + gk;
-                            Ho = Ho + Hk;
-                        end
-
-                        % Multiply with bias corrected value (chain rule)
-                        go    = go .* obffn(:,ixc);
-                        Ho    = Ho .* (obffn(:,ixc).^2);
-                        obffn = [];
-                        
-                        % Add terms related to the normalisation (log(b))
-                        go = go - 1;
-                        Ho = Ho + 1; % Comes from subs(H,g,0)
-
-                        % Accumulate across missing codes
-                        gr_im(ixvx) = gr_im(ixvx) + go;
-                        H_im(ixvx)  = H_im(ixvx)  + Ho;
-                        ixvx        = [];
-                    end
-                    zn = [];
-                    
-                     % Compute gradient and Hessian (transform from image space to parameter space)
-                    d3 = numel(chan(c).T); % Number of DCT parameters
-                    H  = zeros(d3,d3);     
-                    gr = zeros(d3,1);      
-                    for z=1:d(3)
-                        b3 = double(chan(c).B3(z,:)');
-                        gr = gr + kron(b3,spm_krutil(double(gr_im(:,:,z)),double(chan(c).B1),double(chan(c).B2),0));
-                        H  = H  + kron(b3*b3',spm_krutil(double(H_im(:,:,z)),double(chan(c).B1),double(chan(c).B2),1));
-                    end
-                    b3 = [];                    
-                    
-                    % Gauss-Newton update of bias field parameters
-                    Update = reshape((H + chan(c).ICO)\(gr + chan(c).ICO*chan(c).T(:)),size(chan(c).T));
-                    H      = []; gr = [];
-
-                    % Line-search
-                    armijo = 1;        
-                    oT     = chan(c).T;  
-                    opr_bf = pr_bf;
-                    olxb   = lxb;   
-                    olx    = lx;
-
-                    for ls=1:nit_lsbf
-
-                        % Update bias-field parameters
-                        chan(c).T = chan(c).T - armijo*Update;
-
-                        % Compute new bias-field (only for channel c)
-                        [bf,pr_bf] = BiasField(chan,d,bf,c,opr_bf);                        
-                        bffn       = bf.*fn;
-
-                        % Recompute responsibilities (with updated bias field)
-                        zn = Responsibility(m,b,V,n,bffn,mun,L,code);
-
-                        % Compute new lower bound
-                        lx  = LowerBound('ln(P(X|Z))',bffn,zn,code,{m,b},{V,n},W);            
-                        lxb = W*LowerBound('ln(|bf|)',bf,obs_msk);
-
-                        % Check new lower bound
-                        if  ((lx + lxb + sum(pr_bf)) - (olx + olxb + sum(opr_bf)))/abs(lx + lxb + sum(pr_bf)) > -eps('single')*10
-                            lb.XB(end + 1) = lxb;
-                            lb.X(end  + 1) = lx;
-                            break;
-                        else                                
-                            armijo    = armijo*0.5;
-                            chan(c).T = oT;
-                            if ls == nit_lsbf   
-                                % Did not converge -> reset
-%                                 fprintf('it2=%i\tc=%i\tls=%i :o(\n',it_bf,c,ls);
-                                lx    = olx;
-                                lxb   = olxb;
-                                bf    = BiasField(chan,d,bf,c,opr_bf);    
-                                bffn  = bf.*fn;
-                                pr_bf = opr_bf;
-                                zn    = Responsibility(m,b,V,n,bffn,mun,L,code);
-                            end
-                        end
-                    end
-                    oT = []; Update = [];
-                end
-            end   
-
-            % Update datn     
-            datn.bf.T = {chan(:).T};
-            datn.E(3) = -sum(pr_bf); % global objective function is negative log-likelihood..
-        end
-    end
-    fn = []; bf = []; mun = [];
+if any(jitter~=0)
+    % Data is an integer type, so to prevent aliasing in the histogram, small
+    % random values are added.
+    rng('default'); rng(1);
+    fn = fn + bsxfun(@times,rand(size(fn)) - 1/2,jitter);
 end
 
-if samp > 1 || nargout == 1
+% Make K + 1 template
+mun = cat(2,mun,zeros([prod(d(1:3)) 1],'single'));
+
+% Bias field related
+if any(do_bf == true) 
+    chan       = BiasFieldStruct(datn,C,df,reg,fwhm,[],datn.bf.T,samp);
+    [bf,pr_bf] = BiasField(chan,d);
+    bffn       = bf.*fn;
+else
+    bffn       = fn;
+end
+
+ol = lb.sum(end);
+for it_appear=1:nit_appear
+
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % Update GMM and get responsibilities (zn)
+    %------------------------------------------------------------
+
+    [zn,mog,~,lb] = spm_gmm_loop({bffn,scl_samp},{{m,b},{V,n}},{'LogProp', mun}, ...
+                                 'GaussPrior',   {m0,b0,V0,n0}, ...
+                                 'Missing',      do_miss, ...
+                                 'LowerBound',   lb, ...
+                                 'MissingCode',  {code,L}, ...
+                                 'IterMax',      nit_gmm, ...
+                                 'Tolerance',    tol_gmm, ...
+                                 'SubIterMax',   nit_gmm_miss, ...
+                                 'SubTolerance', tol_gmm, ...
+                                 'Verbose',      [0 0]);
+    m = mog.MU;
+    b = mog.b;
+    V = mog.V;
+    n = mog.n;           
+
+    nl = lb.sum(end);        
+%     fprintf('it1=%i\tnl=%0.7f\tgain=%0.7f\n',it_likel,nl,nl - ol);
+    if it_appear > 1 && ((nl - ol)/abs(nl) > -eps('single')*10 || it_appear == nit_appear)
+        % Finished
+        break
+    end
+    ol = nl;
+
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % Update bias field parameters
+    % This computes the derivatives of the negative logarithm of the
+    % joint probability distribution
+    %------------------------------------------------------------
+
+    if do_updt_bf && any(do_bf == true)        
+
+        % Make sure to use the latest responsibilties
+        zn = Responsibility(m,b,V,n,bffn,mun,L,code);
+
+        % Recompute parts of objective function that depends on bf
+        lx  = LowerBound('ln(P(X|Z))',bffn,zn,code,{m,b},{V,n},scl_samp);
+        lxb = scl_samp*LowerBound('ln(|bf|)',bf,obs_msk);                     
+
+        for it_bf=1:nit_bf
+
+            % Update bias field parameters for each channel separately
+            for c=1:C % Loop over channels
+
+                if ~datn.do_bf(c)
+                    continue; 
+                end
+
+                % Compute gradient and Hessian (in image space)
+                gr_im = zeros(d(1:3),'single');
+                H_im  = zeros(d(1:3),'single');                    
+                for l=1:nL % loop over combinations of missing voxels
+
+                    % Get mask of missing modalities (with this particular code)        
+                    ixo = spm_gmm_lib('code2bin', L(l), C);
+                    ixm = ~ixo;
+                    if ixm(c), continue; end
+
+                    if isempty(code), ixvx = ones(size(code), 'logical');
+                    else,             ixvx = (code == L(l));
+                    end
+                    nm  = sum(ixm);
+                    nvx = sum(ixvx);
+                    if nvx == 0, continue; end
+
+                    % Convert channel indices to observed indices
+                    ixc = 1:C; % mapped_c
+                    ixc = ixc(ixo);
+                    ixc = find(ixc == c);
+
+                    % Get bias-field modulated image data
+                    obffn = bffn(ixvx,ixo);
+
+                    go = 0; % Gradient accumulated accross clusters
+                    Ho = 0; % Hessian accumulated accross clusters
+                    for k=1:K1
+                        % Compute expected precision (see GMM + missing data)
+                        Voo = V(ixo,ixo,k);
+                        Vom = V(ixo,ixm,k);
+                        Vmm = V(ixm,ixm,k);
+                        Vmo = V(ixm,ixo,k);
+                        Ao  = Voo - Vom*(Vmm\Vmo);
+                        Ao  = (n(k) - nm) * Ao;
+                        mo  = m(ixo,k);
+
+                        % Compute statistics
+                        gk = bsxfun(@minus, obffn, mo.') * Ao(ixc,:).';
+                        Hk = Ao(ixc,ixc);
+
+                        oznk = zn(ixvx,k);
+                        gk   = bsxfun(@times, gk, oznk);
+                        Hk   = bsxfun(@times, Hk, oznk);
+                        oznk = [];
+
+                        % Accumulate across clusters
+                        go = go + gk;
+                        Ho = Ho + Hk;
+                    end
+
+                    % Multiply with bias corrected value (chain rule)
+                    go    = go .* obffn(:,ixc);
+                    Ho    = Ho .* (obffn(:,ixc).^2);
+                    obffn = [];
+
+                    % Add terms related to the normalisation (log(b))
+                    go = go - 1;
+                    Ho = Ho + 1; % Comes from subs(H,g,0)
+
+                    % Accumulate across missing codes
+                    gr_im(ixvx) = gr_im(ixvx) + go;
+                    H_im(ixvx)  = H_im(ixvx)  + Ho;
+                    ixvx        = [];
+                end
+                zn = [];
+
+                 % Compute gradient and Hessian (transform from image space to parameter space)
+                d3 = numel(chan(c).T); % Number of DCT parameters
+                H  = zeros(d3,d3);     
+                gr = zeros(d3,1);      
+                for z=1:d(3)
+                    b3 = double(chan(c).B3(z,:)');
+                    gr = gr + kron(b3,spm_krutil(double(gr_im(:,:,z)),double(chan(c).B1),double(chan(c).B2),0));
+                    H  = H  + kron(b3*b3',spm_krutil(double(H_im(:,:,z)),double(chan(c).B1),double(chan(c).B2),1));
+                end
+                b3 = [];                    
+
+                % Gauss-Newton update of bias field parameters
+                Update = reshape((H + chan(c).ICO)\(gr + chan(c).ICO*chan(c).T(:)),size(chan(c).T));
+                H      = []; gr = [];
+
+                % Line-search
+                armijo = 1;        
+                oT     = chan(c).T;  
+                opr_bf = pr_bf;
+                olxb   = lxb;   
+                olx    = lx;
+
+                for ls=1:nit_lsbf
+
+                    % Update bias-field parameters
+                    chan(c).T = chan(c).T - armijo*Update;
+
+                    % Compute new bias-field (only for channel c)
+                    [bf,pr_bf] = BiasField(chan,d,bf,c,opr_bf);                        
+                    bffn       = bf.*fn;
+
+                    % Recompute responsibilities (with updated bias field)
+                    zn = Responsibility(m,b,V,n,bffn,mun,L,code);
+
+                    % Compute new lower bound
+                    lx  = LowerBound('ln(P(X|Z))',bffn,zn,code,{m,b},{V,n},scl_samp);            
+                    lxb = scl_samp*LowerBound('ln(|bf|)',bf,obs_msk);
+
+                    % Check new lower bound
+                    if  ((lx + lxb + sum(pr_bf)) - (olx + olxb + sum(opr_bf)))/abs(lx + lxb + sum(pr_bf)) > -eps('single')*10
+                        lb.XB(end + 1) = lxb;
+                        lb.X(end  + 1) = lx;
+                        break;
+                    else                                
+                        armijo    = armijo*0.5;
+                        chan(c).T = oT;
+                        if ls == nit_lsbf   
+                            % Did not converge -> reset
+%                                 fprintf('it2=%i\tc=%i\tls=%i :o(\n',it_bf,c,ls);
+                            lx    = olx;
+                            lxb   = olxb;
+                            bf    = BiasField(chan,d,bf,c,opr_bf);    
+                            bffn  = bf.*fn;
+                            pr_bf = opr_bf;
+                            zn    = Responsibility(m,b,V,n,bffn,mun,L,code);
+                        end
+                    end
+                end
+                oT = []; Update = [];
+            end
+        end   
+
+        % Update datn     
+        datn.bf.T = {chan(:).T};
+        datn.E(3) = -sum(pr_bf); % global objective function is negative log-likelihood..
+    end
+end
+fn = []; bf = []; mun = [];
+
+if samp > 1
     % Compute responsibilities on original data
     fn   = spm_mb_io('GetData',datn.f);
     fn   = reshape(fn,[prod(df(1:3)) C]);
@@ -523,18 +521,16 @@ if samp > 1 || nargout == 1
     zn   = Responsibility(m,b,V,n,bffn,mun0,L,code);
 end       
 
-if nargout > 1
-    % Get 4D versions of K1 - 1 classes
-    zn = reshape(zn(:,1:K),[df(1:3) K]);
+% Get 4D versions of K1 - 1 classes
+zn = reshape(zn(:,1:K),[df(1:3) K]);
 
-    % Update datn     
-    datn.E(1)     = -lb.sum(end);
-    datn.mog.po.m = m;
-    datn.mog.po.b = b;
-    datn.mog.po.V = V;
-    datn.mog.po.n = n;          
-    datn.mog.lb   = lb;     
-end
+% Update datn     
+datn.E(1)     = -lb.sum(end);
+datn.mog.po.m = m;
+datn.mog.po.b = b;
+datn.mog.po.V = V;
+datn.mog.po.n = n;          
+datn.mog.lb   = lb;  
 end
 %==========================================================================
 
@@ -712,14 +708,14 @@ function lb = LowerBound(type,varargin)
 %   >> This is part of the normalisation term in the GMM
 %
 % FORMAT lb = LowerBound('ln(P(X|Z))',fn,zn,code,mean,prec,W,L)
-% fn   - Bias corrected observed image in matrix form [nbvox nbchannel]
-% zn   - Responsibilities in matrix form [nbvox nbclass]
-% code - Image encoding missing pattern missing [nbvox 1]
-% mean - Mean parameters {m b}
-% prec - Precision parameters {V n}
-% W    - Image of weights [nbvox 1]
-% L    - List of uniaue missing codes
-% lb   - Marginal log-likelihood
+% fn       - Bias corrected observed image in matrix form [nbvox nbchannel]
+% zn       - Responsibilities in matrix form [nbvox nbclass]
+% code     - Image encoding missing pattern missing [nbvox 1]
+% mean     - Mean parameters {m b}
+% prec     - Precision parameters {V n}
+% scl_samp - Image of weights [nbvox 1]
+% L        - List of uniaue missing codes
+% lb       - Marginal log-likelihood
 %   >> Marginal log-likelihood of the observed data, without the
 %      bias-related normalisation.
 if strcmpi(type,'ln(|bf|)')    
@@ -728,15 +724,15 @@ if strcmpi(type,'ln(|bf|)')
         
     lb = sum(log(bf(obs_msk)),'double');
 elseif strcmpi(type,'ln(P(X|Z))')    
-    fn   = varargin{1};
-    zn   = varargin{2};
-    code = varargin{3};
-    mean = varargin{4};
-    prec = varargin{5};
-    W    = varargin{6};
-    L    = unique(code);
+    fn       = varargin{1};
+    zn       = varargin{2};
+    code     = varargin{3};
+    mean     = varargin{4};
+    prec     = varargin{5};
+    scl_samp = varargin{6};
+    L        = unique(code);
     
-    [lSS0,lSS1,lSS2] = spm_gmm_lib('SuffStat', 'base', fn, zn, W, {code,L});
+    [lSS0,lSS1,lSS2] = spm_gmm_lib('SuffStat', 'base', fn, zn, scl_samp, {code,L});
     lb               = spm_gmm_lib('MarginalSum', lSS0, lSS1, lSS2, mean, prec, L);
 else
     error('Undefined type!');
