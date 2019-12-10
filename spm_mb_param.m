@@ -333,7 +333,7 @@ if ~isfield(sett.show,'figname_subjects')
     sett.show.figname_subjects = '(spm_mb) Segmentations';
 end
 if ~isfield(sett.show,'level')
-    sett.show.level = 1; % 0, 1, 2, 3
+    sett.show.level = 2; % 0, 1, 2, 3, 4
 end
 if ~isfield(sett.show,'mx_subjects')
     sett.show.mx_subjects = 4;

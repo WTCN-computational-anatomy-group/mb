@@ -43,11 +43,17 @@ end
 % All()
 function All(dat,mu,Objective,N,sett)
 if sett.show.level >= 2
+    % Template and negative loglikel
     Model(mu,Objective,N,sett);
-    IntensityPrior(dat,sett);
 end
-if sett.show.level >= 3
-    Subjects(dat,mu,sett);    
+if sett.show.level == 3
+    % Segmentations and warped template
+    Subjects(dat,mu,sett,false);    
+end
+if sett.show.level == 4
+    % Parameters and intensity prior fit
+    Subjects(dat,mu,sett,true);    
+    IntensityPrior(dat,sett);
 end
 end
 %==========================================================================
@@ -171,8 +177,9 @@ end
 
 %==========================================================================
 % ShowSubjects()
-function ShowSubjects(dat,mu0,sett,p)
-if nargin < 4, p = []; end
+function ShowSubjects(dat,mu0,sett,p,show_extras)
+if nargin < 4, p           = [];   end
+if nargin < 5, show_extras = true; end
 
 % Parse function settings
 axis_3d       = sett.show.axis_3d;
@@ -273,53 +280,57 @@ for n=1:nd
     end
     zn = [];
     
-    if updt_bf && isfield(dat,'mog') && any(do_bf == true)
-        % Show bias field
-        ShowIm(fn(:,:,:,c),ax,nr_bf,nd,n,fig_name_bf,false);
-        ShowIm(bf(:,:,:,c),ax,nr_bf,nd,n + nd,fig_name_bf,false);            
-        ShowIm(bf(:,:,:,c).*fn(:,:,:,c),ax,nr_bf,nd,n + 2*nd,fig_name_bf,false);
-    end
-    
-    % Now show some other stuff
-    fg = findobj('Type', 'Figure', 'Name', fig_name_par);
-    if isempty(fg), fg = figure('Name', fig_name_par, 'NumberTitle', 'off'); end
-    set(0, 'CurrentFigure', fg);   
+    if show_extras
+        % Show bias field fit, velocities, affine parameters, GMM fit,
+        % lower bound
+        if updt_bf && isfield(dat,'mog') && any(do_bf == true)
+            % Show bias field
+            ShowIm(fn(:,:,:,c),ax,nr_bf,nd,n,fig_name_bf,false);
+            ShowIm(bf(:,:,:,c),ax,nr_bf,nd,n + nd,fig_name_bf,false);            
+            ShowIm(bf(:,:,:,c).*fn(:,:,:,c),ax,nr_bf,nd,n + 2*nd,fig_name_bf,false);
+        end
 
-    % Affine parameters    
-    q    = spm_imatrix(Mr);            
-    q    = q([1 2 6]);
-    q(3) = 180/pi*q(3);
-    q    = abs(q);
-    sp = subplot(nr_par,nd,n);
-    cla(sp); % clear subplot
-    hold on
-    for k=1:numel(q)
-        bar(k, q(k), clr{k});
+        % Now show some other stuff
+        fg = findobj('Type', 'Figure', 'Name', fig_name_par);
+        if isempty(fg), fg = figure('Name', fig_name_par, 'NumberTitle', 'off'); end
+        set(0, 'CurrentFigure', fg);   
+
+        % Affine parameters    
+        q    = spm_imatrix(Mr);            
+        q    = q([1 2 6]);
+        q(3) = 180/pi*q(3);
+        q    = abs(q);
+        sp = subplot(nr_par,nd,n);
+        cla(sp); % clear subplot
+        hold on
+        for k=1:numel(q)
+            bar(k, q(k), clr{k});
+        end
+        box on
+        hold off            
+        set(gca,'xtick',[])  
+
+        % Velocities (x)
+        v = spm_mb_io('GetData',dat(n).v);
+        ShowIm(v(:,:,:,1),ax,nr_par,nd,n + 1*nd,fig_name_par)
+
+        % Intensity histogram w GMM fit
+        if isfield(dat,'mog')                
+            % Here we get approximate class proportions from the (softmaxed K + 1)
+            % tissue template
+            mu = reshape(mu,[prod(df(1:3)) size(mu,4)]);
+            mu = sum(mu,1);
+            mu = mu./sum(mu);
+
+            % Plot GMM fit        
+            ShowGMMFit(bf(:,:,:,c).*fn(:,:,:,c),mu,dat(n).mog,nr_par,nd,n + 2*nd,c);
+
+            % Lower bound
+            subplot(nr_par,nd,n + 3*nd) 
+            plot(dat(n).mog.lb.sum,'-');
+            axis off
+        end    
     end
-    box on
-    hold off            
-    set(gca,'xtick',[])  
-    
-    % Velocities (x)
-    v = spm_mb_io('GetData',dat(n).v);
-    ShowIm(v(:,:,:,1),ax,nr_par,nd,n + 1*nd,fig_name_par)
-    
-    % Intensity histogram w GMM fit
-    if isfield(dat,'mog')                
-        % Here we get approximate class proportions from the (softmaxed K + 1)
-        % tissue template
-        mu = reshape(mu,[prod(df(1:3)) size(mu,4)]);
-        mu = sum(mu,1);
-        mu = mu./sum(mu);
-        
-        % Plot GMM fit        
-        ShowGMMFit(bf(:,:,:,c).*fn(:,:,:,c),mu,dat(n).mog,nr_par,nd,n + 2*nd,c);
-        
-        % Lower bound
-        subplot(nr_par,nd,n + 3*nd) 
-        plot(dat(n).mog.lb.sum,'-');
-        axis off
-    end    
 end
 drawnow
 end
@@ -327,14 +338,16 @@ end
 
 %==========================================================================
 % Subjects()
-function Subjects(dat,mu,sett)
+function Subjects(dat,mu,sett,show_extras)
+if nargin < 4, show_extras = true; end
+
 p_ix = spm_mb_appearance('GetPopulationIdx',dat);
 Np   = numel(p_ix);
 for p=1:Np
     if Np == 1, pp = []; 
     else,       pp = p;
     end
-    ShowSubjects(dat(p_ix{p}),mu,sett,pp);
+    ShowSubjects(dat(p_ix{p}),mu,sett,pp,show_extras);
 end
 end
 %==========================================================================
