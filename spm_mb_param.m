@@ -154,7 +154,7 @@ if ~isfield(sett.bf,'fwhm')
     sett.bf.fwhm = 60;
 end
 if ~isfield(sett.bf,'reg')
-    sett.bf.reg = 1e6;
+    sett.bf.reg = 1e5;
 end
 
 %------------------
@@ -278,7 +278,7 @@ if ~isfield(sett,'optim')
 end
 if ~isfield(sett.optim,'nls_bf')
      % Scaling of q GN updates
-    sett.optim.nls_bf = 4;
+    sett.optim.nls_bf = 1;
 end
 if ~isfield(sett.optim,'scal_q')
      % Scaling of q GN updates
