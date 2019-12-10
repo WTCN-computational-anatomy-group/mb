@@ -46,14 +46,17 @@ if sett.show.level >= 2
     % Template and negative loglikel
     Model(mu,Objective,N,sett);
 end
-if sett.show.level == 3
+if sett.show.level == 3 || sett.show.level == 4
     % Segmentations and warped template
     Subjects(dat,mu,sett,false);    
 end
-if sett.show.level == 4
-    % Parameters and intensity prior fit
-    Subjects(dat,mu,sett,true);    
+if sett.show.level >= 4
+    % Parameters and intensity prior fit   
     IntensityPrior(dat,sett);
+end
+if sett.show.level >= 5
+    % Parameters and intensity prior fit
+    Subjects(dat,mu,sett,true);        
 end
 end
 %==========================================================================
