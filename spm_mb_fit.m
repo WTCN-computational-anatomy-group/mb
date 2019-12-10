@@ -263,12 +263,5 @@ model = spm_mb_io('MakeModel',dat,model,sett);
 
 % Print total runtime
 spm_mb_show('Speak','Finished',toc(t0));
-
-if show_level >= 1
-    % Show stuff
-    spm_mb_show('Model',mu,Objective,N,sett);
-    spm_mb_show('Subjects',dat,mu,sett);
-    spm_mb_show('IntensityPrior',dat,sett);
-end
 end
 %==========================================================================
