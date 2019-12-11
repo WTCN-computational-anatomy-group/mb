@@ -122,6 +122,10 @@ if do_updt_aff
     % Update shape (only affine) and appearance, on coarsest resolution
     %------------------
         
+    % Initially we use a bit more regularisation for the bias field fitting
+    bf_reg      = sett.bf.reg;
+    sett.bf.reg = max(1e6,bf_reg);    
+
     spm_mb_show('Speak','InitAff',sett.nit.init);
     for it_init=1:nit_init
                                
@@ -171,6 +175,9 @@ if do_updt_aff
         end
         oErig = E;
     end
+    
+    % Reset to given value for bias field regularisation
+    sett.bf.reg = bf_reg;
 end
 
 %------------------
