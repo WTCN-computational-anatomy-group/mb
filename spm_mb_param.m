@@ -140,7 +140,7 @@ if ~isfield(sett,'appear')
     sett.appear = struct;
 end
 if ~isfield(sett.appear,'tol')
-    sett.appear.tol_gmm = 1e-6;
+    sett.appear.tol_gmm = 1e-4;
 end
 
 %------------------
@@ -243,18 +243,18 @@ if ~isfield(sett.nit,'bf')
     sett.nit.bf = 1;
 end
 if ~isfield(sett.nit,'gmm')   
-    sett.nit.gmm = 32;
+    sett.nit.gmm = 20;
 end
 if ~isfield(sett.nit,'init')
     % The number of iterations, at largest zoom level.
-    sett.nit.init = 3;
+    sett.nit.init = 10;
 end
 if ~isfield(sett.nit,'init_mu')
     % The number of template update iterations
-    sett.nit.init_mu = 2;
+    sett.nit.init_mu = 3;
 end
 if ~isfield(sett.nit,'miss')   
-    sett.nit.gmm_miss = 32;
+    sett.nit.gmm_miss = 20;
 end
 if ~isfield(sett.nit,'zm')
     % The number of iterations, for updating all model parameters, at each zoom
@@ -361,9 +361,9 @@ if ~isfield(sett.var,'mu_settings')
 end
 if ~isfield(sett.var,'v_settings')
     if sett.do.updt_aff
-        sett.var.v_settings = [0 0 0.2 0.05 0.2]*4;
+        sett.var.v_settings = [0 0 0.2 0.05 0.2]*8;
     else
-        sett.var.v_settings = [1e-4 0 0.2 0.05 0.2]*4;
+        sett.var.v_settings = [1e-4 0 0.2 0.05 0.2]*8;
     end
 end
 %------------------
