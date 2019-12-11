@@ -154,8 +154,13 @@ function [dat,mu,sett] = InitMu(dat,K,sett)
 % Make 'quick' initial estimates of GMM posteriors and template on very coarse
 % scale
 
+% Parse function settings
+do_gmm = sett.do.gmm;
+
 % Uniform template
 mu = zeros([sett.var.d K],'single');
+
+if ~do_gmm, return; end
 
 % Change some settings
 do_updt_bf      = sett.do.updt_bf;

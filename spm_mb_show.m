@@ -270,7 +270,7 @@ for n=1:nd
 
     if updt_bf && any(do_bf == true)
         bf = reshape(bf,[df C]);
-    else        
+    elseif isfield(dat,'mog')
         bf = reshape(bf,[1 1 1 C]);
     end  
     

@@ -337,6 +337,7 @@ end
 function model = MakeModel(dat,model,sett)
 
 % Parse function settings
+do_gmm           = sett.do.gmm;
 do_updt_int      = sett.do.updt_int;
 do_updt_template = sett.do.updt_template;
 dir_res          = sett.write.dir_res;
@@ -347,7 +348,7 @@ if do_updt_template
     model.shape.template = f;
 end
 
-if do_updt_int
+if do_updt_int && do_gmm
     % Appearance related
     p_ix = spm_mb_appearance('GetPopulationIdx',dat);
     Npop = numel(p_ix);
