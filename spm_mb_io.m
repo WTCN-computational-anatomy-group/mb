@@ -81,15 +81,11 @@ if ~isfield(datn,'mog')
     P = GetData(datn.f);
 
     if nargout > 1
-        % Make mask
-        msk = sum(P,4) > 0; % Removes voxels that sums to zero across classes..
-        msk = msk & sum(~isfinite(P),4) == 0; % ..and voxels that are not finite in segmentation..
-        msk = msk & sum(~isfinite(mu),4) == 0; % ..and voxels that are not finite in template
-
         % Compute subject-specific categorical cross-entropy loss between
         % segmentation and template
-        tmp       = sum(P.*mu,4) - spm_mb_shape('LSE',mu,4);  
-        datn.E(1) = -sum(tmp(msk));
+        msk       = all(isfinite(P),4);
+        tmp       = sum(P.*mu,4) - spm_mb_shape('LSE',mu,4);
+        datn.E(1) = -sum(tmp(msk(:)));
     end
 else
     % Update appearance model
