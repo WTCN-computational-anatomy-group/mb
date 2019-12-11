@@ -7,7 +7,8 @@ function varargout = spm_mb_show(varargin)
 % FORMAT spm_mb_show('All',dat,mu,Objective,N,sett)
 % FORMAT spm_mb_show('IntensityPrior',dat,sett,p)
 % FORMAT spm_mb_show('Model',mu,Objective,N,sett)
-% FORMAT spm_mb_show('Subjects',dat,mu,sett,p)
+% FORMAT spm_mb_show('Subjects',dat,mu,sett,p,show_extras)
+% FORMAT spm_mb_show('Tissues',im,do_softmax,ix,fig_nam)
 % FORMAT spm_mb_show('Speak',nam,varargin)
 %
 %__________________________________________________________________________
@@ -29,7 +30,9 @@ switch id
     case 'Model'
         [varargout{1:nargout}] = Model(varargin{:});          
     case 'Subjects'
-        [varargout{1:nargout}] = Subjects(varargin{:});        
+        [varargout{1:nargout}] = Subjects(varargin{:});         
+    case 'Tissues'
+        [varargout{1:nargout}] = Tissues(varargin{:});        
     case 'Speak'
         [varargout{1:nargout}] = Speak(varargin{:});                
     otherwise
@@ -351,6 +354,44 @@ for p=1:Np
     else,       pp = p;
     end
     ShowSubjects(dat(p_ix{p}),mu,sett,pp,show_extras);
+end
+end
+%==========================================================================
+
+%==========================================================================
+% Tissues()
+function Tissues(im,ix,do_softmax,fig_nam)
+if nargin < 2, ix         = 20; end
+if nargin < 3, do_softmax = true; end
+if nargin < 4, fig_nam    = '(spm_mb) Tissues'; end
+
+f  = findobj('Type', 'Figure', 'Name', fig_nam);
+if isempty(f)
+    f = figure('Name', fig_nam, 'NumberTitle', 'off');
+end
+set(0, 'CurrentFigure', f); 
+
+if ischar(im),      im = nifti(im); end
+if isa(im,'nifti'), im = im.dat();  end
+
+dm = size(im);
+K  = dm(4);
+
+if do_softmax
+    im = cat(4,im,zeros(dm(1:3),'single'));
+    im = spm_mb_shape('Softmax',im,4); 
+    K        = K + 1;
+end
+
+nr = floor(sqrt(K));
+nc = ceil(K/nr);  
+ix = 1:ix:dm(3);
+
+for k=1:K
+    subplot(nr,nc,k)
+    montage(im(:,:,ix,k))
+    axis off image xy;   
+    colormap(gray)
 end
 end
 %==========================================================================
