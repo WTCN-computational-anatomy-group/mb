@@ -164,6 +164,12 @@ if do_updt_aff
         
         % Show stuff
         spm_mb_show('All',dat,mu,Objective,N,sett);
+        
+        if it_init > 1 && (E - oErig)/abs(E) > -eps('single')*1e4
+           % Finished rigid alignment
+           break
+        end
+        oErig = E;
     end
 end
 
