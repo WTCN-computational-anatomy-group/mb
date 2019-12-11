@@ -164,9 +164,6 @@ end
 if ~isfield(sett,'do')
     sett.do = struct;
 end
-if ~isfield(sett.do,'bf_norm')
-    sett.do.bf_norm = false;
-end
 if ~isfield(sett.do,'gmm')
     sett.do.gmm = true;
 end
@@ -195,9 +192,6 @@ end
 % Depending on what is disabled, disable other stuff too
 if ~sett.do.gmm
     sett.do.updt_bf = false;
-end
-if ~sett.do.updt_bf
-    sett.do.bf_norm = false;
 end
 
 %------------------
@@ -333,7 +327,7 @@ if ~isfield(sett.show,'figname_subjects')
     sett.show.figname_subjects = '(spm_mb) Segmentations';
 end
 if ~isfield(sett.show,'level')
-    sett.show.level = 2; % 0, 1, 2, 3, 4
+    sett.show.level = 2; % 0, 1, 2, 3, 4, 5
 end
 if ~isfield(sett.show,'mx_subjects')
     sett.show.mx_subjects = 4;

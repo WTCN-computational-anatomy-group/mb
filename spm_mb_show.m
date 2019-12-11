@@ -110,7 +110,7 @@ d   = size(mu);
 d   = [d 1];
 mu  = cat(4,mu,zeros(d(1:3),'single'));
 mu  = spm_mb_shape('Softmax',mu,4);
-nam = ['K=' num2str(size(mu,4)) ', N=' num2str(N) ' (softmaxed)'];
+nam = ['K1=' num2str(size(mu,4)) ', N=' num2str(N) ' (softmaxed)'];
 if d(3) > 1
     ShowCat(mu,1,2,3,1,fig_name);
     ShowCat(mu,2,2,3,2,fig_name);
@@ -387,7 +387,7 @@ end
 %==========================================================================
 % ShowCat()
 function ShowCat(in,ax,nr,nc,np,fn)
-f  = findobj('Type', 'Figure', 'Name', fn);
+f = findobj('Type', 'Figure', 'Name', fn);
 if isempty(f)
     f = figure('Name', fn, 'NumberTitle', 'off');
 end
