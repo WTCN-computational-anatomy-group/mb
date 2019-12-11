@@ -114,6 +114,7 @@ spm_mb_show('All',dat,mu,[],N,sett);
 Objective = [];
 E         = Inf;
 prevt     = Inf;
+te        = spm_mb_shape('TemplateEnergy',mu,sett);
 
 if do_updt_aff
     
@@ -123,24 +124,11 @@ if do_updt_aff
         
     spm_mb_show('Speak','InitAff',sett.nit.init);
     for it_init=1:nit_init
-        
-        % Update affine
-        te   = 0;
-        Eold = E; tic;
-        dat  = spm_mb_shape('UpdateSimpleAffines',dat,mu,sett);
-        dat  = spm_mb_appearance('UpdatePrior',dat, mu, sett);
-        E    = sum(sum(cat(2,dat.E),2),1) + te;
-        t    = toc;
-             
-        % Print stuff
-        fprintf('it=%i q  \t%g\t%g\t%g\n', it_init, E, t, (Eold - E)/prevt);
-        prevt     = t;
-        Objective = [Objective; E];
-        
+                               
         if do_updt_template
             for subit=1:nit_init_mu
                 % Update template and intensity prior
-                Eold     = E; tic;                        
+                oE       = E; tic;                        
                 [mu,dat] = spm_mb_shape('UpdateMean',dat, mu, sett);
                 te       = spm_mb_shape('TemplateEnergy',mu,sett);
                 dat      = spm_mb_appearance('UpdatePrior',dat, mu, sett);
@@ -148,12 +136,23 @@ if do_updt_aff
                 t        = toc;
 
                 % Print stuff
-                fprintf('it=%i mu \t%g\t%g\t%g\n', it_init, E, t, (Eold - E)/prevt);
+                fprintf('it=%i mu \t%g\t%g\t%g\t%g\n', it_init, E, t, (oE - E)/prevt, (E - oE)/abs(E));
                 prevt     = t;
                 Objective = [Objective; E];               
             end
         end                
-
+            
+        % Update affine
+        oE = E; tic;
+        dat  = spm_mb_shape('UpdateSimpleAffines',dat,mu,sett);
+        dat  = spm_mb_appearance('UpdatePrior',dat, mu, sett);
+        E    = sum(sum(cat(2,dat.E),2),1) + te;
+        t    = toc;        
+        
+        fprintf('it=%i q  \t%g\t%g\t%g\t%g\n', it_init, E, t, (oE - E)/prevt, (E - oE)/abs(E));
+        prevt     = t;
+        Objective = [Objective; E];
+        
         if do_updt_template || do_updt_int
             % Save stuff
             save(fullfile(dir_res,'results_Groupwise.mat'),'dat','mu','sett')
@@ -161,6 +160,12 @@ if do_updt_aff
         
         % Show stuff
         spm_mb_show('All',dat,mu,Objective,N,sett);
+        
+        if it_init > 1 && (E - oErig)/abs(E) > -eps('single')*1e4
+           % Finished rigid alignment
+           break
+        end
+        oErig = E;
     end
 end
 
