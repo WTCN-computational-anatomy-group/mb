@@ -298,7 +298,9 @@ if any(jitter~=0)
 end
 
 % Make K + 1 template
-mun = cat(2,mun,zeros([prod(d(1:3)) 1],'single'));
+mx  = max(max(mun,[],2),0);
+lse = mx + log(sum(exp(mun - mx),2) + exp(-mx)); mx = [];
+mun = [mun - lse, -lse]; lse = [];
 
 % Bias field related
 if any(do_bf == true) 
@@ -519,7 +521,9 @@ if samp > 1
     end
     fn   = [];
     L    = unique(code);
-    mun0 = cat(2,mun0,zeros([prod(df(1:3)) 1],'single'));
+    mx   = max(max(mun0,[],2),0);
+    lse  = mx + log(sum(exp(mun0 - mx),2) + exp(-mx)); mx= [];
+    mun0 = [mun0 - lse, -lse]; lse = [];
     zn   = Responsibility(m,b,W,n,bffn,mun0,L,code);
 end       
 

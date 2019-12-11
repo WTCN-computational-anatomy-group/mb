@@ -111,7 +111,7 @@ fig_name = sett.show.figname_model;
 
 d   = size(mu);
 d   = [d 1];
-mu  = cat(4,mu,zeros(d(1:3),'single'));
+mu  = cat(4,mu,- max(mu,[],4) - spm_mb_shape('LSE',mu,4));
 mu  = spm_mb_shape('Softmax',mu,4);
 nam = ['K1=' num2str(size(mu,4)) ', N=' num2str(N) ' (softmaxed)'];
 if d(3) > 1
@@ -233,7 +233,7 @@ for n=1:nd
     % Warp template
     psi1 = spm_mb_io('GetData',dat(n).psi);
     psi  = spm_mb_shape('Compose',psi1,spm_mb_shape('Affine',df,Mmu\Mr*Mn));
-    mu   = spm_mb_shape('Pull1',mu0,psi);            
+    mun  = spm_mb_shape('Pull1',mu0,psi);            
     psi1 = [];
     
     % Get bias field    
@@ -241,11 +241,13 @@ for n=1:nd
         chan = spm_mb_appearance('BiasFieldStruct',dat(n),C,df,reg,fwhm,[],dat(n).bf.T);
         bf   = spm_mb_appearance('BiasField',chan,df);        
     else
-        bf = 1;
+        bf = ones([1 C]);
     end  
     
     % Get template (K + 1)
-    mu = cat(4,mu,zeros(df(1:3),'single'));
+    mx  = max(max(mun,[],4),0);
+    lse = mx + log(sum(exp(mun - mx),4) + exp(-mx)); mx = [];
+    mun = cat(4,mun - lse, -lse); lse = [];
     
     % Get segmentation
     if isfield(dat,'mog')
@@ -254,31 +256,31 @@ for n=1:nd
         fn   = spm_mb_appearance('Mask',fn,is_ct);
         code = spm_gmm_lib('obs2code', fn);
         L    = unique(code);
-        mu   = reshape(mu,[prod(df(1:3)) K1]);
+        mun   = reshape(mun,[prod(df(1:3)) K1]);
         % Get responsibility
         zn = spm_mb_appearance('Responsibility',dat(n).mog.po.m,dat(n).mog.po.b, ...
-                               dat(n).mog.po.W,dat(n).mog.po.n,bf.*fn,mu,L,code);   
+                               dat(n).mog.po.W,dat(n).mog.po.n,bf.*fn,mun,L,code);   
         code = [];
         % Reshape back
         zn = reshape(zn,[df(1:3) K1]);
         fn = reshape(fn,[df(1:3) C]);
-        mu = reshape(mu,[df(1:3) K1]);
+        mun = reshape(mun,[df(1:3) K1]);
     else
         zn = spm_mb_io('GetData',dat(n).f); 
         zn = cat(4,zn,1 - sum(zn,4));
     end    
     
     % Softmax template
-    mu = spm_mb_shape('Softmax',mu,4);     
+    mun = exp(mun);
 
     if updt_bf && any(do_bf == true)
         bf = reshape(bf,[df C]);
-    elseif isfield(dat,'mog')
+    else
         bf = reshape(bf,[1 1 1 C]);
     end  
     
     % Show template, segmentation
-    ShowCat(mu,ax,nr_tiss,nd,n,fig_name_tiss);
+    ShowCat(mun,ax,nr_tiss,nd,n,fig_name_tiss);
     ShowCat(zn,ax,nr_tiss,nd,n + nd,fig_name_tiss);        
     if isfield(dat,'mog')
         % and image (if using GMM)     
@@ -324,12 +326,12 @@ for n=1:nd
         if isfield(dat,'mog')                
             % Here we get approximate class proportions from the (softmaxed K + 1)
             % tissue template
-            mu = reshape(mu,[prod(df(1:3)) size(mu,4)]);
-            mu = sum(mu,1);
-            mu = mu./sum(mu);
+            mun = reshape(mun,[prod(df(1:3)) size(mun,4)]);
+            mun = sum(mun,1);
+            mun = mun./sum(mun);
 
             % Plot GMM fit        
-            ShowGMMFit(bf(:,:,:,c).*fn(:,:,:,c),mu,dat(n).mog,nr_par,nd,n + 2*nd,c);
+            ShowGMMFit(bf(:,:,:,c).*fn(:,:,:,c),mun,dat(n).mog,nr_par,nd,n + 2*nd,c);
 
             % Lower bound
             subplot(nr_par,nd,n + 3*nd) 
