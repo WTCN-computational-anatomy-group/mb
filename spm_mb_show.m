@@ -147,12 +147,16 @@ switch nam
         nzm = varargin{1}; 
         
         fprintf('Optimising parameters at decreasing zoom levels (nzm = %i)\n',nzm)        
-    case {'Register','Groupwise'}
-        N = varargin{1};
-        K = varargin{2};
+    case 'Start'
+        N    = varargin{1};
+        K    = varargin{2};
+        sett = varargin{3};
         
+        do_updt_int      = sett.do.updt_int;
+        do_updt_template = sett.do.updt_template;
+
         fprintf('------------------------------------\n')
-        fprintf(' Begin %s (N = %i, K = %i)\n',nam,N,K)
+        fprintf(' Algorithm starting (N = %i, K = %i, updt_intprior = %i, updt_template = %i)\n',N,K,do_updt_int,do_updt_template)
         fprintf('------------------------------------\n\n')
     otherwise
         error('Unknown input!')

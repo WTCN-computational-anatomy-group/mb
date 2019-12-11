@@ -91,7 +91,7 @@ sett.var = spm_mb_io('CopyFields',sz(end), sett.var);
 dat = spm_mb_shape('Init',dat,sett);
 dat = spm_mb_appearance('Init',dat,model,K,sett);
 
-spm_mb_show('Speak','Groupwise',N,K);
+spm_mb_show('Speak','Start',N,K,sett);
 
 %------------------
 % Init template
