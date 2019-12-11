@@ -141,7 +141,7 @@ if do_updt_aff
                 Objective = [Objective; E];               
             end
         end                
-        if it_init > 1 && (oE - E)/(numel(dat)*100^3) < 1e-3
+        if it_init > 1 && (oE - E)/(numel(dat)*100^3) < 1e-4
             % Finished rigid alignment
             break; 
         end
