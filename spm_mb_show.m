@@ -155,9 +155,9 @@ switch nam
         do_updt_int      = sett.do.updt_int;
         do_updt_template = sett.do.updt_template;
 
-        fprintf('------------------------------------\n')
-        fprintf(' Algorithm starting (N = %i, K = %i, updt_intprior = %i, updt_template = %i)\n',N,K,do_updt_int,do_updt_template)
-        fprintf('------------------------------------\n\n')
+        fprintf('=========================================================================\n')
+        fprintf('| Algorithm starting (N = %i, K = %i, updt_intprior = %i, updt_template = %i)\n',N,K,do_updt_int,do_updt_template)
+        fprintf('=========================================================================\n\n')
     otherwise
         error('Unknown input!')
 end
