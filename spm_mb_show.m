@@ -409,29 +409,6 @@ end
 %==========================================================================
 
 %==========================================================================
-function y = NormalPDF(x,m,Sigma)
-% FORMAT y = NormalPDF(x,m,Sigma)
-% Probability density function (PDF) of normal distribution.
-%__________________________________________________________________________
-% Copyright (C) 2019 Wellcome Trust Centre for Neuroimaging
-
-nd = size(Sigma,1); % number of dimensions
-sz = size(x);
-if sz(2) ~= nd, x = x'; end
-sz = size(m);
-if sz(2) ~= nd, m = m'; end
-
-xm = x - m;
-if nd > 1
-    y  = det(2*pi*Sigma)^(-0.5)*exp(-0.5*dot(xm',Sigma\(xm')));
-else
-    sd = sqrt(Sigma);
-    y  = 1/(sd*sqrt(2*pi))*exp((-0.5/sd^2)*xm.^2);
-end
-end
-%==========================================================================
-
-%==========================================================================
 % ShowCat()
 function ShowCat(in,ax,nr,nc,np,fn)
 f = findobj('Type', 'Figure', 'Name', fn);
@@ -520,7 +497,7 @@ for k=1:K
     sig2 = inv(A(c,c,k));
     
     x = linspace(MU - 3*sqrt(sig2), MU + 3*sqrt(sig2),100);
-    y = PI(k)*NormalPDF(x, MU, sig2);
+    y = PI(k)*spm_Npdf(x, MU, sig2);
     plot(x, y, 'Color', colors(k,:), 'LineWidth', 1)
     xlims = [min([xlims(1) x]) max([xlims(2) x])];
 end
