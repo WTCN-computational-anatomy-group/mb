@@ -315,14 +315,8 @@ for n=1:N
     
     % Orientation matrix (image voxel-to-world)    
     dat(n).Mat = eye(4);
-    if isa(F,'nifti') || (iscell(F) && (isa(F{1},'char') || isa(F{1},'nifti')))
-        Mat = Nii(1).mat;
-        vx  = sqrt(sum(Mat(1:3,1:3).^2));    
-        if run2d
-            dat(n).Mat = diag([vx 1]);
-        else
-            dat(n).Mat = Nii(1).mat;        
-        end
+    if ~run2d && (isa(F,'nifti') || (iscell(F) && (isa(F{1},'char') || isa(F{1},'nifti'))))
+        dat(n).Mat = Nii(1).mat;        
     end
 end
 end

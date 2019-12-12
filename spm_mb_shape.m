@@ -180,24 +180,24 @@ for p=1:Npop
     % To make the algorithm more robust when using multiple populations,
     % set posterior and prior means (m) of GMMs of all but the first population to
     % uniform  
-    mpo = 0;
-    mpr = 0;
+    avg_po = 0;
+    avg_pr = 0;
     for n=p_ix{p}
-        mpo = mpo + dat(n).mog.po.m;
-        mpr = mpr + dat(n).mog.pr.m;
+        avg_po = avg_po + dat(n).mog.po.m;
+        avg_pr = avg_pr + dat(n).mog.pr.m;
     end
-    mpo = mpo./numel(p_ix{p});
-    mpo = mean(mpo,2);
-    mpr = mpr./numel(p_ix{p});
-    mpr = mean(mpr,2);
+    avg_po = avg_po./numel(p_ix{p});
+    avg_po = mean(avg_po,2);
+    avg_pr = avg_pr./numel(p_ix{p});
+    avg_pr = mean(avg_pr,2);
     
     for n=p_ix{p}
-        dat(n).mog.pr.m = repmat(mpr,[1 K + 1]);        
+        dat(n).mog.pr.m = repmat(avg_pr,[1 K + 1]);        
         if first_subj            
             first_subj = false;
             continue
         end        
-        dat(n).mog.po.m = repmat(mpo,[1 K + 1]);        
+        dat(n).mog.po.m = repmat(avg_po,[1 K + 1]);        
     end
 end
 

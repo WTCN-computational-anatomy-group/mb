@@ -630,12 +630,11 @@ end
 function dat = InitPopulation(dat,mu,pr,K,sett)
 
 % Parse function settings
-do_gmm     = sett.do.gmm;
-fwhm       = sett.bf.fwhm;
-reg        = sett.bf.reg;
-do_updt_bf = sett.do.updt_bf;
+do_gmm = sett.do.gmm;
+fwhm   = sett.bf.fwhm;
+reg    = sett.bf.reg;
 
-if (~do_gmm && ~do_updt_bf), return; end
+if ~do_gmm, return; end
 
 N  = numel(dat);
 K1 = K + 1;
@@ -645,6 +644,7 @@ lb = struct('sum', NaN, 'X', [], 'XB', [], ...
 [~,C] = spm_mb_io('GetSize',dat(1).f);
 mx    = zeros(C,numel(dat));
 mn    = zeros(C,numel(dat));
+avg   = zeros(C,numel(dat));
 vr    = zeros(C,numel(dat));
 
 for n=1:N
@@ -678,7 +678,7 @@ for n=1:N
     fn = bf.*fn;
  
     % Init GMM
-    [po,mx(:,n),mn(:,n),vr(:,n)] = InitPosteriorGMM(dat(n),fn,mu,pr,K1,sett);
+    [po,mx(:,n),mn(:,n),avg(:,n),vr(:,n)] = InitPosteriorGMM(dat(n),fn,mu,pr,K1,sett);
     mog.po     = po;
     mog.lb     = lb;
     dat(n).mog = mog;
@@ -686,7 +686,7 @@ end
 
 if isempty(pr)
     % Init GMM empirical prior
-    pr = InitPriorGMM(mx,mn,vr,mu,K1);
+    pr = InitPriorGMM(mx,mn,avg,vr,mu,K1);
 end
 for n=1:numel(dat)                
     dat(n).mog.pr = pr; 
@@ -747,7 +747,7 @@ end
 
 %==========================================================================    
 % InitPriorGMM()
-function pr = InitPriorGMM(mx,mn,vr,mu0,K)
+function pr = InitPriorGMM(mx,mn,avg,vr,mu0,K)
 % Initialise the prior parameters of a Gaussian mixture model. 
 %
 %   This function is only used to initialise the GMM parameters at the
@@ -755,25 +755,27 @@ function pr = InitPriorGMM(mx,mn,vr,mu0,K)
 % 
 % FORMAT pr = InitPriorGMM(mx,mn,vr,mu0,K)
 % mx   - Maximum observed value [per channel]
-% mn   - Mean observed value [per channel]
+% mn   - Minimum observed value [per channel]
+% avg  - Mean observed value [per channel]
 % vr   - Variance of observed value [per channel]
 % mu0  - Log template
 % K    - Number of classes
 % pr   - Structure holding prior GMM parameters (m, b, W, n)
 
-mvr = mean(vr,2); % mean variance across all subjects in population
-mmn = mean(mn,2); % mean mean across all subjects in population
+mvr  = mean(vr,2); % mean variance across all subjects in population
+mmx  = mean(mx,2); % mean mean across all subjects in population
+mmn  = mean(mn,2); % mean mean across all subjects in population
+mavg = mean(avg,2); % mean mean across all subjects in population
 
 C   = size(mx,1);
 m   = zeros(C,K);
-ico = zeros(C,C,K);        
-nsd = 3;
-for c=1:C         
-    vrc        = mvr(c)/(K + 1);
-    mnc        = mmn(c);
-    sd         = sqrt(vrc);
-    m(c,:)     = linspace(mnc - nsd*sd,mnc + nsd*sd,K); % set pr.m as a range with a spread nsd stds from mean of means
-    ico(c,c,:) = vrc;
+ico = zeros(C,C,K);   
+for c=1:C      
+    rng    = linspace(mmn(c),mmx(c),K);
+    rng    = -sum(rng<0):sum(rng>=0) - 1;
+    m(c,:) = rng'*mmx(c)/(1.5*K);
+    
+    ico(c,c,:) = mmx(c)/(1.5*K);
     ico(c,c,:) = 1/ico(c,c,:); % precision
 end
 
@@ -799,7 +801,7 @@ end
 
 %==========================================================================    
 % InitPosteriorGMM()
-function [po,mx,mn,vr] = InitPosteriorGMM(datn,fn,mu,pr,K,sett)
+function [po,mx,mn,avg,vr] = InitPosteriorGMM(datn,fn,mu,pr,K,sett)
 % Initialise the posterior parameters of a Gaussian mixture model. 
 %
 %   This function is only used to initialise the GMM parameters at the
@@ -814,7 +816,8 @@ function [po,mx,mn,vr] = InitPosteriorGMM(datn,fn,mu,pr,K,sett)
 % sett - Structure of settings
 % po   - Structure of posterior parameters (m, b, W, n)
 % mx   - Maximum observed value [per channel]
-% mn   - Mean observed value [per channel]
+% mn   - Minimum observed value [per channel]
+% avg  - Mean observed value [per channel]
 % vr   - Variance of observed value [per channel]
 
 % Parse function settings
@@ -824,17 +827,18 @@ Mmu = sett.var.Mmu;
 C   = size(fn,2);
 mx  = zeros(1,C);
 mn  = zeros(1,C);
+avg = zeros(1,C);
 vr  = zeros(1,C);
 m   = zeros(C,K);
 ico = zeros(C,C,K);
 for c=1:C
-    msk   = isfinite(fn(:,c));
-    mx(c) = max(fn(msk,c));
-    minc  = min(fn(msk,c));
-    mn(c) = mean(fn(msk,c));
-    vr(c) = var(fn(msk,c));
+    msk    = isfinite(fn(:,c));
+    mx(c)  = max(fn(msk,c));
+    mn(c)  = min(fn(msk,c));
+    avg(c) = mean(fn(msk,c));
+    vr(c)  = var(fn(msk,c));
     
-    rng    = linspace(minc,mx(c),K);
+    rng    = linspace(mn(c),mx(c),K);
     rng    = -sum(rng<0):sum(rng>=0) - 1;
     m(c,:) = rng'*mx(c)/(1.5*K);
     

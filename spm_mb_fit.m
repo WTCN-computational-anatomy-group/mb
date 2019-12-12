@@ -69,19 +69,19 @@ end
 %------------------
 
 if template_given    
-    d         = spm_mb_io('GetSize',model.shape.template);
-    [mu0,Mmu] = spm_mb_io('GetData',model.shape.template);   
+    dmu       = spm_mb_io('GetSize',model.shape.template);
+    [mu0,Mmu] = spm_mb_io('GetData',model.shape.template);       
 else
-    [Mmu,d] = spm_mb_shape('SpecifyMean',dat,vx);
+    [Mmu,dmu] = spm_mb_shape('SpecifyMean',dat,vx);
 end
 
 %------------------
 % Get zoom (multi-scale) settings
 %------------------
 
-nz       = max(ceil(log2(min(d(d~=1))) - log2(8)),1);
+nz       = max(ceil(log2(min(dmu(dmu~=1))) - log2(8)),1);
 if ~do_zoom, nz = 1; end
-sz       = spm_mb_param('ZoomSettings',d,Mmu,sett.var.v_settings,sett.var.mu_settings,nz);
+sz       = spm_mb_param('ZoomSettings',dmu,Mmu,sett.var.v_settings,sett.var.mu_settings,nz);
 sett.var = spm_mb_io('CopyFields',sz(end), sett.var);
 
 %------------------
@@ -122,10 +122,6 @@ if do_updt_aff
     % Update shape (only affine) and appearance, on coarsest resolution
     %------------------
         
-    % Initially we use a bit more regularisation for the bias field fitting
-    bf_reg      = sett.bf.reg;
-    sett.bf.reg = max(1e6,bf_reg);    
-
     spm_mb_show('Speak','InitAff',sett.nit.init);
     for it_init=1:nit_init
                                
@@ -168,16 +164,7 @@ if do_updt_aff
         
         % Show stuff
         spm_mb_show('All',dat,mu,Objective,N,sett);
-        
-        if it_init > 1 && (E - oErig)/abs(E) > -eps('single')*1e4
-           % Finished rigid alignment
-           break
-        end
-        oErig = E;
     end
-    
-    % Reset to given value for bias field regularisation
-    sett.bf.reg = bf_reg;
 end
 
 %------------------
