@@ -202,7 +202,6 @@ fwhm          = sett.bf.fwhm;
 Mmu           = sett.var.Mmu;
 mx_subj       = sett.show.mx_subjects;
 reg           = sett.bf.reg;
-updt_bf       = sett.do.updt_bf;
 
 if ~isempty(p), fig_name_bf   = [fig_name_bf ' (p=' num2str(p) ')']; end
 if ~isempty(p), fig_name_par  = [fig_name_par ' (p=' num2str(p) ')']; end
@@ -241,7 +240,7 @@ for n=1:nd
     psi1 = [];
     
     % Get bias field    
-    if updt_bf && any(do_bf == true)
+    if any(do_bf == true)
         chan = spm_mb_appearance('BiasFieldStruct',dat(n),C,df,reg,fwhm,[],dat(n).bf.T);
         bf   = spm_mb_appearance('BiasField',chan,df);        
     else
@@ -277,7 +276,7 @@ for n=1:nd
     % Softmax template
     mun = exp(mun);
 
-    if updt_bf && any(do_bf == true)
+    if any(do_bf == true)
         bf = reshape(bf,[df C]);
     else
         bf = reshape(bf,[1 1 1 C]);
@@ -295,7 +294,7 @@ for n=1:nd
     if show_extras
         % Show bias field fit, velocities, affine parameters, GMM fit,
         % lower bound
-        if updt_bf && isfield(dat,'mog') && any(do_bf == true)
+        if isfield(dat,'mog') && any(do_bf == true)
             % Show bias field
             ShowIm(fn(:,:,:,c),ax,nr_bf,nd,n,fig_name_bf,false);
             ShowIm(bf(:,:,:,c),ax,nr_bf,nd,n + nd,fig_name_bf,false);            

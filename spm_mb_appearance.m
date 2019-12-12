@@ -652,7 +652,7 @@ for n=1:N
     fn     = spm_mb_io('GetData',dat(n).f);
     fn     = reshape(fn,[prod(df(1:3)) C]);
     fn     = spm_mb_appearance('Mask',fn,dat(n).is_ct);
-    if do_updt_bf && any(dat(n).do_bf == true)
+    if any(dat(n).do_bf == true)
         val = 1e3;
         scl = ones(1,C);
         for c=1:C
@@ -660,11 +660,10 @@ for n=1:N
             scl(c) = val./mean(fn(msk,c));
         end
     else
-        dat(n).do_bf = false;
-        scl          = ones(1,C);
+        scl = ones(1,C);
     end
  
-    if do_updt_bf && any(dat(n).do_bf == true)
+    if any(dat(n).do_bf == true)
         % Get bias field parameterisation struct
         chan        = spm_mb_appearance('BiasFieldStruct',dat(n),C,df,reg,fwhm,scl);
         dat(n).bf.T = {chan(:).T};
