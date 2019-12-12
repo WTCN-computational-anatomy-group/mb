@@ -272,9 +272,11 @@ n0 = datn.mog.pr.n;
 lb = datn.mog.lb;
 
 if samp > 1
-    % Subsample (runs faster, lower bound is corrected by scalar W)              
-    [fn,mun,scl_samp,d] = SubSample(samp,Mn,fn,mun0);
-    mun                 = reshape(mun,[prod(d(1:3)) K]);
+    % Subsample (runs faster, lower bound is corrected by scalar W)      
+    
+    [fn,d,scl_samp] = SubSample(fn,Mn,samp);
+    mun             = SubSample(mun0,Mn,samp);        
+    mun             = reshape(mun,[prod(d(1:3)) K]);
 else
     d    = df;
     mun  = reshape(mun0,[prod(d(1:3)) K]);
@@ -906,39 +908,54 @@ end
 
 %==========================================================================
 % SubSample()
-function varargout = SubSample(samp,Mat,varargin)
-% Subsample a series of volumes.
+function [ofn,d,w] = SubSample(fn,Mn,samp,deg,bc)
+% Subsample a multichannel volume.
 %
-%   This subsampling scheme does not interpolate the data, but selects one
-%   every few voxels. The provided distance between sampled voxels is
-%   rounded to avoid interpolation.
-%
-% FORMAT [g1,g2,...,w,dm] = SubSample(samp,Mat,f1,f2,...)
+% FORMAT [ofn,d,scl_samp] = SubSample(fn,Mn,samp,deg,bc)
+% fn   - Original volume
+% Mn   - Original orientation matrix
 % samp - Sampling distance in mm
-% Mat  - Original orientation matrix
-% f#   - Original volumes
-% g#   - Undersampled volumes
+% deg  - Interpolation degree [0]
+% bc   - Interpolation boundary conditions [0]
+% ofn  - Resampled volume
+% d    - Output dimensions
 % w    - Proportion of sampled voxels
-% dm   - Output dimensions
-vx        = sqrt(sum(Mat(1:3,1:3).^2));
-samp      = max([1 1 1],round(samp*[1 1 1]./vx));
-N         = numel(varargin);
-varargout = cell(1,N + 2);
-for n=1:N
-    f  = varargin{n};    
-    d0 = [size(f) 1];
- 
-    f = f(1:samp:end,1:samp:end,1:samp:end,:);    
-    d = [size(f) 1]; 
- 
-    varargout{n} = f; 
+if nargin < 4, deg = 0; end
+if nargin < 5, bc  = 0; end
+
+if numel(deg)  == 1, deg  = deg*ones([1 3]);  end
+if numel(bc)   == 1, bc   = bc*ones([1 3]);   end
+
+% Input image properties
+vx = sqrt(sum(Mn(1:3,1:3).^2));
+df = size(fn);
+df = [df 1 1];
+C  = df(4);
+
+% Output image properties
+samp = max([1 1 1],round(samp*[1 1 1]./vx));
+D    = diag([1./samp 1]);
+mat  = Mn/D;
+d    = ceil(D(1:3,1:3)*df(1:3)')'; % New dimensions
+
+% Make interpolation grid
+T          = Mn\mat;    
+[x0,y0,z0] = ndgrid(1:d(1),1:d(2),1:d(3));
+x1 = T(1,1)*x0 + T(1,2)*y0 + T(1,3)*z0 + T(1,4);
+y1 = T(2,1)*x0 + T(2,2)*y0 + T(2,3)*z0 + T(2,4);
+z1 = T(3,1)*x0 + T(3,2)*y0 + T(3,3)*z0 + T(3,4);
+if df(3) == 1, z1 = ones(size(z1)); end
+
+% Subsample
+ofn = zeros([d(1:3) C],'single');
+for c=1:C
+    ofn(:,:,:,c) = spm_bsplins(double(fn(:,:,:,c)),x1,y1,z1,[deg bc]);    
 end
+ofn(~isfinite(ofn)) = 0;
 
 % For weighting data parts of lowerbound with factor based on amount of
 % downsampling  
-W                = prod(d0(1:3))/prod(d(1:3));
-varargout{N + 1} = W;
-varargout{N + 2} = d(1:3);
+w = prod(df(1:3))/prod(d(1:3));
 end
 %==========================================================================
 
