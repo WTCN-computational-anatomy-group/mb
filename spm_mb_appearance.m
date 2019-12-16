@@ -272,11 +272,13 @@ n0 = datn.mog.pr.n;
 lb = datn.mog.lb;
 
 if samp > 1
-    % Subsample (runs faster, lower bound is corrected by scalar W)      
-    
-    [fn,d,scl_samp] = SubSample(fn,Mn,samp);
-    mun             = SubSample(mun0,Mn,samp);        
-    mun             = reshape(mun,[prod(d(1:3)) K]);
+    % Subsample (runs faster, lower bound is corrected by scl_samp)
+    nvx_full = GetNumVoxObserved(fn,is_ct);  % get number of obseved voxels in input image(s)
+    [fn,d]   = SubSample(fn,Mn,samp);        % image data
+    mun      = SubSample(mun0,Mn,samp);      % template
+    mun      = reshape(mun,[prod(d(1:3)) K]);    
+    nvx_samp = GetNumVoxObserved(fn,is_ct);  % get number of obseved voxels in subsampled image(s)  
+    scl_samp = nvx_full/nvx_samp;            % get voxel ratio between original and subsamped image(s)
 else
     d    = df;
     mun  = reshape(mun0,[prod(d(1:3)) K]);
@@ -622,8 +624,18 @@ end
 % ApplyMask()
 function f = ApplyMask(f,is_ct)
 if is_ct, f(~isfinite(f) | f == 0 | f <= - 1020) = NaN;
-else,     f(~isfinite(f) | f == 0) = NaN;
+else,     f(~isfinite(f) | f == 0)               = NaN;
 end
+end
+%==========================================================================
+
+%==========================================================================
+% GetMask()
+function nvx = GetNumVoxObserved(f,is_ct)
+f   = ApplyMask(f,is_ct);
+msk = ~isnan(f);
+msk = sum(msk,4);
+nvx = sum(msk(:) > 0);
 end
 %==========================================================================
 
@@ -908,50 +920,28 @@ end
 
 %==========================================================================
 % SubSample()
-function [ofn,d,w] = SubSample(fn,Mn,samp,deg,bc)
+function [ofn,d,w] = SubSample(fn,Mn,samp)
 % Subsample a multichannel volume.
 %
 % FORMAT [ofn,d,scl_samp] = SubSample(fn,Mn,samp,deg,bc)
 % fn   - Original volume
 % Mn   - Original orientation matrix
 % samp - Sampling distance in mm
-% deg  - Interpolation degree [0]
-% bc   - Interpolation boundary conditions [0]
 % ofn  - Resampled volume
 % d    - Output dimensions
 % w    - Proportion of sampled voxels
-if nargin < 4, deg = 0; end
-if nargin < 5, bc  = 0; end
-
-if numel(deg)  == 1, deg  = deg*ones([1 3]);  end
-if numel(bc)   == 1, bc   = bc*ones([1 3]);   end
 
 % Input image properties
 vx = sqrt(sum(Mn(1:3,1:3).^2));
 df = size(fn);
-df = [df 1 1];
-C  = df(4);
+df = [df 1];
 
 % Output image properties
 samp = max([1 1 1],round(samp*[1 1 1]./vx));
 D    = diag([1./samp 1]);
-mat  = Mn/D;
 d    = ceil(D(1:3,1:3)*df(1:3)')'; % New dimensions
 
-% Make interpolation grid
-T          = Mn\mat;    
-[x0,y0,z0] = ndgrid(1:d(1),1:d(2),1:d(3));
-x1 = T(1,1)*x0 + T(1,2)*y0 + T(1,3)*z0 + T(1,4);
-y1 = T(2,1)*x0 + T(2,2)*y0 + T(2,3)*z0 + T(2,4);
-z1 = T(3,1)*x0 + T(3,2)*y0 + T(3,3)*z0 + T(3,4);
-if df(3) == 1, z1 = ones(size(z1)); end
-
-% Subsample
-ofn = zeros([d(1:3) C],'single');
-for c=1:C
-    ofn(:,:,:,c) = spm_bsplins(double(fn(:,:,:,c)),x1,y1,z1,[deg bc]);    
-end
-ofn(~isfinite(ofn)) = 0;
+ofn = fn(1:samp(1):end,1:samp(2):end,1:samp(3):end,:); 
 
 % For weighting data parts of lowerbound with factor based on amount of
 % downsampling  
