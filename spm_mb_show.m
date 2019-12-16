@@ -240,7 +240,7 @@ for n=1:nd
     psi1 = [];
     
     % Get bias field    
-    if any(do_bf == true)
+    if isfield(dat(n),'mog') && any(do_bf == true)
         chan = spm_mb_appearance('BiasFieldStruct',dat(n),C,df,reg,fwhm,[],dat(n).bf.T);
         bf   = spm_mb_appearance('BiasField',chan,df);        
     else
@@ -277,7 +277,7 @@ for n=1:nd
     % Softmax template
     mun = exp(mun);
 
-    if any(do_bf == true)
+    if isfield(dat(n),'mog') && any(do_bf == true)
         bf = reshape(bf,[df C]);
     else
         bf = reshape(bf,[1 1 1 C]);
