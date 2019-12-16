@@ -175,8 +175,8 @@ sett.do.updt_bf = false;
 % Get population indices
 p_ix       = spm_mb_appearance('GetPopulationIdx',dat);
 Npop       = numel(p_ix);
-first_subj = true;
-for p=1:Npop
+% first_subj = true;
+for p=2:Npop
     % To make the algorithm more robust when using multiple populations,
     % set posterior and prior means (m) of GMMs of all but the first population to
     % uniform  
@@ -193,16 +193,16 @@ for p=1:Npop
     
     for n=p_ix{p}
         dat(n).mog.pr.m = repmat(avg_pr,[1 K + 1]);        
-        if first_subj            
-            first_subj = false;
-            continue
-        end        
+%         if first_subj            
+%             first_subj = false;
+%             continue
+%         end        
         dat(n).mog.po.m = repmat(avg_po,[1 K + 1]);        
     end
 end
 
 % Update template based on only first subject..
-[mu,dat(1)]       = spm_mb_shape('UpdateSimpleMean',dat(1), mu, sett);
+% [mu,dat(1)]       = spm_mb_shape('UpdateSimpleMean',dat(1), mu, sett);
 % ..then propagate to all other subjects in populations..
 [mu,dat(p_ix{1})] = spm_mb_shape('UpdateSimpleMean',dat(p_ix{1}), mu, sett);
 if Npop > 1

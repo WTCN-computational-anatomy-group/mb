@@ -195,8 +195,8 @@ for zm=numel(sz):-1:1 % loop over zoom levels
     end    
         
     E4     = Inf;
-    nit_zm = nit_zm0 + (zm - 1);
-    %nit_zm = nit_zm0;
+%     nit_zm = nit_zm0 + (zm - 1);
+    nit_zm = nit_zm0;
     for it_zm=1:nit_zm
 
         % Update template, bias field and intensity model
