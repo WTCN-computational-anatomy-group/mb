@@ -7,7 +7,7 @@ function varargout = spm_mb_shape(varargin)
 % FORMAT psi           = spm_mb_shape('Compose',psi1,psi0)
 % FORMAT id            = spm_mb_shape('Identity',d)
 % FORMAT dat           = spm_mb_shape('Init',dat,sett)
-% FORMAT [dat,mu,sett] = spm_mb_shape('InitMu',dat,K,sett)
+% FORMAT [dat,mu,sett] = spm_mb_shape('InitMu',dat,K,samp_mu,sett)
 % FORMAT l             = spm_mb_shape('LSE',mu,dr)
 % FORMAT a1            = spm_mb_shape('Pull1',a0,psi,r)
 % FORMAT [f1,w1]       = spm_mb_shape('Push1',f,psi,d,r)
@@ -150,7 +150,7 @@ end
 
 %==========================================================================
 % InitMu()
-function [dat,mu,sett] = InitMu(dat,K,sett)
+function [dat,mu,sett] = InitMu(dat,K,samp_mu,sett)
 % Make 'quick' initial estimates of GMM posteriors and template on very coarse
 % scale
 
@@ -168,7 +168,7 @@ samp            = sett.gen.samp;
 nit_appear      = sett.nit.appear;
 nit_gmm         = sett.nit.gmm;
 sett.nit.gmm    = 200;
-sett.gen.samp   = 4;
+sett.gen.samp   = min(samp_mu,5);
 sett.nit.appear = 1;
 sett.do.updt_bf = false;
 

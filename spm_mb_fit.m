@@ -74,6 +74,7 @@ if template_given
 else
     [Mmu,dmu] = spm_mb_shape('SpecifyMean',dat,vx);
 end
+vxmu = sqrt(sum(Mmu(1:3,1:3).^2));
 
 %------------------
 % Get zoom (multi-scale) settings
@@ -102,7 +103,7 @@ if template_given
     mu = spm_mb_shape('ShrinkTemplate',mu0,Mmu,sett);
 else
     % Initial template
-    [dat,mu,sett] = spm_mb_shape('InitMu',dat,K,sett);
+    [dat,mu,sett] = spm_mb_shape('InitMu',dat,K,max(vxmu(1),numel(sz)),sett);
 end
 
 spm_mb_show('All',dat,mu,[],N,sett);
@@ -122,6 +123,8 @@ if do_updt_aff
     % Update shape (only affine) and appearance, on coarsest resolution
     %------------------
         
+    sett.gen.samp = min(max(vxmu(1),numel(sz)),5); % coarse-to-fine sampling of observed data
+    
     spm_mb_show('Speak','InitAff',sett.nit.init);
     for it_init=1:nit_init
                                
@@ -173,6 +176,8 @@ end
 
 spm_mb_show('Speak','Iter',numel(sz)); tic;
 for zm=numel(sz):-1:1 % loop over zoom levels
+    
+    sett.gen.samp = min(max(vxmu(1),zm),5); % coarse-to-fine sampling of observed data
     
     if template_given && ~do_updt_template
         % Resize template
