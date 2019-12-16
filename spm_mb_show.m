@@ -240,7 +240,7 @@ for n=1:nd
     psi1 = [];
     
     % Get bias field    
-    if any(do_bf == true)
+    if isfield(dat(n),'mog') && any(do_bf == true)
         chan = spm_mb_appearance('BiasFieldStruct',dat(n),C,df,reg,fwhm,[],dat(n).bf.T);
         bf   = spm_mb_appearance('BiasField',chan,df);        
     else
@@ -248,25 +248,26 @@ for n=1:nd
     end  
     
     % Get template (K + 1)
-    mx  = max(max(mun,[],4),0);
-    lse = mx + log(sum(exp(mun - mx),4) + exp(-mx)); mx = [];
-    mun = cat(4,mun - lse, -lse); lse = [];
+    mun = spm_mb_shape('TemplateK1',mun,4);
     
     % Get segmentation
     if isfield(dat,'mog')
         fn   = spm_mb_io('GetData',dat(n).f);         
         fn   = reshape(fn,[prod(df(1:3)) C]);
         fn   = spm_mb_appearance('Mask',fn,is_ct);
-        code = spm_gmm_lib('obs2code', fn);
-        L    = unique(code);
-        mun   = reshape(mun,[prod(df(1:3)) K1]);
+        
+        [bffn,code_image,msk_chn] = spm_gmm_lib('obs2cell', bf.*fn);
+        mun                       = reshape(mun,[prod(df(1:3)) K1]);
+                        
         % Get responsibility
-        zn = spm_mb_appearance('Responsibility',dat(n).mog.po.m,dat(n).mog.po.b, ...
-                               dat(n).mog.po.W,dat(n).mog.po.n,bf.*fn,mun,L,code);   
-        code = [];
+        zn      = spm_mb_appearance('Responsibility',dat(n).mog.po.m,dat(n).mog.po.b, ...
+                                    dat(n).mog.po.W,dat(n).mog.po.n,bffn,spm_gmm_lib('obs2cell', mun, code_image, false),msk_chn);           
+        zn      = spm_gmm_lib('cell2obs', zn, code_image, msk_chn);        
+        msk_chn = [];
+        
         % Reshape back
-        zn = reshape(zn,[df(1:3) K1]);
-        fn = reshape(fn,[df(1:3) C]);
+        zn  = reshape(zn,[df(1:3) K1]);
+        fn  = reshape(fn,[df(1:3) C]);
         mun = reshape(mun,[df(1:3) K1]);
     else
         zn = spm_mb_io('GetData',dat(n).f); 
@@ -276,7 +277,7 @@ for n=1:nd
     % Softmax template
     mun = exp(mun);
 
-    if any(do_bf == true)
+    if isfield(dat(n),'mog') && any(do_bf == true)
         bf = reshape(bf,[df C]);
     else
         bf = reshape(bf,[1 1 1 C]);

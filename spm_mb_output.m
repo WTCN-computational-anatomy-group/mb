@@ -28,7 +28,7 @@ end
 
 %==========================================================================
 % ProcessSubject()
-function resn = ProcessSubject(datn,resn,mu,ix,sett)
+function resn = ProcessSubject(datn,resn,mun,ix,sett)
 
 % Parse function settings
 B          = sett.registr.B;
@@ -52,7 +52,7 @@ dir_res = s.path;
 
 % Get parameters
 [df,C] = spm_mb_io('GetSize',datn.f);
-K      = size(mu,4);
+K      = size(mun,4);
 K1     = K + 1;
 if isa(datn.f(1),'nifti'), [~,namn] = fileparts(datn.f(1).dat.fname);                
 else,                         namn  = ['n' num2str(ix)];
@@ -79,12 +79,12 @@ if isfield(datn,'mog') && (any(write_bf(:) == true) || any(write_im(:) == true) 
 
     % Get subject-space template (softmaxed K + 1)
     psi = spm_mb_shape('Compose',psi0,spm_mb_shape('Affine',df,Mmu\Mr*Mn));    
-    mu  = spm_mb_shape('Pull1',mu,psi);
+    mun = spm_mb_shape('Pull1',mun,psi);
     psi = [];
     
-    % Make K + 1 template
-    mu = reshape(mu,[prod(df(1:3)) K]);
-    mu = cat(2,mu,zeros([prod(df(1:3)) 1],'single'));        
+    % Make K + 1 template    
+    mun = reshape(mun,[prod(df(1:3)) K]);
+    mun = spm_mb_shape('TemplateK1',mun,2);
 
     if do_updt_bf && any(do_bf == true)
         % Get bias field
@@ -98,9 +98,10 @@ if isfield(datn,'mog') && (any(write_bf(:) == true) || any(write_im(:) == true) 
     fn      = spm_mb_io('GetData',datn.f);
     fn      = reshape(fn,[prod(df(1:3)) C]);
     fn      = spm_mb_appearance('Mask',fn,is_ct);
-    code    = spm_gmm_lib('obs2code', fn);
-    L       = unique(code);    
-    do_miss = numel(L) > 1;
+    
+    % Format for spm_gmm
+    [bffn,code_image,msk_chn] = spm_gmm_lib('obs2cell', bf.*fn);
+    mun                       = spm_gmm_lib('obs2cell', mun, code_image, false);
     
     % GMM posterior
     m = datn.mog.po.m;
@@ -109,17 +110,18 @@ if isfield(datn,'mog') && (any(write_bf(:) == true) || any(write_im(:) == true) 
     n = datn.mog.po.n;
 
     % Get responsibilities
-    zn = spm_mb_appearance('Responsibility',m,b,W,n,bf.*fn,mu,L,code); 
-    mu = [];     
+    zn  = spm_mb_appearance('Responsibility',m,b,W,n,bffn,mun,msk_chn); 
+    zn  = spm_gmm_lib('cell2obs', zn, code_image, msk_chn);        
+    mun = []; msk_chn = [];    
 
     % Get bias field modulated image data
     fn = bf.*fn;
-    if do_infer && do_miss
+    if do_infer
         % Infer missing values
         sample_post = do_infer > 1;
         MU = datn.mog.po.m;    
         A  = bsxfun(@times, datn.mog.po.W, reshape(datn.mog.po.n, [1 1 K1]));            
-        fn = spm_gmm_lib('InferMissing',fn,zn,{MU,A},{code,unique(code)},sample_post);        
+        fn = spm_gmm_lib('InferMissing',fn,zn,{MU,A},msk_chn,sample_post);        
     end
 
     % TODO: Possible post-processing (MRF + clean-up)

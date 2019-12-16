@@ -414,10 +414,11 @@ if ~isempty(mu) && do_updt_template
     Nmu.dat(:,:,:,:) = mu;
     
     % Save mu (softmax)    
-    d        = size(mu);
-    d        = [d 1];
-    mu       = cat(4,mu,zeros(d(1:3),'single'));
-    mu       = spm_mb_shape('Softmax',mu,4);
+    mx  = max(max(mu,[],4),0);
+    lse = mx + log(sum(exp(mu - mx),4) + exp(-mx)); mx = [];
+    mu  = cat(4,mu - lse, -lse); lse = [];
+    mu  = exp(mu);    
+    
     f        = fullfile(dir_res ,'mu_softmax.nii');        
     fa       = file_array(f,size(mu),'float32',0);
     Nmu      = nifti;

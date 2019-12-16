@@ -8,7 +8,7 @@ function varargout = spm_mb_appearance(varargin)
 % FORMAT p_ix      = spm_mb_appearance('GetPopulationIdx',dat)
 % FORMAT dat       = spm_mb_appearance('Init',dat,model,K,sett)
 % FORMAT fn        = spm_mb_appearance('Mask',fn,is_ct)
-% FORMAT zn        = spm_mb_appearance('Responsibility',m,b,W,n,fn,mu,L,code)
+% FORMAT zn        = spm_mb_appearance('Responsibility',m,b,W,n,fn,mu,msk_chn)
 % FORMAT [zn,datn] = spm_mb_appearance('Update',datn,mun0,sett)
 % FORMAT dat       = spm_mb_appearance('UpdatePrior',dat,mu,sett)
 %__________________________________________________________________________
@@ -192,29 +192,22 @@ end
 
 %==========================================================================
 % Responsibility()
-function zn = Responsibility(m,b,W,n,fn,mu,L,code)
+function zn = Responsibility(m,b,W,n,fn,mu,msk_chn)
 % Compute responsibilities.
 %
 % FORMAT zn = Responsibility(m,b,W,n,fn,mu,L,code)
-% m    - GMM Means
-% b    - GMM Mean d.f.
-% W    - GMM Scale matrices
-% n    - GMM Scale d.f.
-% fn   - Bias-corrected observed image in matrix form [nbvox nbchannel]
-% mu   - Deformed and exponentiated template
-% L    - List of unique missing codes
-% code - Image of missing codes [nbvox 1]
-% zn   - Image of responsibilities [nbvox K]
+% m       - GMM Means
+% b       - GMM Mean d.f.
+% W       - GMM Scale matrices
+% n       - GMM Scale d.f.
+% fn      - Bias-corrected observed image in matrix form [nbvox nbchannel]
+% mu      - Deformed and exponentiated template
+% msk_chn - Mask of observed channels per code
+% zn      - Image of responsibilities [nbvox K]
 
-% Is there missing data?
-do_miss = numel(L) > 1;
-
-if do_miss, const = spm_gmm_lib('Const', {m,b}, {W,n}, L);
-else,       const = spm_gmm_lib('Const', {m,b}, {W,n});
-end
-
-fn = spm_gmm_lib('Marginal', fn, {m,W,n}, const, {code,L});
-zn = spm_gmm_lib('Responsibility', fn, mu);
+const = spm_gmm_lib('Normalisation', {m,b}, {W,n}, msk_chn);
+fn    = spm_gmm_lib('Marginal', fn, {m,W,n}, const, msk_chn);
+zn    = spm_gmm_lib('Responsibility', fn, mu);
 end
 %==========================================================================
 
@@ -273,12 +266,14 @@ lb = datn.mog.lb;
 
 if samp > 1
     % Subsample (runs faster, lower bound is corrected by scl_samp)
+    % Image data
     nvx_full = GetNumVoxObserved(fn,is_ct);  % get number of obseved voxels in input image(s)
-    [fn,d]   = SubSample(fn,Mn,samp);        % image data
-    mun      = SubSample(mun0,Mn,samp);      % template
-    mun      = reshape(mun,[prod(d(1:3)) K]);    
+    [fn,d]   = SubSample(fn,Mn,samp);        
     nvx_samp = GetNumVoxObserved(fn,is_ct);  % get number of obseved voxels in subsampled image(s)  
     scl_samp = nvx_full/nvx_samp;            % get voxel ratio between original and subsamped image(s)
+    % Template
+    mun = SubSample(mun0,Mn,samp);      
+    mun = reshape(mun,[prod(d(1:3)) K]);        
 else
     d    = df;
     mun  = reshape(mun0,[prod(d(1:3)) K]);
@@ -287,12 +282,8 @@ end
 fn = reshape(fn,[prod(d(1:3)) C]);
 
 % Missing data stuff
-fn      = Mask(fn,is_ct);
-obs_msk = ~isnan(fn);
-code    = spm_gmm_lib('obs2code', fn);
-L       = unique(code);
-nL      = numel(L);
-do_miss = nL > 1;
+fn     = Mask(fn,is_ct);
+msk_vx = ~isnan(fn);
 
 if any(jitter~=0)
     % Data is an integer type, so to prevent aliasing in the histogram, small
@@ -302,9 +293,7 @@ if any(jitter~=0)
 end
 
 % Make K + 1 template
-mx  = max(max(mun,[],2),0);
-lse = mx + log(sum(exp(mun - mx),2) + exp(-mx)); mx = [];
-mun = [mun - lse, -lse]; lse = [];
+mun = spm_mb_shape('TemplateK1',mun,2);
 
 % Bias field related
 if any(do_bf == true) 
@@ -315,6 +304,12 @@ else
     bffn       = fn;
 end
 
+% Format for spm_gmm
+[bffn,code_image,msk_chn] = spm_gmm_lib('obs2cell', bffn);
+mun                       = spm_gmm_lib('obs2cell', mun, code_image, false);
+code_list                 = unique(code_image);
+code_list                 = code_list(code_list ~= 0);
+
 ol = lb.sum(end);
 for it_appear=1:nit_appear
 
@@ -322,11 +317,10 @@ for it_appear=1:nit_appear
     % Update GMM and get responsibilities (zn)
     %------------------------------------------------------------
 
-    [zn,mog,~,lb] = spm_gmm_loop({bffn,scl_samp},{{m,b},{W,n}},{'LogProp', mun}, ...
+    [zn,mog,~,lb] = spm_gmm_lib('loop',bffn,scl_samp,{{m,b},{W,n}},{'LogProp', mun}, ...
                                  'GaussPrior',   {m0,b0,W0,n0}, ...
-                                 'Missing',      do_miss, ...
+                                 'Missing',      msk_chn, ...
                                  'LowerBound',   lb, ...
-                                 'MissingCode',  {code,L}, ...
                                  'IterMax',      nit_gmm, ...
                                  'Tolerance',    tol_gmm, ...
                                  'SubIterMax',   nit_gmm_miss, ...
@@ -354,11 +348,11 @@ for it_appear=1:nit_appear
     if do_updt_bf && any(do_bf == true)        
 
         % Make sure to use the latest responsibilties
-        zn = Responsibility(m,b,W,n,bffn,mun,L,code);
+        zn = Responsibility(m,b,W,n,bffn,mun,msk_chn);
 
         % Recompute parts of objective function that depends on bf
-        lx  = LowerBound('ln(P(X|Z))',bffn,zn,code,{m,b},{W,n},scl_samp);
-        lxb = scl_samp*LowerBound('ln(|bf|)',bf,obs_msk);                     
+        lx  = LowerBound('ln(P(X|Z))',bffn,zn,msk_chn,{m,b},{W,n},scl_samp);
+        lxb = scl_samp*LowerBound('ln(|bf|)',bf,msk_vx);                     
 
         for it_bf=1:nit_bf
 
@@ -372,28 +366,19 @@ for it_appear=1:nit_appear
                 % Compute gradient and Hessian (in image space)
                 gr_im = zeros(d(1:3),'single');
                 H_im  = zeros(d(1:3),'single');                    
-                for l=1:nL % loop over combinations of missing voxels
+                for l=1:size(msk_chn,1) % loop over combinations of missing voxels
 
-                    % Get mask of missing modalities (with this particular code)        
-                    ixo = spm_gmm_lib('code2bin', L(l), C);
-                    ixm = ~ixo;
-                    if ixm(c), continue; end
-
-                    if isempty(code), ixvx = ones(size(code), 'logical');
-                    else,             ixvx = (code == L(l));
-                    end
-                    nm  = sum(ixm);
-                    nvx = sum(ixvx);
-                    if nvx == 0, continue; end
+                    % Get mask of missing modalities (with this particular code)    
+                    ixo = msk_chn(l,:);         % Observed channels                    
+                    ixm = ~ixo;                 % Missing channels
+                    nm  = sum(ixm);              % Number of missing channels
+                    if ~ixo(c), continue; end
 
                     % Convert channel indices to observed indices
                     ixc = 1:C; % mapped_c
                     ixc = ixc(ixo);
                     ixc = find(ixc == c);
-
-                    % Get bias-field modulated image data
-                    obffn = bffn(ixvx,ixo);
-
+                    
                     go = 0; % Gradient accumulated accross clusters
                     Ho = 0; % Hessian accumulated accross clusters
                     for k=1:K1
@@ -407,13 +392,11 @@ for it_appear=1:nit_appear
                         mo  = m(ixo,k);
 
                         % Compute statistics
-                        gk = bsxfun(@minus, obffn, mo.') * Ao(ixc,:).';
+                        gk = bsxfun(@minus, bffn{l}, mo.') * Ao(ixc,:).';
                         Hk = Ao(ixc,ixc);
 
-                        oznk = zn(ixvx,k);
-                        gk   = bsxfun(@times, gk, oznk);
-                        Hk   = bsxfun(@times, Hk, oznk);
-                        oznk = [];
+                        gk   = bsxfun(@times, gk, zn{l}(:,k));
+                        Hk   = bsxfun(@times, Hk, zn{l}(:,k));
 
                         % Accumulate across clusters
                         go = go + gk;
@@ -421,15 +404,17 @@ for it_appear=1:nit_appear
                     end
 
                     % Multiply with bias corrected value (chain rule)
-                    go    = go .* obffn(:,ixc);
-                    Ho    = Ho .* (obffn(:,ixc).^2);
+                    obffn = bffn{l}(:,ixc);
+                    go    = go .* obffn;
+                    Ho    = Ho .* (obffn.^2);
                     obffn = [];
-
+                    
                     % Add terms related to the normalisation (log(b))
                     go = go - 1;
                     Ho = Ho + 1; % Comes from subs(H,g,0)
 
                     % Accumulate across missing codes
+                    ixvx        = (code_image == code_list(l));
                     gr_im(ixvx) = gr_im(ixvx) + go;
                     H_im(ixvx)  = H_im(ixvx)  + Ho;
                     ixvx        = [];
@@ -466,18 +451,19 @@ for it_appear=1:nit_appear
                     % Compute new bias-field (only for channel c)
                     [bf,pr_bf] = BiasField(chan,d,bf,c,opr_bf);                        
                     bffn       = bf.*fn;
-
+                    bffn       = spm_gmm_lib('obs2cell', bffn, code_image, true);
+                    
                     % Recompute responsibilities (with updated bias field)
-                    zn = Responsibility(m,b,W,n,bffn,mun,L,code);
+                    zn = Responsibility(m,b,W,n,bffn,mun,msk_chn);
 
                     % Compute new lower bound
-                    lx  = LowerBound('ln(P(X|Z))',bffn,zn,code,{m,b},{W,n},scl_samp);            
-                    lxb = scl_samp*LowerBound('ln(|bf|)',bf,obs_msk);
+                    lx  = LowerBound('ln(P(X|Z))',bffn,zn,msk_chn,{m,b},{W,n},scl_samp);            
+                    lxb = scl_samp*LowerBound('ln(|bf|)',bf,msk_vx);
 
                     % Check new lower bound
                     if  ((lx + lxb + sum(pr_bf)) - (olx + olxb + sum(opr_bf)))/abs(lx + lxb + sum(pr_bf)) > -eps('single')*10
                         % Converged
-                        %fprintf('it2=%i\tc=%i\tls=%i\tarmijo=%0.7f\tnl=%0.7f\tgain=%0.7f :o)\n',it_bf,c,ls,armijo,lx + lxb + sum(pr_bf),lx + lxb + sum(pr_bf) - olx + olxb + sum(opr_bf));
+%                         fprintf('it2=%i\tc=%i\tls=%i\tarmijo=%0.7f\tnl=%0.7f\tgain=%0.7f :o)\n',it_bf,c,ls,armijo,lx + lxb + sum(pr_bf),lx + lxb + sum(pr_bf) - olx + olxb + sum(opr_bf));
                         lb.XB(end + 1) = lxb;
                         lb.X(end  + 1) = lx;
                         break;
@@ -486,13 +472,14 @@ for it_appear=1:nit_appear
                         chan(c).T = oT;
                         if ls == nit_lsbf   
                             % Did not converge -> reset
-                            %fprintf('it2=%i\tc=%i\tls=%i :o(\n',it_bf,c,ls);
+%                             fprintf('it2=%i\tc=%i\tls=%i :o(\n',it_bf,c,ls);
                             lx    = olx;
                             lxb   = olxb;
                             bf    = BiasField(chan,d,bf,c,opr_bf);    
                             bffn  = bf.*fn;
+                            bffn  = spm_gmm_lib('obs2cell', bffn, code_image, true);
                             pr_bf = opr_bf;
-                            zn    = Responsibility(m,b,W,n,bffn,mun,L,code);
+                            zn    = Responsibility(m,b,W,n,bffn,mun,msk_chn);
                         end
                     end
                 end
@@ -509,10 +496,10 @@ fn = []; bf = []; mun = [];
 
 if samp > 1
     % Compute responsibilities on original data
-    fn   = spm_mb_io('GetData',datn.f);
-    fn   = reshape(fn,[prod(df(1:3)) C]);
-    fn   = Mask(fn,is_ct);
-    code = spm_gmm_lib('obs2code', fn);
+    fn = spm_mb_io('GetData',datn.f);
+    fn = reshape(fn,[prod(df(1:3)) C]);
+    fn = Mask(fn,is_ct);
+    
     mun0 = reshape(mun0,[prod(df(1:3)) K]);
     if any(do_bf == true)
         % Get full-sized bias field
@@ -523,13 +510,16 @@ if samp > 1
     else
         bffn = fn;
     end
-    fn   = [];
-    L    = unique(code);
-    mx   = max(max(mun0,[],2),0);
-    lse  = mx + log(sum(exp(mun0 - mx),2) + exp(-mx)); mx= [];
-    mun0 = [mun0 - lse, -lse]; lse = [];
-    zn   = Responsibility(m,b,W,n,bffn,mun0,L,code);
+    fn = [];
+
+    [bffn,code_image,msk_chn] = spm_gmm_lib('obs2cell', bffn);    
+
+    mun0 = spm_mb_shape('TemplateK1',mun0,2);
+    mun0 = spm_gmm_lib('obs2cell', mun0, code_image, false);
+    
+    zn   = Responsibility(m,b,W,n,bffn,mun0,msk_chn);
 end       
+zn = spm_gmm_lib('cell2obs', zn, code_image, msk_chn);
 
 % Get 4D versions of K1 - 1 classes
 zn = reshape(zn(:,1:K),[df(1:3) K]);
@@ -722,37 +712,35 @@ function lb = LowerBound(type,varargin)
 %
 % FORMAT lb = LowerBound('ln(|bf|)',bf,obs_msk)
 % bf      - Exponentiated bias field [one channel]
-% obs_msk - Mask of observed values [one channel]
+% msk_vx  - Mask of observed values [one channel]
 % lb      - Sum of the log bias field
 %   >> This is part of the normalisation term in the GMM
 %
 % FORMAT lb = LowerBound('ln(P(X|Z))',fn,zn,code,mean,prec,W,L)
 % fn       - Bias corrected observed image in matrix form [nbvox nbchannel]
 % zn       - Responsibilities in matrix form [nbvox nbclass]
-% code     - Image encoding missing pattern missing [nbvox 1]
+% msk_chn  - Mask of observed channels per code
 % mean     - Mean parameters {m b}
 % prec     - Precision parameters {W n}
 % scl_samp - Image of weights [nbvox 1]
-% L        - List of uniaue missing codes
 % lb       - Marginal log-likelihood
 %   >> Marginal log-likelihood of the observed data, without the
 %      bias-related normalisation.
 if strcmpi(type,'ln(|bf|)')    
-    bf      = varargin{1};
-    obs_msk = varargin{2};
+    bf     = varargin{1};
+    msk_vx = varargin{2};
         
-    lb = sum(log(bf(obs_msk)),'double');
+    lb = sum(log(bf(msk_vx)),'double');
 elseif strcmpi(type,'ln(P(X|Z))')    
     fn       = varargin{1};
     zn       = varargin{2};
-    code     = varargin{3};
+    msk_chn  = varargin{3};
     mean     = varargin{4};
     prec     = varargin{5};
     scl_samp = varargin{6};
-    L        = unique(code);
     
-    [lSS0,lSS1,lSS2] = spm_gmm_lib('SuffStat', 'base', fn, zn, scl_samp, {code,L});
-    lb               = spm_gmm_lib('MarginalSum', lSS0, lSS1, lSS2, mean, prec, L);
+    [lSS0,lSS1,lSS2] = spm_gmm_lib('SuffStat', 'base', fn, zn, scl_samp, msk_chn);
+    lb               = spm_gmm_lib('MarginalSum', lSS0, lSS1, lSS2, mean, prec, msk_chn);
 else
     error('Undefined type!');
 end

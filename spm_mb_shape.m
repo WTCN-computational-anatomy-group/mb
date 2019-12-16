@@ -15,6 +15,7 @@ function varargout = spm_mb_shape(varargin)
 % FORMAT P             = spm_mb_shape('Softmax',mu,dr)
 % FORMAT [Mmu,d]       = spm_mb_shape('SpecifyMean',dat,vx)
 % FORMAT E             = spm_mb_shape('TemplateEnergy',mu,sett)
+% FORMAT mun           = spm_mb_shape('TemplateK1',mun,ax)
 % FORMAT dat           = spm_mb_shape('UpdateAffines',dat,mu,sett)
 % FORMAT [mu,dat]      = spm_mb_shape('UpdateMean',dat, mu, sett)
 % FORMAT dat           = spm_mb_shape('UpdateSimpleAffines',dat,mu,sett)
@@ -55,9 +56,11 @@ switch id
     case 'Softmax'
         [varargout{1:nargout}] = Softmax(varargin{:});       
     case 'SpecifyMean'
-        [varargout{1:nargout}] = SpecifyMean(varargin{:});       
+        [varargout{1:nargout}] = SpecifyMean(varargin{:});               
     case 'TemplateEnergy'
-        [varargout{1:nargout}] = TemplateEnergy(varargin{:});          
+        [varargout{1:nargout}] = TemplateEnergy(varargin{:});    
+    case 'TemplateK1'
+        [varargout{1:nargout}] = TemplateK1(varargin{:});          
     case 'UpdateAffines'
         [varargout{1:nargout}] = UpdateAffines(varargin{:});                   
     case 'UpdateMean'
@@ -447,6 +450,15 @@ if do_updt_template
 else
     E = 0;
 end
+end
+%==========================================================================
+
+%==========================================================================
+% TemplateK1()
+function mun = TemplateK1(mun,ax)
+mx  = max(max(mun,[],ax),0);
+lse = mx + log(sum(exp(mun - mx),ax) + exp(-mx));
+mun = cat(ax,mun - lse, -lse);
 end
 %==========================================================================
 
