@@ -252,13 +252,13 @@ for zm=numel(sz):-1:1 % loop over zoom levels
         if do_updt_template || do_updt_int
             % Save stuff
             save(fullfile(dir_res,'results_Groupwise.mat'),'dat','mu','sett')
-        end
-        
-        % Show stuff
-        spm_mb_show('All',dat,mu,Objective,N,sett);
+        end                
     end
     
     fprintf('%g seconds\n\n', toc); tic;
+    
+    % Show stuff
+    spm_mb_show('All',dat,mu,Objective,N,sett);            
 end
 
 % Final mean update
