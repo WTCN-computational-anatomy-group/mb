@@ -166,20 +166,18 @@ mu = zeros([sett.var.d K],'single');
 if ~do_gmm, return; end
 
 % Change some settings
-do_updt_bf      = sett.do.updt_bf;
 samp            = sett.gen.samp;
 nit_appear      = sett.nit.appear;
 nit_gmm         = sett.nit.gmm;
-sett.nit.gmm    = 200;
-sett.gen.samp   = min(samp_mu,5);
-sett.nit.appear = 1;
-sett.do.updt_bf = false;
+sett.nit.gmm    = 100;
+sett.gen.samp   = min(samp_mu + 1,6);
+sett.nit.appear = 4;
 
 % Get population indices
 p_ix       = spm_mb_appearance('GetPopulationIdx',dat);
 Npop       = numel(p_ix);
-% first_subj = true;
-for p=2:Npop
+first_subj = true;
+for p=1:Npop
     % To make the algorithm more robust when using multiple populations,
     % set posterior and prior means (m) of GMMs of all but the first population to
     % uniform  
@@ -196,16 +194,16 @@ for p=2:Npop
     
     for n=p_ix{p}
         dat(n).mog.pr.m = repmat(avg_pr,[1 K + 1]);        
-%         if first_subj            
-%             first_subj = false;
-%             continue
-%         end        
+        if first_subj            
+            first_subj = false;
+            continue
+        end        
         dat(n).mog.po.m = repmat(avg_po,[1 K + 1]);        
     end
 end
 
 % Update template based on only first subject..
-% [mu,dat(1)]       = spm_mb_shape('UpdateSimpleMean',dat(1), mu, sett);
+[mu,dat(1)]       = spm_mb_shape('UpdateSimpleMean',dat(1), mu, sett);
 % ..then propagate to all other subjects in populations..
 [mu,dat(p_ix{1})] = spm_mb_shape('UpdateSimpleMean',dat(p_ix{1}), mu, sett);
 if Npop > 1
@@ -214,16 +212,7 @@ if Npop > 1
     [mu,dat]      = spm_mb_shape('UpdateSimpleMean',dat,    mu, sett);    
 end
 
-% % Update template based on only first population
-% [mu,dat(p_ix{1})] = spm_mb_shape('UpdateSimpleMean',dat(p_ix{1}), mu, sett);
-% if Npop > 1
-%     % Use template learned from first population to initialise all other
-%     % populations' subjects
-%     [mu,dat]      = spm_mb_shape('UpdateSimpleMean',dat,    mu, sett);    
-% end
-
 % Restore settings
-sett.do.updt_bf = do_updt_bf;
 sett.gen.samp   = samp;
 sett.nit.appear = nit_appear;
 sett.nit.gmm    = nit_gmm;
