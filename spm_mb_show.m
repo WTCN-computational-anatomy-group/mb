@@ -256,21 +256,19 @@ for n=1:nd
         fn   = reshape(fn,[prod(df(1:3)) C]);
         fn   = spm_mb_appearance('Mask',fn,is_ct);
         
+        labels = spm_mb_appearance('GetLabels',dat(n),sett);
+                        
         [bffn,code_image,msk_chn] = spm_gmm_lib('obs2cell', bf.*fn);
         mun                       = reshape(mun,[prod(df(1:3)) K1]);
-        mun                       = spm_gmm_lib('obs2cell', mun, code_image, false);
-        
-        labels = spm_mb_appearance('GetLabels',dat(n),sett);
-        if ~isempty(labels)
-            labels = spm_gmm_lib('obs2cell', labels, code_image, false);
-        end
-    
+        mun1                      = mun + labels;
+        labels                    = [];
+        mun1                      = spm_gmm_lib('obs2cell', mun1, code_image, false);
+                    
         % Get responsibility
         zn      = spm_mb_appearance('Responsibility',dat(n).mog.po.m,dat(n).mog.po.b, ...
-                                    dat(n).mog.po.W,dat(n).mog.po.n,bffn,mun,msk_chn,labels);           
-        zn      = spm_gmm_lib('cell2obs', zn, code_image, msk_chn);        
-        mun     = spm_gmm_lib('cell2obs', mun, code_image, msk_chn);
-        msk_chn = [];
+                                    dat(n).mog.po.W,dat(n).mog.po.n,bffn,mun1,msk_chn);           
+        zn      = spm_gmm_lib('cell2obs', zn, code_image, msk_chn);                
+        msk_chn = []; mu1 = [];
         
         % Reshape back
         zn  = reshape(zn,[df(1:3) K1]);

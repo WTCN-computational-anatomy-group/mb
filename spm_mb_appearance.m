@@ -151,12 +151,14 @@ function labels = GetLabels(datn,sett,do_samp)
 if nargin < 3, do_samp = false; end
 
 % Parse function settings
+K          = sett.model.K;
 samp       = sett.gen.samp;
 use_labels = sett.labels.use;
 
-if ~use_labels || isempty(datn.labels{1}) || isempty(datn.labels{2})
+if ~use_labels || isempty(datn.labels) || isempty(datn.labels{1}) || isempty(datn.labels{2})
     % Do not use labels
-    labels = [];
+    K1     = K + 1;
+    labels = zeros(1,K1);
     return
 end
 
@@ -244,7 +246,7 @@ end
 
 %==========================================================================
 % Responsibility()
-function zn = Responsibility(m,b,W,n,fn,mu,msk_chn,labels)
+function zn = Responsibility(m,b,W,n,fn,mu,msk_chn)
 % Compute responsibilities.
 %
 % FORMAT zn = Responsibility(m,b,W,n,fn,mu,L,code)
@@ -255,12 +257,11 @@ function zn = Responsibility(m,b,W,n,fn,mu,msk_chn,labels)
 % fn      - Bias-corrected observed image in matrix form [nbvox nbchannel]
 % mu      - Deformed and exponentiated template
 % msk_chn - Mask of observed channels per code
-% labels  - Voxel-wise labels from manual segmentation
 % zn      - Image of responsibilities [nbvox K]
 
 const = spm_gmm_lib('Normalisation', {m,b}, {W,n}, msk_chn);
 fn    = spm_gmm_lib('Marginal', fn, {m,W,n}, const, msk_chn);
-zn    = spm_gmm_lib('Responsibility', fn, mu, labels);
+zn    = spm_gmm_lib('Responsibility', fn, mu);
 end
 %==========================================================================
 
@@ -351,6 +352,10 @@ end
 % Make K + 1 template
 mun = spm_mb_shape('TemplateK1',mun,2);
 
+% Add labels and template
+mun    = mun + labels;
+labels = [];
+
 % Bias field related
 if any(do_bf == true) 
     chan       = BiasFieldStruct(datn,C,df,reg,fwhm,[],datn.bf.T,samp);
@@ -363,9 +368,6 @@ end
 % Format for spm_gmm
 [bffn,code_image,msk_chn] = spm_gmm_lib('obs2cell', bffn);
 mun                       = spm_gmm_lib('obs2cell', mun, code_image, false);
-if ~isempty(labels)
-    labels                = spm_gmm_lib('obs2cell', labels, code_image, false);
-end
 code_list                 = unique(code_image);
 code_list                 = code_list(code_list ~= 0);
 
@@ -384,8 +386,7 @@ for it_appear=1:nit_appear
                                  'Tolerance',    tol_gmm, ...
                                  'SubIterMax',   nit_gmm_miss, ...
                                  'SubTolerance', tol_gmm, ...
-                                 'Verbose',      [0 0], ...
-                                 'Labels',       labels);
+                                 'Verbose',      [0 0]);
     m = mog.MU;
     b = mog.b;
     W = mog.V;
@@ -408,7 +409,7 @@ for it_appear=1:nit_appear
     if do_updt_bf && any(do_bf == true)        
 
         % Make sure to use the latest responsibilties
-        zn = Responsibility(m,b,W,n,bffn,mun,msk_chn,labels);
+        zn = Responsibility(m,b,W,n,bffn,mun,msk_chn);
 
         % Recompute parts of objective function that depends on bf
         lx  = LowerBound('ln(P(X|Z))',bffn,zn,msk_chn,{m,b},{W,n},scl_samp);
@@ -514,7 +515,7 @@ for it_appear=1:nit_appear
                     bffn       = spm_gmm_lib('obs2cell', bffn, code_image, true);
                     
                     % Recompute responsibilities (with updated bias field)
-                    zn = Responsibility(m,b,W,n,bffn,mun,msk_chn,labels);
+                    zn = Responsibility(m,b,W,n,bffn,mun,msk_chn);
 
                     % Compute new lower bound
                     lx  = LowerBound('ln(P(X|Z))',bffn,zn,msk_chn,{m,b},{W,n},scl_samp);            
@@ -539,7 +540,7 @@ for it_appear=1:nit_appear
                             bffn  = bf.*fn;
                             bffn  = spm_gmm_lib('obs2cell', bffn, code_image, true);
                             pr_bf = opr_bf;
-                            zn    = Responsibility(m,b,W,n,bffn,mun,msk_chn,labels);
+                            zn    = Responsibility(m,b,W,n,bffn,mun,msk_chn);
                         end
                     end
                 end
@@ -575,14 +576,13 @@ if samp > 1
     [bffn,code_image,msk_chn] = spm_gmm_lib('obs2cell', bffn);    
 
     mun0 = spm_mb_shape('TemplateK1',mun0,2);
-    mun0 = spm_gmm_lib('obs2cell', mun0, code_image, false);
     
-    labels = GetLabels(datn,sett);
-    if ~isempty(labels)
-        labels = spm_gmm_lib('obs2cell', labels, code_image, false);
-    end
+    labels = GetLabels(datn,sett);    
+    mun0   = mun0 + labels;
+    labels = [];
     
-    zn = Responsibility(m,b,W,n,bffn,mun0,msk_chn,labels);
+    mun0 = spm_gmm_lib('obs2cell', mun0, code_image, false);            
+    zn   = Responsibility(m,b,W,n,bffn,mun0,msk_chn);
 end       
 zn = spm_gmm_lib('cell2obs', zn, code_image, msk_chn);
 

@@ -99,6 +99,11 @@ if isfield(datn,'mog') && (any(write_bf(:) == true) || any(write_im(:) == true) 
     fn      = reshape(fn,[prod(df(1:3)) C]);
     fn      = spm_mb_appearance('Mask',fn,is_ct);
     
+    % Get labels
+    labels = spm_mb_appearance('GetLabels',datn,sett);
+    mun    = mun + labels;
+    labels = [];
+    
     % Format for spm_gmm
     [bffn,code_image,msk_chn] = spm_gmm_lib('obs2cell', bf.*fn);
     mun                       = spm_gmm_lib('obs2cell', mun, code_image, false);
