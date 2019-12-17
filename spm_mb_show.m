@@ -258,11 +258,13 @@ for n=1:nd
         
         [bffn,code_image,msk_chn] = spm_gmm_lib('obs2cell', bf.*fn);
         mun                       = reshape(mun,[prod(df(1:3)) K1]);
-                        
+        mun                       = spm_gmm_lib('obs2cell', mun, code_image, false);
+        
         % Get responsibility
         zn      = spm_mb_appearance('Responsibility',dat(n).mog.po.m,dat(n).mog.po.b, ...
-                                    dat(n).mog.po.W,dat(n).mog.po.n,bffn,spm_gmm_lib('obs2cell', mun, code_image, false),msk_chn);           
+                                    dat(n).mog.po.W,dat(n).mog.po.n,bffn,mun,msk_chn);           
         zn      = spm_gmm_lib('cell2obs', zn, code_image, msk_chn);        
+        mun     = spm_gmm_lib('cell2obs', mun, code_image, msk_chn);
         msk_chn = [];
         
         % Reshape back
@@ -330,9 +332,11 @@ for n=1:nd
         if isfield(dat,'mog')                
             % Here we get approximate class proportions from the (softmaxed K + 1)
             % tissue template
-            mun = reshape(mun,[prod(df(1:3)) size(mun,4)]);
-            mun = sum(mun,1);
-            mun = mun./sum(mun);
+            mun       = reshape(mun,[prod(df(1:3)) size(mun,4)]);
+            msk       = isfinite(mun);
+            mun(~msk) = 0;
+            mun       = sum(mun,1);
+            mun       = mun./sum(mun);
 
             % Plot GMM fit        
             ShowGMMFit(bf(:,:,:,c).*fn(:,:,:,c),mun,dat(n).mog,nr_par,nd,n + 2*nd,c);
