@@ -144,10 +144,10 @@ if do_updt_aff
                 Objective = [Objective; E];               
             end
         end                
-        if it_init > 1 && (oE - E)/(numel(dat)*100^3) < 1e-4
-            % Finished rigid alignment
-            break; 
-        end
+%         if it_init > 1 && (oE - E)/(numel(dat)*100^3) < 1e-4
+%             % Finished rigid alignment
+%             break; 
+%         end
         
         % Update affine
         oE = E; tic;
@@ -200,8 +200,8 @@ for zm=numel(sz):-1:1 % loop over zoom levels
     end    
         
     E4     = Inf;
-    nit_zm = nit_zm0 + (zm - 1);
-%     nit_zm = nit_zm0;
+%     nit_zm = nit_zm0 + (zm - 1);
+    nit_zm = nit_zm0;
     for it_zm=1:nit_zm
 
         % Update template, bias field and intensity model

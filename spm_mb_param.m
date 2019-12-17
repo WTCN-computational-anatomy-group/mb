@@ -223,7 +223,7 @@ if ~isfield(sett.labels,'use')
     sett.labels.use = false;
 end
 if ~isfield(sett.labels,'w')    
-    sett.labels.w  = 0.95;
+    sett.labels.w  = 0.99;
 end
 
 %------------------
@@ -260,8 +260,8 @@ if ~isfield(sett.nit,'gmm')
     sett.nit.gmm = 20;
 end
 if ~isfield(sett.nit,'init')
-    % The number of iterations, at largest zoom level.
-    sett.nit.init = 8;
+    % The number of iterations, for init rigid alignment.
+    sett.nit.init = 6;
 end
 if ~isfield(sett.nit,'init_mu')
     % The number of template update iterations
