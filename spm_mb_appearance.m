@@ -5,6 +5,7 @@ function varargout = spm_mb_appearance(varargin)
 %
 % FORMAT [bfn,lln] = spm_mb_appearance('BiasField',chan,d,varargin)
 % FORMAT chan      = spm_mb_appearance('BiasFieldStruct',datn,C,df,reg,fwhm,scl,T,samp)
+% FORMAT labels    = spm_mb_appearance('GetLabels',datn,sett,do_samp)
 % FORMAT p_ix      = spm_mb_appearance('GetPopulationIdx',dat)
 % FORMAT dat       = spm_mb_appearance('Init',dat,model,K,sett)
 % FORMAT fn        = spm_mb_appearance('Mask',fn,is_ct)
@@ -25,6 +26,8 @@ switch id
         [varargout{1:nargout}] = BiasField(varargin{:});      
     case 'BiasFieldStruct'
         [varargout{1:nargout}] = BiasFieldStruct(varargin{:});         
+    case 'GetLabels'
+        [varargout{1:nargout}] = GetLabels(varargin{:});            
     case 'GetPopulationIdx'
         [varargout{1:nargout}] = GetPopulationIdx(varargin{:});           
     case 'Init'
@@ -143,6 +146,55 @@ end
 %========================================================================== 
 
 %==========================================================================
+% GetLabels()
+function labels = GetLabels(datn,sett,do_samp)
+if nargin < 3, do_samp = false; end
+
+% Parse function settings
+samp       = sett.gen.samp;
+use_labels = sett.labels.use;
+
+if ~use_labels || isempty(datn.labels{1}) || isempty(datn.labels{2})
+    % Do not use labels
+    labels = [];
+    return
+end
+
+cm_map     = datn.labels{2}; % cell array that defines the confusion matrix (cm)
+ix_nonlabl = numel(cm_map);  % label of nonlabelled data
+
+% There might be more labels in the label image than what we want to use,
+% here we get the number of labels we want to use from cm_map
+labels2use = [];
+for l=1:numel(cm_map) - 1
+    if ~isempty(cm_map{l}), labels2use = [labels2use l]; end
+end
+
+% Load labels
+labels = spm_mb_io('GetData',datn.labels{1});
+if do_samp && samp > 1
+    % Subsample labels
+    Mn     = datn.M;
+    labels = SubSample(labels,Mn,samp);    
+end
+
+% Use labels2use to keep only labels of interest
+labels       = labels(:);
+msk          = ismember(labels,labels2use);
+labels(~msk) = ix_nonlabl;
+
+% Get confusion matrix that maps from label value to probability value
+cm = GetLabelConfMatrix(cm_map,sett);
+
+% Build NxK1 label image using confusion matrix
+labels = cm(labels,:);
+
+% Make log probability
+labels = log(labels);
+end
+%==========================================================================
+
+%==========================================================================
 % GetPopulationIdx()
 function p_ix = GetPopulationIdx(dat)
 ix_pop = [dat.ix_pop];
@@ -192,7 +244,7 @@ end
 
 %==========================================================================
 % Responsibility()
-function zn = Responsibility(m,b,W,n,fn,mu,msk_chn)
+function zn = Responsibility(m,b,W,n,fn,mu,msk_chn,labels)
 % Compute responsibilities.
 %
 % FORMAT zn = Responsibility(m,b,W,n,fn,mu,L,code)
@@ -203,11 +255,12 @@ function zn = Responsibility(m,b,W,n,fn,mu,msk_chn)
 % fn      - Bias-corrected observed image in matrix form [nbvox nbchannel]
 % mu      - Deformed and exponentiated template
 % msk_chn - Mask of observed channels per code
+% labels  - Voxel-wise labels from manual segmentation
 % zn      - Image of responsibilities [nbvox K]
 
 const = spm_gmm_lib('Normalisation', {m,b}, {W,n}, msk_chn);
 fn    = spm_gmm_lib('Marginal', fn, {m,W,n}, const, msk_chn);
-zn    = spm_gmm_lib('Responsibility', fn, mu);
+zn    = spm_gmm_lib('Responsibility', fn, mu, labels);
 end
 %==========================================================================
 
@@ -281,6 +334,9 @@ else
 end
 fn = reshape(fn,[prod(d(1:3)) C]);
 
+% If labels are provided, use these
+labels = GetLabels(datn,sett,true); % true -> subsample labels (if samp > 1)
+
 % Missing data stuff
 fn     = Mask(fn,is_ct);
 msk_vx = ~isnan(fn);
@@ -307,6 +363,9 @@ end
 % Format for spm_gmm
 [bffn,code_image,msk_chn] = spm_gmm_lib('obs2cell', bffn);
 mun                       = spm_gmm_lib('obs2cell', mun, code_image, false);
+if ~isempty(labels)
+    labels                = spm_gmm_lib('obs2cell', labels, code_image, false);
+end
 code_list                 = unique(code_image);
 code_list                 = code_list(code_list ~= 0);
 
@@ -325,7 +384,8 @@ for it_appear=1:nit_appear
                                  'Tolerance',    tol_gmm, ...
                                  'SubIterMax',   nit_gmm_miss, ...
                                  'SubTolerance', tol_gmm, ...
-                                 'Verbose',      [0 0]);
+                                 'Verbose',      [0 0], ...
+                                 'Labels',       labels);
     m = mog.MU;
     b = mog.b;
     W = mog.V;
@@ -348,7 +408,7 @@ for it_appear=1:nit_appear
     if do_updt_bf && any(do_bf == true)        
 
         % Make sure to use the latest responsibilties
-        zn = Responsibility(m,b,W,n,bffn,mun,msk_chn);
+        zn = Responsibility(m,b,W,n,bffn,mun,msk_chn,labels);
 
         % Recompute parts of objective function that depends on bf
         lx  = LowerBound('ln(P(X|Z))',bffn,zn,msk_chn,{m,b},{W,n},scl_samp);
@@ -454,7 +514,7 @@ for it_appear=1:nit_appear
                     bffn       = spm_gmm_lib('obs2cell', bffn, code_image, true);
                     
                     % Recompute responsibilities (with updated bias field)
-                    zn = Responsibility(m,b,W,n,bffn,mun,msk_chn);
+                    zn = Responsibility(m,b,W,n,bffn,mun,msk_chn,labels);
 
                     % Compute new lower bound
                     lx  = LowerBound('ln(P(X|Z))',bffn,zn,msk_chn,{m,b},{W,n},scl_samp);            
@@ -479,7 +539,7 @@ for it_appear=1:nit_appear
                             bffn  = bf.*fn;
                             bffn  = spm_gmm_lib('obs2cell', bffn, code_image, true);
                             pr_bf = opr_bf;
-                            zn    = Responsibility(m,b,W,n,bffn,mun,msk_chn);
+                            zn    = Responsibility(m,b,W,n,bffn,mun,msk_chn,labels);
                         end
                     end
                 end
@@ -511,13 +571,18 @@ if samp > 1
         bffn = fn;
     end
     fn = [];
-
+       
     [bffn,code_image,msk_chn] = spm_gmm_lib('obs2cell', bffn);    
 
     mun0 = spm_mb_shape('TemplateK1',mun0,2);
     mun0 = spm_gmm_lib('obs2cell', mun0, code_image, false);
     
-    zn   = Responsibility(m,b,W,n,bffn,mun0,msk_chn);
+    labels = GetLabels(datn,sett);
+    if ~isempty(labels)
+        labels = spm_gmm_lib('obs2cell', labels, code_image, false);
+    end
+    
+    zn = Responsibility(m,b,W,n,bffn,mun0,msk_chn,labels);
 end       
 zn = spm_gmm_lib('cell2obs', zn, code_image, msk_chn);
 
@@ -616,6 +681,49 @@ function f = ApplyMask(f,is_ct)
 if is_ct, f(~isfinite(f) | f == 0 | f <= - 1020) = NaN;
 else,     f(~isfinite(f) | f == 0)               = NaN;
 end
+end
+%==========================================================================
+
+%==========================================================================
+% GetLabelConfMatrix()
+function cm = GetLabelConfMatrix(cm_map,sett)
+% FORMAT CM = get_label_cm(cm_map,opt)
+% cm_map - Defines the confusion matrix
+% sett   - Options structure
+% cm     - confusion matrix
+%
+% Build Rater confusion matrix for one subject.
+% This matrix maps template classes to manually segmented classes.
+% Manual labels often do not follow the same convention as the Template, 
+% and not all regions may be labelled. Therefore, a manual label may 
+% correspond to several Template classes and, conversely, one Template
+% class may correspond to several manual labels.
+%__________________________________________________________________________
+% Copyright (C) 2018 Wellcome Centre for Human Neuroimaging
+
+% Here, we assume that all subjects from the same population (e.g.,
+% a publicily available dataset) have the same labelling protocole and 
+% confusion matrix.
+% We allow the rater's sensitivity to change every few acquistion. We would
+% typically start with a high sensitivity, to weight the labels strongly,
+% and then decrease this value to allow the model to correct the rater's
+% mistakes (especially near boundaries).
+
+% Parse function settings
+K = sett.model.K;
+w = sett.labels.w;
+
+K1 = K + 1;
+L  = numel(cm_map); % Number of labels
+cm = zeros([L K1],'single'); % Allocate confusion matrix
+for l=1:L % Loop over labels    
+    ix            = false(1,K1);
+    ix(cm_map{l}) = true;   
+    
+    cm(l,ix)  = w/nnz(ix); 
+    cm(l,~ix) = (1 - w)/nnz(~ix);
+end
+cm = bsxfun(@rdivide,cm,sum(cm,2));
 end
 %==========================================================================
 

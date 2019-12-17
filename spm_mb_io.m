@@ -285,10 +285,14 @@ for n=1:N
        
     if do_gmm
         dat(n).mog = [];
-        dat(n).bf  = [];
+        dat(n).bf  = [];                
     end
     
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Subject-level 'extras'
+    %------------------------------------------------------------
+    
+    % Do bias field (per channel)
     if isstruct(data(n)) && isfield(data(n),'do_bf') && ~isempty(data(n).do_bf)
         dat(n).do_bf = data(n).do_bf;
     else
@@ -298,12 +302,14 @@ for n=1:N
         dat(n).do_bf = repmat(dat(n).do_bf,[1 C]); 
     end
     
+    % Intensity prior index
     if isstruct(data(n)) && isfield(data(n),'ix_pop') && ~isempty(data(n).ix_pop)
         dat(n).ix_pop = data(n).ix_pop;
     else
         dat(n).ix_pop = 1;
     end
     
+    % Is CT data
     if isstruct(data(n)) && isfield(data(n),'is_ct') && ~isempty(data(n).is_ct)
         dat(n).is_ct = true;
     else
@@ -313,9 +319,17 @@ for n=1:N
         dat(n).is_ct = repmat(dat(n).is_ct,[1 C]); 
     end
     
+    % Labels in a nifti file
+    if isstruct(data(n)) && isfield(data(n),'labels') && ~isempty(data(n).labels)
+        dat(n).labels = data(n).labels;
+    else
+        dat(n).labels = [];        
+    end
+            
     % Orientation matrix (image voxel-to-world)    
     dat(n).Mat = eye(4);
     if ~run2d && (isa(F,'nifti') || (iscell(F) && (isa(F{1},'char') || isa(F{1},'nifti'))))
+%     if isa(F,'nifti') || (iscell(F) && (isa(F{1},'char') || isa(F{1},'nifti')))
         dat(n).Mat = Nii(1).mat;        
     end
 end

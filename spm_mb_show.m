@@ -8,7 +8,7 @@ function varargout = spm_mb_show(varargin)
 % FORMAT spm_mb_show('IntensityPrior',dat,sett,p)
 % FORMAT spm_mb_show('Model',mu,Objective,N,sett)
 % FORMAT spm_mb_show('Subjects',dat,mu,sett,p,show_extras)
-% FORMAT spm_mb_show('Tissues',im,do_softmax,ix,fig_nam)
+% FORMAT spm_mb_show('Tissues',im,do_softmax,num_montage,fig_nam)
 % FORMAT spm_mb_show('Speak',nam,varargin)
 %
 %__________________________________________________________________________
@@ -260,9 +260,14 @@ for n=1:nd
         mun                       = reshape(mun,[prod(df(1:3)) K1]);
         mun                       = spm_gmm_lib('obs2cell', mun, code_image, false);
         
+        labels = spm_mb_appearance('GetLabels',dat(n),sett);
+        if ~isempty(labels)
+            labels = spm_gmm_lib('obs2cell', labels, code_image, false);
+        end
+    
         % Get responsibility
         zn      = spm_mb_appearance('Responsibility',dat(n).mog.po.m,dat(n).mog.po.b, ...
-                                    dat(n).mog.po.W,dat(n).mog.po.n,bffn,mun,msk_chn);           
+                                    dat(n).mog.po.W,dat(n).mog.po.n,bffn,mun,msk_chn,labels);           
         zn      = spm_gmm_lib('cell2obs', zn, code_image, msk_chn);        
         mun     = spm_gmm_lib('cell2obs', mun, code_image, msk_chn);
         msk_chn = [];
@@ -370,10 +375,10 @@ end
 
 %==========================================================================
 % Tissues()
-function Tissues(im,ix,do_softmax,fig_nam)
-if nargin < 2, ix         = 20; end
-if nargin < 3, do_softmax = true; end
-if nargin < 4, fig_nam    = '(spm_mb) Tissues'; end
+function Tissues(im,do_softmax,num_montage,fig_nam)
+if nargin < 2, do_softmax  = true; end
+if nargin < 3, num_montage = 20; end
+if nargin < 4, fig_nam     = '(spm_mb) Tissues'; end
 
 f  = findobj('Type', 'Figure', 'Name', fig_nam);
 if isempty(f)
@@ -395,14 +400,15 @@ end
 
 nr = floor(sqrt(K));
 nc = ceil(K/nr);  
-ix = 1:ix:dm(3);
+num_montage = 1:num_montage:dm(3);
 
 for k=1:K
     subplot(nr,nc,k)
-    montage(im(:,:,ix,k))
+    montage(im(:,:,num_montage,k))
     axis off image xy;   
     colormap(gray)
 end
+drawnow
 end
 %==========================================================================
 

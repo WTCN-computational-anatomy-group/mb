@@ -213,6 +213,20 @@ if ~isfield(sett.gen,'samp')
 end
 
 %------------------
+% .labels (label related)
+%------------------
+
+if ~isfield(sett,'labels')
+    sett.labels = struct;
+end
+if ~isfield(sett.labels,'use')    
+    sett.labels.use = false;
+end
+if ~isfield(sett.labels,'w')    
+    sett.labels.w  = 0.95;
+end
+
+%------------------
 % .model (model related)
 %------------------
 

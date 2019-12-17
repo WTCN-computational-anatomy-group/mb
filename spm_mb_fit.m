@@ -253,8 +253,7 @@ for zm=numel(sz):-1:1 % loop over zoom levels
             % Save stuff
             save(fullfile(dir_res,'results_Groupwise.mat'),'dat','mu','sett')
         end                
-    end
-    
+    end    
     fprintf('%g seconds\n\n', toc); tic;
     
     % Show stuff
