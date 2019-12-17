@@ -163,11 +163,11 @@ if do_updt_aff
         if do_updt_template || do_updt_int
             % Save stuff
             save(fullfile(dir_res,'results_Groupwise.mat'),'dat','mu','sett')
-        end
-        
-        % Show stuff
-        spm_mb_show('All',dat,mu,Objective,N,sett);
+        end                
     end
+    
+    % Show stuff
+    spm_mb_show('All',dat,mu,Objective,N,sett);
 end
 
 %------------------
