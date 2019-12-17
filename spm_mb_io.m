@@ -319,17 +319,23 @@ for n=1:N
         dat(n).is_ct = repmat(dat(n).is_ct,[1 C]); 
     end
     
-    % Labels in a nifti file
-    if isstruct(data(n)) && isfield(data(n),'labels') && ~isempty(data(n).labels)
+    % Labels in a cell array as {nifti,cm_map}
+    if isstruct(data(n)) && isfield(data(n),'labels') && (~isempty(data(n).labels{1}) && ~isempty(data(n).labels{2}))
         dat(n).labels = data(n).labels;
+        
+        if run2d
+            % Get 2D slice from 3D data
+            labels           = spm_mb_io('GetData',dat(n).labels{1});
+            dat(n).labels{1} = GetSlice(labels,run2d);
+        end
     else
         dat(n).labels = [];        
     end
             
     % Orientation matrix (image voxel-to-world)    
     dat(n).Mat = eye(4);
-    if ~run2d && (isa(F,'nifti') || (iscell(F) && (isa(F{1},'char') || isa(F{1},'nifti'))))
-%     if isa(F,'nifti') || (iscell(F) && (isa(F{1},'char') || isa(F{1},'nifti')))
+%     if ~run2d && (isa(F,'nifti') || (iscell(F) && (isa(F{1},'char') || isa(F{1},'nifti'))))
+    if isa(F,'nifti') || (iscell(F) && (isa(F{1},'char') || isa(F{1},'nifti')))
         dat(n).Mat = Nii(1).mat;        
     end
 end
