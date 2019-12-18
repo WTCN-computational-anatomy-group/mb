@@ -205,13 +205,13 @@ for p=1:Npop
 end
 
 % Update template based on only first subject..
-[mu,dat(1)]       = spm_mb_shape('UpdateSimpleMean',dat(1), mu, sett);
+[mu,dat(p_ix{1}(1))] = spm_mb_shape('UpdateSimpleMean',dat(p_ix{1}(1)), mu, sett);
 % ..then propagate to all other subjects in populations..
-[mu,dat(p_ix{1})] = spm_mb_shape('UpdateSimpleMean',dat(p_ix{1}), mu, sett);
+[mu,dat(p_ix{1})]    = spm_mb_shape('UpdateSimpleMean',dat(p_ix{1}), mu, sett);
 if Npop > 1
     % ..if more than one population, use template learned on first
     % population to initialise other populations' subjects
-    [mu,dat]      = spm_mb_shape('UpdateSimpleMean',dat,    mu, sett);    
+    [mu,dat]         = spm_mb_shape('UpdateSimpleMean',dat,    mu, sett);    
 end
 
 % Restore settings
