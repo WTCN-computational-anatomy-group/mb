@@ -35,7 +35,6 @@ B          = sett.registr.B;
 dmu        = sett.var.d;
 dir_res    = sett.write.dir_res;
 do_infer   = sett.do.infer;
-do_updt_bf = sett.do.updt_bf;
 fwhm       = sett.bf.fwhm;
 Mmu        = sett.var.Mmu;
 reg        = sett.bf.reg;
@@ -86,7 +85,7 @@ if isfield(datn,'mog') && (any(write_bf(:) == true) || any(write_im(:) == true) 
     mun = reshape(mun,[prod(df(1:3)) K]);
     mun = spm_mb_shape('TemplateK1',mun,2);
 
-    if do_updt_bf && any(do_bf == true)
+    if any(do_bf == true)
         % Get bias field
         chan = spm_mb_appearance('BiasFieldStruct',datn,C,df,reg,fwhm,[],datn.bf.T);
         bf   = spm_mb_appearance('BiasField',chan,df);
@@ -131,12 +130,16 @@ if isfield(datn,'mog') && (any(write_bf(:) == true) || any(write_im(:) == true) 
 
     % TODO: Possible post-processing (MRF + clean-up)
 
-    % Make 3D        
-    bf = reshape(bf,[df(1:3) C]);
+    % Make 3D    
+    if any(do_bf == true)
+        bf = reshape(bf,[df(1:3) C]);
+    else
+        bf = reshape(bf,[1 1 1 C]);
+    end
     fn = reshape(fn,[df(1:3) C]);
     zn = reshape(zn,[df(1:3) K1]);
 
-    if any(write_bf == true) && do_updt_bf && any(do_bf == true)
+    if any(write_bf == true) && any(do_bf == true)
         % Write bias field
         descrip = 'Bias field (';
         pths    = {};
