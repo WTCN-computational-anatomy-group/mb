@@ -423,7 +423,7 @@ sz        = struct('Mmu',Mmu,'d',dz,...
 
 % I'm still not entirely sure how best to deal with regularisation
 % when dealing with different voxel sizes.
-scale     = 1/abs(det(Mmu(1:3,1:3)));
+scale = 1/abs(det(Mmu(1:3,1:3)));
 for i=1:n
     sz(i).d           = ceil(d/(2^(i-1)));
     z                 = d./sz(i).d;

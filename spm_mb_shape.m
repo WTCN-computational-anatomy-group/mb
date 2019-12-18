@@ -7,7 +7,7 @@ function varargout = spm_mb_shape(varargin)
 % FORMAT psi           = spm_mb_shape('Compose',psi1,psi0)
 % FORMAT id            = spm_mb_shape('Identity',d)
 % FORMAT dat           = spm_mb_shape('Init',dat,sett)
-% FORMAT [dat,mu,sett] = spm_mb_shape('InitMu',dat,K,samp_mu,sett)
+% FORMAT [dat,mu,sett] = spm_mb_shape('InitMu',dat,K,sett)
 % FORMAT l             = spm_mb_shape('LSE',mu,dr)
 % FORMAT a1            = spm_mb_shape('Pull1',a0,psi,r)
 % FORMAT [f1,w1]       = spm_mb_shape('Push1',f,psi,d,r)
@@ -153,7 +153,7 @@ end
 
 %==========================================================================
 % InitMu()
-function [dat,mu,sett] = InitMu(dat,K,samp_mu,sett)
+function [dat,mu,sett] = InitMu(dat,K,sett)
 % Make 'quick' initial estimates of GMM posteriors and template on very coarse
 % scale
 
@@ -166,12 +166,14 @@ mu = zeros([sett.var.d K],'single');
 if ~do_gmm, return; end
 
 % Change some settings
+do_updt_bf      = sett.do.updt_bf;
 samp            = sett.gen.samp;
 nit_appear      = sett.nit.appear;
 nit_gmm         = sett.nit.gmm;
+sett.do.updt_bf = false;
 sett.nit.gmm    = 100;
-sett.gen.samp   = min(samp_mu + 1,6);
-sett.nit.appear = 4;
+sett.gen.samp   = 5;
+sett.nit.appear = 1;
 
 % Get population indices
 p_ix       = spm_mb_appearance('GetPopulationIdx',dat);
@@ -213,6 +215,7 @@ if Npop > 1
 end
 
 % Restore settings
+sett.do.updt_bf = do_updt_bf;
 sett.gen.samp   = samp;
 sett.nit.appear = nit_appear;
 sett.nit.gmm    = nit_gmm;
@@ -615,8 +618,8 @@ end
 function [dat,mu] = ZoomVolumes(dat,mu,sett,oMmu)
 
 % Parse function settings
-d       = sett.var.d;
-Mmu     = sett.var.Mmu;
+d   = sett.var.d;
+Mmu = sett.var.Mmu;
 
 d0    = [size(mu,1) size(mu,2) size(mu,3)];
 z     = single(reshape(d./d0,[1 1 1 3]));

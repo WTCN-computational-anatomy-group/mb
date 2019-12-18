@@ -103,7 +103,7 @@ if template_given
     mu = spm_mb_shape('ShrinkTemplate',mu0,Mmu,sett);
 else
     % Initial template
-    [dat,mu,sett] = spm_mb_shape('InitMu',dat,K,max(vxmu(1),numel(sz)),sett);
+    [dat,mu,sett] = spm_mb_shape('InitMu',dat,K,sett);
 end
 
 spm_mb_show('All',dat,mu,[],N,sett);
@@ -191,17 +191,13 @@ for zm=numel(sz):-1:1 % loop over zoom levels
             % Update template, bias field and intensity model                        
             [mu,dat] = spm_mb_shape('UpdateMean',dat, mu, sett);
             dat      = spm_mb_appearance('UpdatePrior',dat, mu, sett);
-            
-            % Show stuff
-            spm_mb_show('All',dat,mu,Objective,N,sett);
         end
         te = spm_mb_shape('TemplateEnergy',mu,sett);
         E0 = sum(sum(cat(2,dat.E),2),1) + te;
     end    
         
     E4     = Inf;
-%     nit_zm = nit_zm0 + (zm - 1);
-    nit_zm = nit_zm0;
+    nit_zm = nit_zm0 + (zm - 1);
     for it_zm=1:nit_zm
 
         % Update template, bias field and intensity model

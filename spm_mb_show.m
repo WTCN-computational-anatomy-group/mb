@@ -265,10 +265,15 @@ for n=1:nd
         mun1                      = spm_gmm_lib('obs2cell', mun1, code_image, false);
                     
         % Get responsibility
-        zn      = spm_mb_appearance('Responsibility',dat(n).mog.po.m,dat(n).mog.po.b, ...
+        zn  = spm_mb_appearance('Responsibility',dat(n).mog.po.m,dat(n).mog.po.b, ...
                                     dat(n).mog.po.W,dat(n).mog.po.n,bffn,mun1,msk_chn);           
-        zn      = spm_gmm_lib('cell2obs', zn, code_image, msk_chn);                
-        msk_chn = []; mu1 = [];
+        zn  = spm_gmm_lib('cell2obs', zn, code_image, msk_chn);                
+        mu1 = [];
+        
+        % Just to insert NaNs..
+        mun     = spm_gmm_lib('obs2cell', mun, code_image, false);
+        mun     = spm_gmm_lib('cell2obs', mun, code_image, msk_chn);                
+        msk_chn = []; 
         
         % Reshape back
         zn  = reshape(zn,[df(1:3) K1]);
@@ -550,7 +555,13 @@ else
 end
 
 in = squeeze(in(:,:,:,:));
-imagesc(in); axis off image xy;
+if min(in(:)) < 0
+    % Assume CT..
+    imagesc(in,[0 100]);
+else
+    imagesc(in);
+end
+axis off image xy;
 if use_gray
     colormap(gray);
 end
