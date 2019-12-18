@@ -154,7 +154,7 @@ if ~isfield(sett.bf,'fwhm')
     sett.bf.fwhm = 60;
 end
 if ~isfield(sett.bf,'reg')
-    sett.bf.reg = 1e5;
+    sett.bf.reg = 1e4;
 end
 
 %------------------
@@ -257,7 +257,7 @@ if ~isfield(sett.nit,'bf')
     sett.nit.bf = 1;
 end
 if ~isfield(sett.nit,'gmm')   
-    sett.nit.gmm = 20;
+    sett.nit.gmm = 32;
 end
 if ~isfield(sett.nit,'init')
     % The number of iterations, for init rigid alignment.
@@ -268,7 +268,7 @@ if ~isfield(sett.nit,'init_mu')
     sett.nit.init_mu = 2;
 end
 if ~isfield(sett.nit,'miss')   
-    sett.nit.gmm_miss = 20;
+    sett.nit.gmm_miss = 32;
 end
 if ~isfield(sett.nit,'zm')
     % The number of iterations, for updating all model parameters, at each zoom
