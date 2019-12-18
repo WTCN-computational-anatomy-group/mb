@@ -30,6 +30,7 @@ dir_res     = sett.write.dir_res;
 do_gmm      = sett.do.gmm;
 do_updt_aff = sett.do.updt_aff;
 do_zoom     = sett.do.zoom;
+init_mu_dm  = sett.model.init_mu_dm;
 K           = sett.model.K; 
 nit_init    = sett.nit.init;
 nit_init_mu = sett.nit.init_mu;
@@ -80,7 +81,7 @@ vxmu = sqrt(sum(Mmu(1:3,1:3).^2));
 % Get zoom (multi-scale) settings
 %------------------
 
-nz       = max(ceil(log2(min(dmu(dmu~=1))) - log2(8)),1);
+nz       = max(ceil(log2(min(dmu(dmu~=1))) - log2(init_mu_dm)),1);
 if ~do_zoom, nz = 1; end
 sz       = spm_mb_param('ZoomSettings',dmu,Mmu,sett.var.v_settings,sett.var.mu_settings,nz);
 sett.var = spm_mb_io('CopyFields',sz(end), sett.var);

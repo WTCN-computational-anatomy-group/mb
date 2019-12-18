@@ -236,6 +236,10 @@ end
 if ~isfield(sett.model,'groupwise')
     sett.model.groupwise = false;
 end
+if ~isfield(sett.model,'init_mu_dm')
+    % Minimum dimensions of template
+    sett.model.init_mu_dm = 8;    
+end
 if ~isfield(sett.model,'K')
     sett.model.K = 5;
 end
