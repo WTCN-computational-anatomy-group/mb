@@ -163,7 +163,7 @@ if do_updt_aff
         
         if do_updt_template || do_updt_int
             % Save stuff
-            save(fullfile(dir_res,'results_Groupwise.mat'),'dat','mu','sett')
+            save(fullfile(dir_res,'fit.mat'),'dat','mu','sett')
         end                
     end
     
@@ -248,7 +248,7 @@ for zm=numel(sz):-1:1 % loop over zoom levels
                 
         if do_updt_template || do_updt_int
             % Save stuff
-            save(fullfile(dir_res,'results_Groupwise.mat'),'dat','mu','sett')
+            save(fullfile(dir_res,'fit.mat'),'dat','mu','sett')
         end                
     end    
     fprintf('%g seconds\n\n', toc); tic;

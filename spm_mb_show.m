@@ -109,18 +109,18 @@ function Model(mu,Objective,N,sett)
 % Parse function settings
 fig_name = sett.show.figname_model;
 
-d   = size(mu);
-d   = [d 1];
-mu  = cat(4,mu,- max(mu,[],4) - spm_mb_shape('LSE',mu,4));
-mu  = spm_mb_shape('Softmax',mu,4);
+mu  = spm_mb_shape('TemplateK1',mu,4);
+mu  = exp(mu);   
 nam = ['K1=' num2str(size(mu,4)) ', N=' num2str(N) ' (softmaxed)'];
-if d(3) > 1
+if size(mu,3) > 1
+    % 3D
     ShowCat(mu,1,2,3,1,fig_name);
     ShowCat(mu,2,2,3,2,fig_name);
     ShowCat(mu,3,2,3,3,fig_name);
     title(nam);
     subplot(2,1,2);     
 else
+    % 2D
     ShowCat(mu,3,1,2,1,fig_name);
     title(nam);
     subplot(1,2,2); 
