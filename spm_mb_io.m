@@ -351,6 +351,7 @@ do_gmm           = sett.do.gmm;
 do_updt_int      = sett.do.updt_int;
 do_updt_template = sett.do.updt_template;
 dir_res          = sett.write.dir_res;
+write_model      = sett.write.model;
 
 if do_updt_template
     % Shape related
@@ -373,7 +374,7 @@ if do_updt_int && do_gmm
     end
 end
 
-if do_updt_template || do_updt_int
+if write_model && (do_updt_template || do_updt_int)
     % Save model
     save(fullfile(dir_res,'model.mat'),'model')
 end
@@ -420,34 +421,37 @@ function dat = SaveTemplate(dat,mu,sett)
 dir_res          = sett.write.dir_res;
 do_updt_template = sett.do.updt_template;
 Mmu              = sett.var.Mmu;
+write_mu         = sett.write.mu;
 
 if ~isempty(mu) && do_updt_template
-    % Save mu (log)
-    f        = fullfile(dir_res ,'mu_log.nii');
-    fa       = file_array(f,size(mu),'float32',0);
-    Nmu      = nifti;
-    Nmu.dat  = fa;
-    Nmu.mat  = Mmu;
-    Nmu.mat0 = Mmu;
-    Nmu.descrip = 'Mean parameters (log)';
-    create(Nmu);
-    Nmu.dat(:,:,:,:) = mu;
+    if write_mu(1)
+        % Log
+        f        = fullfile(dir_res ,'mu_log.nii');
+        fa       = file_array(f,size(mu),'float32',0);
+        Nmu      = nifti;
+        Nmu.dat  = fa;
+        Nmu.mat  = Mmu;
+        Nmu.mat0 = Mmu;
+        Nmu.descrip = 'Mean parameters (log)';
+        create(Nmu);
+        Nmu.dat(:,:,:,:) = mu;
+    end
     
-    % Save mu (softmax)    
-    mx  = max(max(mu,[],4),0);
-    lse = mx + log(sum(exp(mu - mx),4) + exp(-mx)); mx = [];
-    mu  = cat(4,mu - lse, -lse); lse = [];
-    mu  = exp(mu);    
-    
-    f        = fullfile(dir_res ,'mu_softmax.nii');        
-    fa       = file_array(f,size(mu),'float32',0);
-    Nmu      = nifti;
-    Nmu.dat  = fa;
-    Nmu.mat  = Mmu;
-    Nmu.mat0 = Mmu;
-    Nmu.descrip = 'Mean parameters (softmax)';
-    create(Nmu);
-    Nmu.dat(:,:,:,:) = mu;
+    if write_mu(2)
+        % Softmax   
+        mu = spm_mb_shape('TemplateK1',mu,4);
+        mu = exp(mu);    
+
+        f        = fullfile(dir_res ,'mu_softmax.nii');        
+        fa       = file_array(f,size(mu),'float32',0);
+        Nmu      = nifti;
+        Nmu.dat  = fa;
+        Nmu.mat  = Mmu;
+        Nmu.mat0 = Mmu;
+        Nmu.descrip = 'Mean parameters (softmax)';
+        create(Nmu);
+        Nmu.dat(:,:,:,:) = mu;
+    end
 end
 end
 %==========================================================================

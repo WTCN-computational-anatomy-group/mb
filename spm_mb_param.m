@@ -394,8 +394,22 @@ end
 if ~isfield(sett.write,'bf')
     sett.write.bf = false; % field
 end
+if ~isfield(sett.write,'clean_def')
+    % Remove nifti file containing deformation after algorithm finishes
+    sett.write.clean_def = false;
+end
+if ~isfield(sett.write,'clean_vel')
+    % Remove nifti file containing velocities after algorithm finishes
+    sett.write.clean_vel = false;
+end
 if ~isfield(sett.write,'df')
     sett.write.df = false(1,2); % forward, inverse
+end
+if ~isfield(sett.write,'model')
+    sett.write.model = true;
+end
+if ~isfield(sett.write,'mu')
+    sett.write.mu = [true false]; % log, softmax
 end
 if ~isfield(sett.write,'dir_res')
     sett.write.dir_res = '.';
