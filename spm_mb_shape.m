@@ -11,6 +11,7 @@ function varargout = spm_mb_shape(varargin)
 % FORMAT l             = spm_mb_shape('LSE',mu,dr)
 % FORMAT a1            = spm_mb_shape('Pull1',a0,psi,r)
 % FORMAT [f1,w1]       = spm_mb_shape('Push1',f,psi,d,r)
+% FORMAT sd            = spm_mb_shape('SampDens',Mmu,Mn)
 % FORMAT mu1           = spm_mb_shape('ShrinkTemplate',mu,oMmu,sett)
 % FORMAT P             = spm_mb_shape('Softmax',mu,dr)
 % FORMAT [Mmu,d]       = spm_mb_shape('SpecifyMean',dat,vx)
@@ -51,6 +52,8 @@ switch id
         [varargout{1:nargout}] = Pull1(varargin{:});
     case 'Push1'
         [varargout{1:nargout}] = Push1(varargin{:});    
+    case 'SampDens'
+        [varargout{1:nargout}] = SampDens(varargin{:});
     case 'ShrinkTemplate'
         [varargout{1:nargout}] = ShrinkTemplate(varargin{:});
     case 'Softmax'
@@ -167,9 +170,10 @@ if ~do_gmm, return; end
 
 % Change some settings
 do_updt_bf      = sett.do.updt_bf;
-samp            = sett.gen.samp;
+ix_init         = sett.model.ix_init_pop;
 nit_appear      = sett.nit.appear;
 nit_gmm         = sett.nit.gmm;
+samp            = sett.gen.samp;
 sett.do.updt_bf = false;
 sett.nit.gmm    = 100;
 sett.gen.samp   = 5;
@@ -179,7 +183,8 @@ sett.nit.appear = 1;
 p_ix       = spm_mb_appearance('GetPopulationIdx',dat);
 Npop       = numel(p_ix);
 first_subj = true;
-for p=1:Npop
+pop_rng    = 1:Npop;
+for p=[ix_init pop_rng(pop_rng ~= ix_init)] % loop over populations (starting index defined by sett.model.ix_init_pop)
     % To make the algorithm more robust when using multiple populations,
     % set posterior and prior means (m) of GMMs of all but the first population to
     % uniform  
@@ -205,9 +210,9 @@ for p=1:Npop
 end
 
 % Update template based on only first subject..
-[mu,dat(p_ix{1}(1))] = spm_mb_shape('UpdateSimpleMean',dat(p_ix{1}(1)), mu, sett);
+[mu,dat(p_ix{ix_init}(1))] = spm_mb_shape('UpdateSimpleMean',dat(p_ix{ix_init}(1)), mu, sett);
 % ..then propagate to all other subjects in populations..
-[mu,dat(p_ix{1})]    = spm_mb_shape('UpdateSimpleMean',dat(p_ix{1}), mu, sett);
+[mu,dat(p_ix{ix_init})]    = spm_mb_shape('UpdateSimpleMean',dat(p_ix{ix_init}), mu, sett);
 if Npop > 1
     % ..if more than one population, use template learned on first
     % population to initialise other populations' subjects
@@ -359,6 +364,15 @@ else
     f1(~msk) = 0;
     w1       = single(all(msk,4));
 end
+end
+%==========================================================================
+
+%==========================================================================
+% SampDens()
+function sd = SampDens(Mmu,Mn)
+vx_mu = sqrt(sum(Mmu(1:3,1:3).^2,1));
+vx_f  = sqrt(sum( Mn(1:3,1:3).^2,1));
+sd    = max(round(2.0*vx_f./vx_mu),1);
 end
 %==========================================================================
 

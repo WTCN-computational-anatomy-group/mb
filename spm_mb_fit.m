@@ -25,18 +25,19 @@ t0 = tic;
 % Get algorithm settings
 %------------------
 
-sett        = spm_mb_param('Settings',sett);
-dir_res     = sett.write.dir_res;
-do_gmm      = sett.do.gmm;
-do_updt_aff = sett.do.updt_aff;
-do_zoom     = sett.do.zoom;
-init_mu_dm  = sett.model.init_mu_dm;
-K           = sett.model.K; 
-nit_init    = sett.nit.init;
-nit_init_mu = sett.nit.init_mu;
-nit_zm0     = sett.nit.zm;
-show_level  = sett.show.level;
-vx          = sett.model.vx;
+sett         = spm_mb_param('Settings',sett);
+dir_res      = sett.write.dir_res;
+do_gmm       = sett.do.gmm;
+do_updt_aff  = sett.do.updt_aff;
+do_zoom      = sett.do.zoom;
+init_mu_dm   = sett.model.init_mu_dm;
+K            = sett.model.K; 
+nit_init     = sett.nit.init;
+nit_init_mu  = sett.nit.init_mu;
+nit_zm0      = sett.nit.zm;
+show_level   = sett.show.level;
+vx           = sett.model.vx;
+write_interm = sett.write.intermediate;
 
 spm_mb_show('Clear',sett); % Clear figures
 
@@ -93,7 +94,7 @@ sett.var = spm_mb_io('CopyFields',sz(end), sett.var);
 dat = spm_mb_shape('Init',dat,sett);
 dat = spm_mb_appearance('Init',dat,model,K,sett);
 
-spm_mb_show('Speak','Start',N,K,sett);
+spm_mb_show('Speak','Start',sett,N,K);
 
 %------------------
 % Init template
@@ -107,6 +108,7 @@ else
     [dat,mu,sett] = spm_mb_shape('InitMu',dat,K,sett);
 end
 
+% Show stuff
 spm_mb_show('All',dat,mu,[],N,sett);
 
 %------------------
@@ -126,7 +128,7 @@ if do_updt_aff
         
     sett.gen.samp = min(max(vxmu(1),numel(sz)),5); % coarse-to-fine sampling of observed data
     
-    spm_mb_show('Speak','InitAff',sett.nit.init);
+    spm_mb_show('Speak','InitAff',sett);
     for it_init=1:nit_init
                                
         if do_updt_template
@@ -140,30 +142,31 @@ if do_updt_aff
                 t        = toc;
 
                 % Print stuff
-                fprintf('it=%i mu \t%g\t%g\t%g\n', it_init, E, t, (oE - E)/prevt);
+                if show_level > 0, fprintf('it=%i mu \t%g\t%g\t%g\n', it_init, E, t, (oE - E)/prevt); end
                 prevt     = t;
                 Objective = [Objective; E];               
             end
-        end                
-%         if it_init > 1 && (oE - E)/(numel(dat)*100^3) < 1e-4
-%             % Finished rigid alignment
-%             break; 
-%         end
+        end         
+        
+        if it_init > 1 && (oE - E)/(N*100^4) < 1e-4
+            % Finished rigid alignment
+            break; 
+        end        
         
         % Update affine
-        oE = E; tic;
-        dat  = spm_mb_shape('UpdateSimpleAffines',dat,mu,sett);
-        dat  = spm_mb_appearance('UpdatePrior',dat, mu, sett);
-        E    = sum(sum(cat(2,dat.E),2),1) + te;
-        t    = toc;        
+        oE  = E; tic;
+        dat = spm_mb_shape('UpdateSimpleAffines',dat,mu,sett);
+        dat = spm_mb_appearance('UpdatePrior',dat, mu, sett);
+        E   = sum(sum(cat(2,dat.E),2),1) + te;
+        t   = toc;                
         
-        fprintf('it=%i q  \t%g\t%g\t%g\n', it_init, E, t, (oE - E)/prevt);
+        if show_level > 0, fprintf('it=%i q  \t%g\t%g\t%g\n', it_init, E, t, (oE - E)/prevt); end
         prevt     = t;
-        Objective = [Objective; E];
+        Objective = [Objective; E];        
         
-        if do_updt_template || do_updt_int
+        if write_interm && (do_updt_template || do_updt_int)
             % Save stuff
-            save(fullfile(dir_res,'results_Groupwise.mat'),'dat','mu','sett')
+            save(fullfile(dir_res,'fit.mat'),'dat','mu','sett')
         end                
     end
     
@@ -175,21 +178,19 @@ end
 % Iteratively decrease the template resolution
 %------------------
 
-spm_mb_show('Speak','Iter',numel(sz)); tic;
+spm_mb_show('Speak','Iter',sett,numel(sz)); 
+if show_level > 0, tic; end
 for zm=numel(sz):-1:1 % loop over zoom levels
     
     sett.gen.samp = min(max(vxmu(1),zm),5); % coarse-to-fine sampling of observed data
     
     if template_given && ~do_updt_template
-        % Resize template
         mu = spm_mb_shape('ShrinkTemplate',mu0,Mmu,sett);
     end
     
     E0 = 0;
     if do_updt_template && (zm ~= numel(sz) || zm == 1)
-        % Runs only at finest resolution
-        for i=1:nit_init_mu
-            % Update template, bias field and intensity model                        
+        for i=1:nit_init_mu                    
             [mu,dat] = spm_mb_shape('UpdateMean',dat, mu, sett);
             dat      = spm_mb_appearance('UpdatePrior',dat, mu, sett);
         end
@@ -201,23 +202,19 @@ for zm=numel(sz):-1:1 % loop over zoom levels
     nit_zm = nit_zm0 + (zm - 1);
     for it_zm=1:nit_zm
 
-        % Update template, bias field and intensity model
-        % Might be an idea to run this multiple times                
+        % Update template                  
         [mu,dat] = spm_mb_shape('UpdateMean',dat, mu, sett);
         te       = spm_mb_shape('TemplateEnergy',mu,sett);
         dat      = spm_mb_appearance('UpdatePrior',dat, mu, sett);
         E1       = sum(sum(cat(2,dat.E),2),1) + te;        
                            
         % Update affine
-        % (Might be an idea to run this less often - currently slow)
         dat      = spm_mb_shape('UpdateAffines',dat,mu,sett);
         dat      = spm_mb_appearance('UpdatePrior',dat, mu, sett);
         E2       = sum(sum(cat(2,dat.E),2),1) + te;
 
-        % Update template, bias field and intensity model
-        % (Might be an idea to run this multiple times)                
-        [mu,dat] = spm_mb_shape('UpdateMean',dat, mu, sett); % An extra mean iteration
-        te       = spm_mb_shape('TemplateEnergy',mu,sett);
+        % Update template           
+        [mu,dat] = spm_mb_shape('UpdateMean',dat, mu, sett);        
         dat      = spm_mb_appearance('UpdatePrior',dat, mu, sett);
                 
         [mu,dat] = spm_mb_shape('UpdateMean',dat, mu, sett);
@@ -229,10 +226,11 @@ for zm=numel(sz):-1:1 % loop over zoom levels
         dat      = spm_mb_shape('VelocityEnergy',dat,sett);
         dat      = spm_mb_shape('UpdateVelocities',dat,mu,sett);
         dat      = spm_mb_shape('VelocityEnergy',dat,sett);
-        dat      = spm_mb_appearance('UpdatePrior',dat, mu, sett);
-        E4old    = E4;
+        dat      = spm_mb_appearance('UpdatePrior',dat, mu, sett);        
         E4       = sum(sum(cat(2,dat.E),2),1) + te;       
 
+        Objective = [Objective; E4];
+        
         if (it_zm == nit_zm) && zm>1
             oMmu     = sett.var.Mmu;
             sett.var = spm_mb_io('CopyFields',sz(zm-1), sett.var);
@@ -243,18 +241,18 @@ for zm=numel(sz):-1:1 % loop over zoom levels
         dat = spm_mb_shape('UpdateWarps',dat,sett);  
         
         % Print stuff
-        fprintf('zm=%i it=%i\t%g\t%g\t%g\t%g\t%g\n', zm, it_zm, E0, E1, E2, E3, E4);        
-        Objective = [Objective; E4];
+        if show_level > 0, fprintf('zm=%i it=%i\t%g\t%g\t%g\t%g\t%g\n', zm, it_zm, E0, E1, E2, E3, E4); end               
                 
-        if do_updt_template || do_updt_int
+        if write_interm && (do_updt_template || do_updt_int)
             % Save stuff
-            save(fullfile(dir_res,'results_Groupwise.mat'),'dat','mu','sett')
+            save(fullfile(dir_res,'fit.mat'),'dat','mu','sett')
         end                
     end    
-    fprintf('%g seconds\n\n', toc); tic;
-    
+       
     % Show stuff
-    spm_mb_show('All',dat,mu,Objective,N,sett);            
+    spm_mb_show('All',dat,mu,Objective,N,sett);
+    
+    if show_level > 0, fprintf('%g seconds\n\n', toc); tic; end               
 end
 
 % Final mean update
@@ -267,6 +265,6 @@ dat = spm_mb_io('SaveTemplate',dat,mu,sett);
 model = spm_mb_io('MakeModel',dat,model,sett);
 
 % Print total runtime
-spm_mb_show('Speak','Finished',toc(t0));
+spm_mb_show('Speak','Finished',sett,toc(t0));
 end
 %==========================================================================

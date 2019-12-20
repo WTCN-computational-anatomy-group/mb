@@ -32,6 +32,8 @@ function resn = ProcessSubject(datn,resn,mun,ix,sett)
 
 % Parse function settings
 B          = sett.registr.B;
+clean_def  = sett.write.clean_def;
+clean_vel  = sett.write.clean_vel;
 dmu        = sett.var.d;
 dir_res    = sett.write.dir_res;
 do_infer   = sett.do.infer;
@@ -66,11 +68,9 @@ if size(write_bf,1) == 1 && C  > 1, write_bf = repmat(write_bf,[C  1]); end
 if size(write_im,1) == 1 && C  > 1, write_im = repmat(write_im,[C  1]); end   
 if size(write_tc,1) == 1 && K1 > 1, write_tc = repmat(write_tc,[K1 1]); end
 
-if (all(write_bf(:) == false) && all(write_im(:) == false) && all(write_tc(:) == false))   
-    return
+if ~(all(write_bf(:) == false) && all(write_im(:) == false) && all(write_tc(:) == false))   
+    psi0 = spm_mb_io('GetData',datn.psi);
 end
-
-psi0 = spm_mb_io('GetData',datn.psi);
 
 if isfield(datn,'mog') && (any(write_bf(:) == true) || any(write_im(:) == true) || any(write_tc(:) == true))    
     % Input data were intensity images
@@ -205,7 +205,7 @@ if any(write_df == true) || any(reshape(write_tc(:,[2 3]),[],1) == true) ||  any
     %------------------
 
     % For imporved push - subsampling density in each dimension
-    sd = SampDens(Mmu,Mn);
+    sd = spm_mb_shape('SampDens',Mmu,Mn);
 
     % Get forward deformation
     psi = spm_mb_shape('Compose',psi0,spm_mb_shape('Affine',df,Mmu\Mr*Mn));    
@@ -297,14 +297,7 @@ if any(write_df == true) || any(reshape(write_tc(:,[2 3]),[],1) == true) ||  any
         resn.iy = fpth;
     end       
 end
-end
-%==========================================================================
-
-%==========================================================================
-% SampDens()
-function sd = SampDens(Mmu,Mf)
-vx_mu = sqrt(sum(Mmu(1:3,1:3).^2,1));
-vx_f  = sqrt(sum( Mf(1:3,1:3).^2,1));
-sd    = max(round(2.0*vx_f./vx_mu),1);
+if clean_def && isa(datn.psi,'nifti') && isfile(datn.psi.dat.fname), delete(datn.psi.dat.fname); end
+if clean_vel && isa(datn.v,'nifti') && isfile(datn.v.dat.fname),     delete(datn.v.dat.fname);   end
 end
 %==========================================================================

@@ -240,6 +240,11 @@ if ~isfield(sett.model,'init_mu_dm')
     % Minimum dimensions of template
     sett.model.init_mu_dm = 8;    
 end
+if ~isfield(sett.model,'ix_init_pop')
+    % Index of population to use for initialising, then more than one
+    % population
+    sett.model.ix_init_pop = 1;    
+end
 if ~isfield(sett.model,'K')
     sett.model.K = 5;
 end
@@ -265,11 +270,11 @@ if ~isfield(sett.nit,'gmm')
 end
 if ~isfield(sett.nit,'init')
     % The number of iterations, for init rigid alignment.
-    sett.nit.init = 6;
+    sett.nit.init = 12;
 end
 if ~isfield(sett.nit,'init_mu')
     % The number of template update iterations
-    sett.nit.init_mu = 2;
+    sett.nit.init_mu = 3;
 end
 if ~isfield(sett.nit,'miss')   
     sett.nit.gmm_miss = 32;
@@ -344,8 +349,18 @@ end
 if ~isfield(sett.show,'figname_subjects')
     sett.show.figname_subjects = '(spm_mb) Segmentations';
 end
+if ~isfield(sett.show,'figname_imtemplatepace')
+    sett.show.figname_imtemplatepace = '(spm_mb) Template space data';
+end
 if ~isfield(sett.show,'level')
-    sett.show.level = 2; % 0, 1, 2, 3, 4, 5
+    % 0 - No verbose
+    % 1 - Print covergence and timings to command window
+    % 2 - 1 + template and neg. loglikelihood graphics
+    % 3 - 1-2 + template space images
+    % 4 - 1-3 + subject segmentations and warped template graphics
+    % 5 - 1-4 + intensity prior graphics
+    % 6 - 1-5 + subject parameter graphics    
+    sett.show.level = 1;
 end
 if ~isfield(sett.show,'mx_subjects')
     sett.show.mx_subjects = 4;
@@ -394,14 +409,31 @@ end
 if ~isfield(sett.write,'bf')
     sett.write.bf = false; % field
 end
+if ~isfield(sett.write,'clean_def')
+    % Remove nifti file containing deformation after algorithm finishes
+    sett.write.clean_def = false;
+end
+if ~isfield(sett.write,'clean_vel')
+    % Remove nifti file containing velocities after algorithm finishes
+    sett.write.clean_vel = false;
+end
 if ~isfield(sett.write,'df')
     sett.write.df = false(1,2); % forward, inverse
+end
+if ~isfield(sett.write,'model')
+    sett.write.model = true;
+end
+if ~isfield(sett.write,'mu')
+    sett.write.mu = [true false]; % log, softmax
 end
 if ~isfield(sett.write,'dir_res')
     sett.write.dir_res = '.';
 end
 if ~isfield(sett.write,'im')
     sett.write.im = false(1,4); % image, corrected, warped, warped corrected
+end
+if ~isfield(sett.write,'intermediate')
+    sett.write.intermediate = true;
 end
 if ~isfield(sett.write,'tc')
     sett.write.tc = true(1,3); % native, warped, warped-mod
