@@ -1815,7 +1815,7 @@ scal       = sett.optim.scal_v;
 v_settings = sett.var.v_settings;
 do_pca     = sett.do.pca;
 
-v0 = 0;
+v = spm_mb_io('GetData',datn.v);
 if do_pca
     % Compute subject-specific mean velocity from PCA
     du = spm_mb_io('GetSize',model.U);
@@ -1824,9 +1824,8 @@ if do_pca
     end
     % Modulate precision
     v_settings(4:end) = v_settings(4:end) * model.lam;
+    v = v - v0;
 end
-
-v         = spm_mb_io('GetData',datn.v) - v0;
 q         = datn.q;
 Mn        = datn.Mat;
 Mr        = spm_dexpm(q,B);
