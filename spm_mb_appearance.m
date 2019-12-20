@@ -660,6 +660,7 @@ end
     % Update prior
     pr = spm_gmm_lib('updatehyperpars',po,pr);
 
+if false
     sum_m = 0;
     sum_b = 0;
     sum_P = 0;
@@ -682,10 +683,19 @@ end
 
     % Assign new prior
     for n=p_ix{p}
-        dat(n).mog.pr.m = (pr{1} + m_extra)/(pr{2} + b_extra);
+        dat(n).mog.pr.m = (pr{1} + m_extra)./reshape(pr{2} + b_extra,[1 K1]);
         dat(n).mog.pr.b =  pr{2} + b_extra;
         dat(n).mog.pr.W =  W_new;
         dat(n).mog.pr.n =  pr{4} + n_extra;
+    end
+end
+
+    % Assign new prior
+    for n=p_ix{p}
+        dat(n).mog.pr.m = pr{1};
+        dat(n).mog.pr.b = pr{2};
+        dat(n).mog.pr.W = pr{3};
+        dat(n).mog.pr.n = pr{4};
     end
 end
 end
