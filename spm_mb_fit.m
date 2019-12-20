@@ -198,7 +198,6 @@ for zm=numel(sz):-1:1 % loop over zoom levels
         E0 = sum(sum(cat(2,dat.E),2),1) + te;
     end    
         
-    E4     = Inf;
     nit_zm = nit_zm0 + (zm - 1);
     for it_zm=1:nit_zm
 
