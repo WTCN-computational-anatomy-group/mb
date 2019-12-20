@@ -170,9 +170,10 @@ if ~do_gmm, return; end
 
 % Change some settings
 do_updt_bf      = sett.do.updt_bf;
-samp            = sett.gen.samp;
+ix_init         = sett.model.ix_init_pop;
 nit_appear      = sett.nit.appear;
 nit_gmm         = sett.nit.gmm;
+samp            = sett.gen.samp;
 sett.do.updt_bf = false;
 sett.nit.gmm    = 100;
 sett.gen.samp   = 5;
@@ -182,7 +183,8 @@ sett.nit.appear = 1;
 p_ix       = spm_mb_appearance('GetPopulationIdx',dat);
 Npop       = numel(p_ix);
 first_subj = true;
-for p=1:Npop
+pop_rng    = 1:Npop;
+for p=[ix_init pop_rng(pop_rng ~= ix_init)] % loop over populations (starting index defined by sett.model.ix_init_pop)
     % To make the algorithm more robust when using multiple populations,
     % set posterior and prior means (m) of GMMs of all but the first population to
     % uniform  
@@ -208,9 +210,9 @@ for p=1:Npop
 end
 
 % Update template based on only first subject..
-[mu,dat(p_ix{1}(1))] = spm_mb_shape('UpdateSimpleMean',dat(p_ix{1}(1)), mu, sett);
+[mu,dat(p_ix{ix_init}(1))] = spm_mb_shape('UpdateSimpleMean',dat(p_ix{ix_init}(1)), mu, sett);
 % ..then propagate to all other subjects in populations..
-[mu,dat(p_ix{1})]    = spm_mb_shape('UpdateSimpleMean',dat(p_ix{1}), mu, sett);
+[mu,dat(p_ix{ix_init})]    = spm_mb_shape('UpdateSimpleMean',dat(p_ix{ix_init}), mu, sett);
 if Npop > 1
     % ..if more than one population, use template learned on first
     % population to initialise other populations' subjects

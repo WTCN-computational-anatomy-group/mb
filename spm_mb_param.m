@@ -240,6 +240,11 @@ if ~isfield(sett.model,'init_mu_dm')
     % Minimum dimensions of template
     sett.model.init_mu_dm = 8;    
 end
+if ~isfield(sett.model,'ix_init_pop')
+    % Index of population to use for initialising, then more than one
+    % population
+    sett.model.ix_init_pop = 1;    
+end
 if ~isfield(sett.model,'K')
     sett.model.K = 5;
 end
