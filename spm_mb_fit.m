@@ -25,18 +25,18 @@ t0 = tic;
 % Get algorithm settings
 %------------------
 
-sett        = spm_mb_param('Settings',sett);
-dir_res     = sett.write.dir_res;
-do_gmm      = sett.do.gmm;
-do_updt_aff = sett.do.updt_aff;
-do_zoom     = sett.do.zoom;
-init_mu_dm  = sett.model.init_mu_dm;
-K           = sett.model.K; 
-nit_init    = sett.nit.init;
-nit_init_mu = sett.nit.init_mu;
-nit_zm0     = sett.nit.zm;
-show_level  = sett.show.level;
-vx          = sett.model.vx;
+sett         = spm_mb_param('Settings',sett);
+dir_res      = sett.write.dir_res;
+do_gmm       = sett.do.gmm;
+do_updt_aff  = sett.do.updt_aff;
+do_zoom      = sett.do.zoom;
+init_mu_dm   = sett.model.init_mu_dm;
+K            = sett.model.K; 
+nit_init     = sett.nit.init;
+nit_init_mu  = sett.nit.init_mu;
+nit_zm0      = sett.nit.zm;
+vx           = sett.model.vx;
+write_interm = sett.write.intermediate;
 
 spm_mb_show('Clear',sett); % Clear figures
 
@@ -107,6 +107,7 @@ else
     [dat,mu,sett] = spm_mb_shape('InitMu',dat,K,sett);
 end
 
+% Show stuff
 spm_mb_show('All',dat,mu,[],N,sett);
 
 %------------------
@@ -161,7 +162,7 @@ if do_updt_aff
         prevt     = t;
         Objective = [Objective; E];
         
-        if do_updt_template || do_updt_int
+        if write_interm && (do_updt_template || do_updt_int)
             % Save stuff
             save(fullfile(dir_res,'fit.mat'),'dat','mu','sett')
         end                
@@ -246,15 +247,16 @@ for zm=numel(sz):-1:1 % loop over zoom levels
         fprintf('zm=%i it=%i\t%g\t%g\t%g\t%g\t%g\n', zm, it_zm, E0, E1, E2, E3, E4);        
         Objective = [Objective; E4];
                 
-        if do_updt_template || do_updt_int
+        if write_interm && (do_updt_template || do_updt_int)
             % Save stuff
             save(fullfile(dir_res,'fit.mat'),'dat','mu','sett')
         end                
     end    
-    fprintf('%g seconds\n\n', toc); tic;
-    
+       
     % Show stuff
-    spm_mb_show('All',dat,mu,Objective,N,sett);            
+    spm_mb_show('All',dat,mu,Objective,N,sett);
+    
+    fprintf('%g seconds\n\n', toc); tic;                
 end
 
 % Final mean update

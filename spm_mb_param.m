@@ -417,6 +417,9 @@ end
 if ~isfield(sett.write,'im')
     sett.write.im = false(1,4); % image, corrected, warped, warped corrected
 end
+if ~isfield(sett.write,'intermediate')
+    sett.write.intermediate = true;
+end
 if ~isfield(sett.write,'tc')
     sett.write.tc = true(1,3); % native, warped, warped-mod
 end
