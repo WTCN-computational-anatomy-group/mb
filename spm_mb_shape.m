@@ -1845,8 +1845,10 @@ g         = g + spm_diffeo('vel2mom', v, v_settings);                           
 v         = v + v0 - scal*spm_diffeo('fmg', H, g, [v_settings s_settings]); % Gauss-Newton update
 
 if do_pca
+    % Uncertainty term for lower bound: tr(L*Sv)
     datn.ss.LSv = spm_diffeo('trapprox', H, [v_settings s_settings]);
     datn.ss.LSv = datn.ss.LSv / lam;
+    % lam is removed from L so it can be updated after.
 end
 
 if d(3)==1, v(:,:,:,3) = 0; end % If 2D
