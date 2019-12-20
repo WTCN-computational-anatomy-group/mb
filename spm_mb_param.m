@@ -344,8 +344,18 @@ end
 if ~isfield(sett.show,'figname_subjects')
     sett.show.figname_subjects = '(spm_mb) Segmentations';
 end
+if ~isfield(sett.show,'figname_imtemplatepace')
+    sett.show.figname_imtemplatepace = '(spm_mb) Template space data';
+end
 if ~isfield(sett.show,'level')
-    sett.show.level = 2; % 0, 1, 2, 3, 4, 5
+    % 0 - No verbose
+    % 1 - Print covergence and timings to command window
+    % 2 - 1 + template and neg. loglikelihood graphics
+    % 3 - 1-2 + template space images
+    % 4 - 1-3 + subject segmentations and warped template graphics
+    % 5 - 1-4 + intensity prior graphics
+    % 6 - 1-5 + subject parameter graphics    
+    sett.show.level = 1;
 end
 if ~isfield(sett.show,'mx_subjects')
     sett.show.mx_subjects = 4;
