@@ -621,7 +621,7 @@ for p=1:numel(p_ix) % Loop over populations
     % Get all posteriors
     K     = size(mu,4);
     K1    = K + 1;
-    po    = cell(1,N+1);
+    po    = cell(1,N);
     for n=1:N
         n1          = p_ix{p}(n);
         po{n}{1}{1} = dat(n1).mog.po.m;
@@ -630,6 +630,7 @@ for p=1:numel(p_ix) % Loop over populations
         po{n}{2}{2} = dat(n1).mog.po.n;
     end
 
+if false
     % Get overall mean and variance for regularising
     avgmn = 0;
     sum_b = 0;
@@ -640,9 +641,9 @@ for p=1:numel(p_ix) % Loop over populations
         for k=1:K1
             avgmn = avgmn + pon.m(:,k)*pon.b(k);
             avgvr = avgvr + inv(pon.W(:,:,k));
+            sum_n = sum_n + pon.n(k);
+            sum_b = sum_b + pon.b(k);
         end
-        sum_n = sum_n + pon.n(k);
-        sum_b = sum_b + pon.b(k);
     end
     avgvr = avgvr/sum_n;
     avgmn = avgmn/sum_b;
@@ -653,17 +654,38 @@ for p=1:numel(p_ix) % Loop over populations
     po1{1}{2} = zeros(1,K1) + 0.01;       % b
     po1{2}{1} = repmat(avgpr/C,[1 1 K1]); % W
     po1{2}{2} = C*ones(1,K1);             % n
-    po{end}   = po1;
+%   po{N+1}   = po1; %%% DISABLED
+end
  
     % Update prior
     pr = spm_gmm_lib('updatehyperpars',po,pr);
 
+    sum_m = 0;
+    sum_b = 0;
+    sum_P = 0;
+    sum_n = 0;
+    for k=1:K1
+        sum_m = sum_m + pr{1}(:,k)*pr{2}(k);
+        sum_P = sum_P + inv(pr{3}(:,:,k));
+        sum_n = sum_n + pr{4}(k);
+        sum_b = sum_b + pr{2}(k);
+    end
+    b_extra = 0;
+    m_extra = sum_m/sum_b;
+    n_extra = C;
+    W_extra = C*diag(1./diag(sum_P/sum_n));              % Double check
+    W_new   = W_extra;
+    P_extra = inv(W_extra);
+    for k=1:K1
+        W_new(:,:,k) = inv(P_extra + inv(pr{3}(:,:,k))); % Double check
+    end
+
     % Assign new prior
     for n=p_ix{p}
-        dat(n).mog.pr.m = pr{1};
-        dat(n).mog.pr.b = pr{2};
-        dat(n).mog.pr.W = pr{3};
-        dat(n).mog.pr.n = pr{4};
+        dat(n).mog.pr.m = (pr{1} + m_extra)/(pr{2} + b_extra);
+        dat(n).mog.pr.b =  pr{2} + b_extra;
+        dat(n).mog.pr.W =  W_new;
+        dat(n).mog.pr.n =  pr{4} + n_extra;
     end
 end
 end

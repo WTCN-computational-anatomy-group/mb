@@ -336,7 +336,11 @@ for n=1:N
     dat(n).Mat = eye(4);
 %     if ~run2d && (isa(F,'nifti') || (iscell(F) && (isa(F{1},'char') || isa(F{1},'nifti'))))
     if isa(F,'nifti') || (iscell(F) && (isa(F{1},'char') || isa(F{1},'nifti')))
-        dat(n).Mat = Nii(1).mat;        
+        dat(n).Mat = Nii(1).mat;
+        if run2d
+            vx         = sqrt(sum(dat(n).Mat(1:3,1:3).^2));
+            dat(n).Mat = [diag(vx) zeros(3,1); 0 0 0 1];
+        end
     end
 end
 end
