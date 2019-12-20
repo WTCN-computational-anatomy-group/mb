@@ -165,11 +165,11 @@ end
 if ~isfield(sett,'pca')
     sett.pca = struct;
 end
-if ~isfield(sett.pca,'residual_prior')
+if ~isfield(sett.pca,'res_prior')
     sett.pca.res_prior = 14;
     % Prior on residuals precision - expected value
 end
-if ~isfield(sett.pca,'residual_df')
+if ~isfield(sett.pca,'res_df')
     sett.pca.res_df = eps;
     % Prior on residuals precision - degrees of freedom: 0=ML, Inf=fixed
 end

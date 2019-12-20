@@ -218,12 +218,12 @@ if sett.do.pca
     end
     
     % Residual precision
-    if ~isfinite(sett.pca.residual_prior)
-        sett.pca.residual_prior = 10;
+    if ~isfinite(sett.pca.res_prior)
+        sett.pca.res_prior = 10;
     end
-    model.lam = sett.pca.residual_prior;
-    if isfinite(sett.pca.residual_df) && sett.pca.residual_df > 0
-        model.nlam = sett.pca.residual_df;
+    model.lam = sett.pca.res_prior;
+    if isfinite(sett.pca.res_df) && sett.pca.res_df > 0
+        model.nlam = sett.pca.res_df;
     else
         model.nlam = Inf;
     end
@@ -829,11 +829,11 @@ function model = UpdateResidualPrecision(model,sett)
 % n0 == Inf: Fixed value
 
 if ~sett.do.pca, return; end
-if ~isfinite(sett.pca.residual_df), return; end % Fixed value
+if ~isfinite(sett.pca.res_df), return; end % Fixed value
 
 ndat = size(model.Z,2);          % Numbe of subjects (ss0)
-lam0 = sett.pca.residual_prior;  % Prior expected value
-n0   = sett.pca.residual_df;     % Prior deg. freedom
+lam0 = sett.pca.res_prior;  % Prior expected value
+n0   = sett.pca.res_df;     % Prior deg. freedom
 trLVV = model.ss.trLVV;          % suff stat: tr(L*(V-WZ)*(V-WZ)')
 trLSV = model.ss.trLSV;          % suff stat: tr(L*Cov[V])
 Su    = model.Su;                % subspace posterior covariance (one vox)
