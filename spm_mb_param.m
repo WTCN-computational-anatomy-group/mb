@@ -270,11 +270,11 @@ if ~isfield(sett.nit,'gmm')
 end
 if ~isfield(sett.nit,'init')
     % The number of iterations, for init rigid alignment.
-    sett.nit.init = 6;
+    sett.nit.init = 12;
 end
 if ~isfield(sett.nit,'init_mu')
     % The number of template update iterations
-    sett.nit.init_mu = 2;
+    sett.nit.init_mu = 3;
 end
 if ~isfield(sett.nit,'miss')   
     sett.nit.gmm_miss = 32;
