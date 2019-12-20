@@ -3,7 +3,6 @@ function varargout = spm_mb_param(varargin)
 %
 % Functions for settings and parameters related.
 %
-% FORMAT B                                  = spm_mb_param('AffineBases',code)
 % FORMAT [sett,template_given,appear_given] = spm_mb_param('SetFit',model,sett,N)
 % FORMAT sett                               = spm_mb_param('Settings')
 % FORMAT sz                                 = spm_mb_param('ZoomSettings',d, Mmu, v_settings, mu_settings, n)
@@ -17,9 +16,7 @@ if nargin == 0
 end
 id = varargin{1};
 varargin = varargin(2:end);
-switch id
-    case 'AffineBases'
-        [varargout{1:nargout}] = AffineBases(varargin{:});                      
+switch id                   
     case 'SetFit'
         [varargout{1:nargout}] = SetFit(varargin{:});        
     case 'Settings'
@@ -29,70 +26,6 @@ switch id
     otherwise
         help spm_mb_param
         error('Unknown function %s. Type ''help spm_mb_param'' for help.', id)
-end
-end
-%==========================================================================
-
-%==========================================================================
-% AffineBases()
-function B = AffineBases(code)
-% This should probably be re-done to come up with a more systematic way of defining the
-% groups.
-g     = regexpi(code,'(?<code>\w*)\((?<dim>\d*)\)','names');
-g.dim = str2num(g.dim);
-if numel(g.dim)~=1 || (g.dim ~=0 && g.dim~=2 && g.dim~=3)
-    error('Can not use size');
-end
-if g.dim==0
-    B        = zeros(4,4,0);
-elseif g.dim==2
-    switch g.code
-    case 'T' 
-        B        = zeros(4,4,2);
-        B(1,4,1) =  1;
-        B(2,4,2) =  1;
-    case 'SO'
-        B        = zeros(4,4,1);
-        B(1,2,1) =  1;
-        B(2,1,1) = -1;
-    case 'SE' 
-        B        = zeros(4,4,3);
-        B(1,4,1) =  1;
-        B(2,4,2) =  1;
-        B(1,2,3) =  1;
-        B(2,1,3) = -1;
-    otherwise
-        error('Unknown group.');
-    end
-elseif g.dim==3
-    switch g.code
-    case 'T' 
-        B        = zeros(4,4,3);
-        B(1,4,1) =  1;
-        B(2,4,2) =  1;
-        B(3,4,3) =  1;
-    case 'SO' 
-        B        = zeros(4,4,3);
-        B(1,2,1) =  1;
-        B(2,1,1) = -1;
-        B(1,3,2) =  1;
-        B(3,1,2) = -1;
-        B(2,3,3) =  1;
-        B(3,2,3) = -1;
-    case 'SE' 
-        B        = zeros(4,4,6);
-        B(1,4,1) =  1;
-        B(2,4,2) =  1;
-        B(3,4,3) =  1;
-        B(1,2,4) =  1;
-        B(2,1,4) = -1;
-        B(1,3,5) =  1;
-        B(3,1,5) = -1;
-        B(2,3,6) =  1;
-        B(3,2,6) = -1;
-    otherwise
-        error('Unknown group.');
-    end
 end
 end
 %==========================================================================
@@ -312,13 +245,6 @@ end
 
 if ~isfield(sett,'registr')
     sett.registr = struct;
-end
-if ~isfield(sett.registr,'B')
-    if sett.gen.run2d
-        sett.registr.B = AffineBases('SE(2)');
-    else
-        sett.registr.B = AffineBases('SE(3)');
-    end
 end
 
 %------------------

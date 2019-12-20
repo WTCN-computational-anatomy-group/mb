@@ -79,6 +79,14 @@ end
 vxmu = sqrt(sum(Mmu(1:3,1:3).^2));
 
 %------------------
+% Set affine bases
+%------------------
+
+if dmu(3) == 1, sett.registr.B = spm_mb_shape('AffineBases','SE(2)');
+else,           sett.registr.B = spm_mb_shape('AffineBases','SE(3)');
+end
+
+%------------------
 % Get zoom (multi-scale) settings
 %------------------
 

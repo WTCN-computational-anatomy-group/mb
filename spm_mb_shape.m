@@ -4,6 +4,7 @@ function varargout = spm_mb_shape(varargin)
 % Functions for shape model related.
 %
 % FORMAT psi0          = spm_mb_shape('Affine',d,Mat)
+% FORMAT B             = spm_mb_shape('AffineBases',code)
 % FORMAT psi           = spm_mb_shape('Compose',psi1,psi0)
 % FORMAT id            = spm_mb_shape('Identity',d)
 % FORMAT dat           = spm_mb_shape('Init',dat,sett)
@@ -37,7 +38,9 @@ id = varargin{1};
 varargin = varargin(2:end);
 switch id    
     case 'Affine'
-        [varargout{1:nargout}] = Affine(varargin{:});             
+        [varargout{1:nargout}] = Affine(varargin{:});     
+    case 'AffineBases'
+        [varargout{1:nargout}] = AffineBases(varargin{:});           
     case 'Compose'
         [varargout{1:nargout}] = Compose(varargin{:});
     case 'Identity'
@@ -92,6 +95,70 @@ end
 function psi0 = Affine(d,Mat)
 id    = Identity(d);
 psi0  = reshape(reshape(id,[prod(d) 3])*Mat(1:3,1:3)' + Mat(1:3,4)',[d 3]);
+end
+%==========================================================================
+
+%==========================================================================
+% AffineBases()
+function B = AffineBases(code)
+% This should probably be re-done to come up with a more systematic way of defining the
+% groups.
+g     = regexpi(code,'(?<code>\w*)\((?<dim>\d*)\)','names');
+g.dim = str2num(g.dim);
+if numel(g.dim)~=1 || (g.dim ~=0 && g.dim~=2 && g.dim~=3)
+    error('Can not use size');
+end
+if g.dim==0
+    B        = zeros(4,4,0);
+elseif g.dim==2
+    switch g.code
+    case 'T' 
+        B        = zeros(4,4,2);
+        B(1,4,1) =  1;
+        B(2,4,2) =  1;
+    case 'SO'
+        B        = zeros(4,4,1);
+        B(1,2,1) =  1;
+        B(2,1,1) = -1;
+    case 'SE' 
+        B        = zeros(4,4,3);
+        B(1,4,1) =  1;
+        B(2,4,2) =  1;
+        B(1,2,3) =  1;
+        B(2,1,3) = -1;
+    otherwise
+        error('Unknown group.');
+    end
+elseif g.dim==3
+    switch g.code
+    case 'T' 
+        B        = zeros(4,4,3);
+        B(1,4,1) =  1;
+        B(2,4,2) =  1;
+        B(3,4,3) =  1;
+    case 'SO' 
+        B        = zeros(4,4,3);
+        B(1,2,1) =  1;
+        B(2,1,1) = -1;
+        B(1,3,2) =  1;
+        B(3,1,2) = -1;
+        B(2,3,3) =  1;
+        B(3,2,3) = -1;
+    case 'SE' 
+        B        = zeros(4,4,6);
+        B(1,4,1) =  1;
+        B(2,4,2) =  1;
+        B(3,4,3) =  1;
+        B(1,2,4) =  1;
+        B(2,1,4) = -1;
+        B(1,3,5) =  1;
+        B(3,1,5) = -1;
+        B(2,3,6) =  1;
+        B(3,2,6) = -1;
+    otherwise
+        error('Unknown group.');
+    end
+end
 end
 %==========================================================================
 
@@ -742,7 +809,9 @@ function [M_avg,d] = ComputeAvgMat(Mat0,dims)
 
 % Rigid-body matrices computed from exp(p(1)*B(:,:,1)+p(2)+B(:,:,2)...)
 %--------------------------------------------------------------------------
-B = spm_mb_param('AffineBases','SE(3)');
+if dims(1,3) == 1, B = AffineBases('SE(2)');
+else,              B = AffineBases('SE(3)');
+end
 
 % Find combination of 90 degree rotations and flips that brings all
 % the matrices closest to axial
