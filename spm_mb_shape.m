@@ -1161,15 +1161,9 @@ function E = EnergyVelocity(model, sett)
 % Log-determinants of the prior and posterior precision cannot be computed
 % exactly so are dropped from the energy.
 
-% . trLVV  = trace(L(V-WZ)(V-WZ)')  [sum across subjects]
-% . Su     = Var[U'LU]/(DF)         [single voxel: need *DF]
-% . Sz     = Var[zz']               [single subject: need *N]
-% . trLSv  = trace(LVar[VV'])       [sum across subjects]
-% . loglam = E[log(lam)]
-
 if ~sett.do.pca
     % Mode estimate -> negative log-likelihood
-    E = model.ss.trLVV;
+    E = model.ss.trLVV;       % velocity prior (sum subj)
 else
     % Variational posterior -> KL
     N      = size(model.Z,2);
