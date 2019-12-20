@@ -205,7 +205,7 @@ if any(write_df == true) || any(reshape(write_tc(:,[2 3]),[],1) == true) ||  any
     %------------------
 
     % For imporved push - subsampling density in each dimension
-    sd = SampDens(Mmu,Mn);
+    sd = spm_mb_shape('SampDens',Mmu,Mn);
 
     % Get forward deformation
     psi = spm_mb_shape('Compose',psi0,spm_mb_shape('Affine',df,Mmu\Mr*Mn));    
@@ -299,14 +299,5 @@ if any(write_df == true) || any(reshape(write_tc(:,[2 3]),[],1) == true) ||  any
 end
 if clean_def && isa(datn.psi,'nifti') && isfile(datn.psi.dat.fname), delete(datn.psi.dat.fname); end
 if clean_vel && isa(datn.v,'nifti') && isfile(datn.v.dat.fname),     delete(datn.v.dat.fname);   end
-end
-%==========================================================================
-
-%==========================================================================
-% SampDens()
-function sd = SampDens(Mmu,Mf)
-vx_mu = sqrt(sum(Mmu(1:3,1:3).^2,1));
-vx_f  = sqrt(sum( Mf(1:3,1:3).^2,1));
-sd    = max(round(2.0*vx_f./vx_mu),1);
 end
 %==========================================================================

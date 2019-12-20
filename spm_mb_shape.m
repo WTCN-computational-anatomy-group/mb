@@ -11,6 +11,7 @@ function varargout = spm_mb_shape(varargin)
 % FORMAT l             = spm_mb_shape('LSE',mu,dr)
 % FORMAT a1            = spm_mb_shape('Pull1',a0,psi,r)
 % FORMAT [f1,w1]       = spm_mb_shape('Push1',f,psi,d,r)
+% FORMAT sd            = spm_mb_shape('SampDens',Mmu,Mn)
 % FORMAT mu1           = spm_mb_shape('ShrinkTemplate',mu,oMmu,sett)
 % FORMAT P             = spm_mb_shape('Softmax',mu,dr)
 % FORMAT [Mmu,d]       = spm_mb_shape('SpecifyMean',dat,vx)
@@ -51,6 +52,8 @@ switch id
         [varargout{1:nargout}] = Pull1(varargin{:});
     case 'Push1'
         [varargout{1:nargout}] = Push1(varargin{:});    
+    case 'SampDens'
+        [varargout{1:nargout}] = SampDens(varargin{:});
     case 'ShrinkTemplate'
         [varargout{1:nargout}] = ShrinkTemplate(varargin{:});
     case 'Softmax'
@@ -359,6 +362,15 @@ else
     f1(~msk) = 0;
     w1       = single(all(msk,4));
 end
+end
+%==========================================================================
+
+%==========================================================================
+% SampDens()
+function sd = SampDens(Mmu,Mn)
+vx_mu = sqrt(sum(Mmu(1:3,1:3).^2,1));
+vx_f  = sqrt(sum( Mn(1:3,1:3).^2,1));
+sd    = max(round(2.0*vx_f./vx_mu),1);
 end
 %==========================================================================
 
