@@ -311,7 +311,7 @@ for n=1:N
     
     % Is CT data
     if isstruct(data(n)) && isfield(data(n),'is_ct') && ~isempty(data(n).is_ct)
-        dat(n).is_ct = true;
+        dat(n).is_ct = data(n).is_ct;
     else
         dat(n).is_ct = false;
     end
