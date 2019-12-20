@@ -246,7 +246,7 @@ if ~isfield(sett.model,'ix_init_pop')
     sett.model.ix_init_pop = 1;    
 end
 if ~isfield(sett.model,'K')
-    sett.model.K = 5;
+    sett.model.K = 6;
 end
 if ~isfield(sett.model,'vx')    
     sett.model.vx = 1;    
