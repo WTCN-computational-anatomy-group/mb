@@ -46,7 +46,9 @@ spm_mb_show('Clear',sett); % Clear figures
 
 N = numel(data); % Number of subjects
 
-[sett,template_given] = spm_mb_param('SetFit',model,sett,N);
+[sett,template_given,~,subspace_given] = spm_mb_param('SetFit',model,sett,N);
+
+% TODO: Adapt SetFit to subspace (+ residual & latent precision)
 
 do_updt_int      = sett.do.updt_int;
 do_updt_template = sett.do.updt_template;
@@ -58,20 +60,16 @@ do_updt_template = sett.do.updt_template;
 dat  = spm_mb_io('InitDat',data,sett); 
 data = [];
 
-% Get number of template classes (if not using GMM)
-if ~do_gmm, [~,K] = spm_mb_io('GetSize',dat(1).f); end
-if template_given
-    [~,K]        = spm_mb_io('GetSize',model.shape.template);
-    sett.model.K = K;
-end
-
-%------------------
-% Get template size and orientation
-%------------------
+%-----------------------
+% Read final dimensions
+%-----------------------
 
 if template_given    
     dmu       = spm_mb_io('GetSize',model.shape.template);
-    [mu0,Mmu] = spm_mb_io('GetData',model.shape.template);       
+    Mmu       = spm_mb_io('GetMat',model.shape.template);   
+elseif subspace_given
+    dmu       = spm_mb_io('GetSize',model.shape.subspace);
+    Mmu       = spm_mb_io('GetMat',model.shape.subspace);
 else
     [Mmu,dmu] = spm_mb_shape('SpecifyMean',dat,vx);
 end
@@ -87,27 +85,56 @@ sz       = spm_mb_param('ZoomSettings',dmu,Mmu,sett.var.v_settings,sett.var.mu_s
 sett.var = spm_mb_io('CopyFields',sz(end), sett.var);
 
 %------------------
-% Init shape and apperance model parameters
+% Init shape model
 %------------------
 
-dat = spm_mb_shape('Init',dat,sett);
+dat = spm_mb_shape('InitDat',dat,sett);
+if subspace_given
+    [dU,F,L] = spm_mb_io('GetSize',model.shape.subspace);
+    if prod(dU)*F*L*4 > sett.gen.max_mem*1e9
+        U0 = spm_mb_io('MemMapData',model.shape.subspace);
+    else
+        U0 = spm_mb_io('GetData',model.shape.subspace);
+    end
+    sett.pca.npc = L;
+end
+shape = spm_mb_shape('InitModel', sett);
+
+%----------------------
+% Init apperance model
+%----------------------
+
+if ~do_gmm
+    [~,K] = spm_mb_io('GetSize',dat(1).f);
+end
+if template_given
+    mu0          = spm_mb_io('GetData',model.shape.template); 
+    [~,K]        = spm_mb_io('GetSize',model.shape.template);
+    sett.model.K = K;
+end
 dat = spm_mb_appearance('Init',dat,model,K,sett);
+
+%--------------------------
+% Init template / subspace
+%--------------------------
 
 spm_mb_show('Speak','Start',N,K,sett);
 
-%------------------
-% Init template
-%------------------
+if subspace_given    
+    % Shrink given subspace
+    shape.U = spm_mb_shape('Shrink',U0,Mmu,sett);
+end
+shape = spm_mb_shape('InitSubspace', shape, sett);
 
 if template_given    
     % Shrink given template
-    mu = spm_mb_shape('ShrinkTemplate',mu0,Mmu,sett);
+    shape.mu = spm_mb_shape('Shrink',mu0,Mmu,sett);
 else
     % Initial template
-    [dat,mu,sett] = spm_mb_shape('InitMu',dat,K,sett);
+    [dat,shape.mu,sett] = spm_mb_shape('InitTemplate',dat,K,sett);
 end
 
-spm_mb_show('All',dat,mu,[],N,sett);
+spm_mb_show('All',dat,shape.mu,[],N,sett);
 
 %------------------
 % Start algorithm
@@ -116,7 +143,6 @@ spm_mb_show('All',dat,mu,[],N,sett);
 Objective = [];
 E         = Inf;
 prevt     = Inf;
-te        = spm_mb_shape('TemplateEnergy',mu,sett);
 
 if do_updt_aff
     
@@ -132,12 +158,14 @@ if do_updt_aff
         if do_updt_template
             for subit=1:nit_init_mu
                 % Update template and intensity prior
-                oE       = E; tic;                        
-                [mu,dat] = spm_mb_shape('UpdateMean',dat, mu, sett);
-                te       = spm_mb_shape('TemplateEnergy',mu,sett);
-                dat      = spm_mb_appearance('UpdatePrior',dat, mu, sett);
-                E        = sum(sum(cat(2,dat.E),2),1) + te;
-                t        = toc;
+                oE          = E; tic;                        
+                [shape,dat] = spm_mb_shape('UpdateMean',dat,shape,sett);
+                dat         = spm_mb_appearance('UpdatePrior',dat,shape.mu,sett);
+                shape       = spm_mb_shape('SuffStatTemplate',dat,shape,sett);
+                E_shape     = spm_mb_shape('ShapeEnergy',dat,shape,sett);
+                E_app       = cat(2,dat.E);
+                E           = sum(E_shape(:)) + sum(E_app(:));
+                t           = toc;
 
                 % Print stuff
                 fprintf('it=%i mu \t%g\t%g\t%g\n', it_init, E, t, (oE - E)/prevt);
@@ -145,17 +173,18 @@ if do_updt_aff
                 Objective = [Objective; E];               
             end
         end                
-%         if it_init > 1 && (oE - E)/(numel(dat)*100^3) < 1e-4
-%             % Finished rigid alignment
-%             break; 
-%         end
+        % if it_init > 1 && (oE - E)/(numel(dat)*100^3) < 1e-4
+        %     % Finished rigid alignment
+        %     break; 
+        % end
         
         % Update affine
-        oE = E; tic;
-        dat  = spm_mb_shape('UpdateSimpleAffines',dat,mu,sett);
-        dat  = spm_mb_appearance('UpdatePrior',dat, mu, sett);
-        E    = sum(sum(cat(2,dat.E),2),1) + te;
-        t    = toc;        
+        oE    = E; tic;
+        dat   = spm_mb_shape('UpdateSimpleAffines',dat,shape.mu,sett);
+        dat   = spm_mb_appearance('UpdatePrior',dat, shape.mu, sett);
+        E_app = cat(2,dat.E);
+        E     = sum(E_shape(:)) + sum(E_app(:));
+        t     = toc;        
         
         fprintf('it=%i q  \t%g\t%g\t%g\n', it_init, E, t, (oE - E)/prevt);
         prevt     = t;
@@ -163,12 +192,12 @@ if do_updt_aff
         
         if do_updt_template || do_updt_int
             % Save stuff
-            save(fullfile(dir_res,'fit.mat'),'dat','mu','sett')
+            save(fullfile(dir_res,'fit.mat'),'dat','shape','sett')
         end                
     end
     
     % Show stuff
-    spm_mb_show('All',dat,mu,Objective,N,sett);
+    spm_mb_show('All',dat,shape.mu,Objective,N,sett);
 end
 
 %------------------
@@ -182,69 +211,73 @@ for zm=numel(sz):-1:1 % loop over zoom levels
     
     if template_given && ~do_updt_template
         % Resize template
-        mu = spm_mb_shape('ShrinkTemplate',mu0,Mmu,sett);
+        shape.mu = spm_mb_shape('Shrink',mu0,Mmu,sett);
+    end
+    if subspace_given && ~do_updt_subspace
+        % Resize template
+        shape.U = spm_mb_shape('Shrink',U0,Mmu,sett);
     end
     
-    E0 = 0;
     if do_updt_template && (zm ~= numel(sz) || zm == 1)
         % Runs only at finest resolution
         for i=1:nit_init_mu
             % Update template, bias field and intensity model                        
-            [mu,dat] = spm_mb_shape('UpdateMean',dat, mu, sett);
-            dat      = spm_mb_appearance('UpdatePrior',dat, mu, sett);
+            [shape,dat] = spm_mb_shape('UpdateMean',dat,shape,sett);
+            dat         = spm_mb_appearance('UpdatePrior',dat,shape.mu,sett);
         end
-        te = spm_mb_shape('TemplateEnergy',mu,sett);
-        E0 = sum(sum(cat(2,dat.E),2),1) + te;
     end    
         
-    E4     = Inf;
+    Z      = Inf;
     nit_zm = nit_zm0 + (zm - 1);
     for it_zm=1:nit_zm
 
         % Update template, bias field and intensity model
         % Might be an idea to run this multiple times                
-        [mu,dat] = spm_mb_shape('UpdateMean',dat, mu, sett);
-        te       = spm_mb_shape('TemplateEnergy',mu,sett);
-        dat      = spm_mb_appearance('UpdatePrior',dat, mu, sett);
-        E1       = sum(sum(cat(2,dat.E),2),1) + te;        
+        [shape,dat] = spm_mb_shape('UpdateMean',dat,shape,sett);
+        dat         = spm_mb_appearance('UpdatePrior',dat,shape.mu,sett);     
                            
         % Update affine
         % (Might be an idea to run this less often - currently slow)
-        dat      = spm_mb_shape('UpdateAffines',dat,mu,sett);
-        dat      = spm_mb_appearance('UpdatePrior',dat, mu, sett);
-        E2       = sum(sum(cat(2,dat.E),2),1) + te;
+        dat         = spm_mb_shape('UpdateAffines',dat,shape,sett);
+        dat         = spm_mb_appearance('UpdatePrior',dat,shape.mu,sett);
 
         % Update template, bias field and intensity model
         % (Might be an idea to run this multiple times)                
-        [mu,dat] = spm_mb_shape('UpdateMean',dat, mu, sett); % An extra mean iteration
-        te       = spm_mb_shape('TemplateEnergy',mu,sett);
-        dat      = spm_mb_appearance('UpdatePrior',dat, mu, sett);
-                
-        [mu,dat] = spm_mb_shape('UpdateMean',dat, mu, sett);
-        te       = spm_mb_shape('TemplateEnergy',mu,sett);
-        dat      = spm_mb_appearance('UpdatePrior',dat, mu, sett);
-        E3       = sum(sum(cat(2,dat.E),2),1) + te;
+        [shape,dat] = spm_mb_shape('UpdateMean',dat,shape,sett);
+        dat         = spm_mb_appearance('UpdatePrior',dat,shape,sett);
+        [shape,dat] = spm_mb_shape('UpdateMean',dat,shape,sett);
+        dat         = spm_mb_appearance('UpdatePrior',dat,shape.mu,sett);
             
         % Update velocities
-        dat      = spm_mb_shape('VelocityEnergy',dat,sett);
-        dat      = spm_mb_shape('UpdateVelocities',dat,mu,sett);
-        dat      = spm_mb_shape('VelocityEnergy',dat,sett);
-        dat      = spm_mb_appearance('UpdatePrior',dat, mu, sett);
-        E4old    = E4;
-        E4       = sum(sum(cat(2,dat.E),2),1) + te;       
+        dat         = spm_mb_shape('UpdateVelocities',dat,shape,sett);
+        dat         = spm_mb_appearance('UpdatePrior',dat,shape.mu,sett);      
 
+        % Update pca
+        [dat,shape] = spm_mb_shape('UpdateLatent',dat,shape,sett);
+        shape       = spm_mb_shape('UpdateLatentPrecision',dat,shape,sett);
+        shape       = spm_mb_shape('UpdateSubspace',dat,shape,sett);
+        [dat,shape] = spm_mb_shape('OrthoSubspace',dat,shape,sett);
+        shape       = spm_mb_shape('SuffStatVelocities',dat,shape,sett);
+        shape       = spm_mb_shape('UpdateResidualPrecision',dat,shape,sett);
+        
+        % Compute energy
+        Eold  = E;
+        shape = spm_mb_shape('SuffStatTemplate',dat,shape,sett);
+        E     = spm_mb_shape('ShapeEnergy',dat,shape,sett);
+        E     = sum(E) + sum(sum(cat(2,dat.E),2),1);
+        
         if (it_zm == nit_zm) && zm>1
             oMmu     = sett.var.Mmu;
             sett.var = spm_mb_io('CopyFields',sz(zm-1), sett.var);
-            [dat,mu] = spm_mb_shape('ZoomVolumes',dat,mu,sett,oMmu);
+            [dat,shape] = spm_mb_shape('ZoomVolumes',dat,shape,sett,oMmu);
         end
 
         % Update deformations
         dat = spm_mb_shape('UpdateWarps',dat,sett);  
         
         % Print stuff
-        fprintf('zm=%i it=%i\t%g\t%g\t%g\t%g\t%g\n', zm, it_zm, E0, E1, E2, E3, E4);        
-        Objective = [Objective; E4];
+        fprintf('zm=%i it=%i\t%g\n', zm, it_zm, E);        
+        Objective = [Objective; E];
                 
         if do_updt_template || do_updt_int
             % Save stuff
@@ -254,17 +287,21 @@ for zm=numel(sz):-1:1 % loop over zoom levels
     fprintf('%g seconds\n\n', toc); tic;
     
     % Show stuff
-    spm_mb_show('All',dat,mu,Objective,N,sett);            
+    spm_mb_show('All',dat,shape.mu,Objective,N,sett);            
 end
 
 % Final mean update
-[mu,dat] = spm_mb_shape('UpdateMean',dat, mu, sett);
+[shape,dat] = spm_mb_shape('UpdateMean',dat,shape,sett);
 
 % Save template
-dat = spm_mb_io('SaveTemplate',dat,mu,sett);
+spm_mb_io('SaveTemplate',shape.mu,sett);
+
+% TODO: SaveSubspace
 
 % Make model
 model = spm_mb_io('MakeModel',dat,model,sett);
+
+% TODO: save PCA variables in the model (residual and latent precision)
 
 % Print total runtime
 spm_mb_show('Speak','Finished',toc(t0));

@@ -99,9 +99,10 @@ end
 
 %==========================================================================
 % SetFit()
-function [sett,template_given,appear_given] = SetFit(model,sett,N)
+function [sett,template_given,appear_given,subspace_given] = SetFit(model,sett,N)
 
 template_given = (isfield(model,'shape') && isfield(model.shape,'template'));
+subspace_given = (isfield(model,'shape') && isfield(model.shape,'subspace'));
 appear_given   = isfield(model,'appear');
 
 if N == 1 || template_given && appear_given
@@ -158,6 +159,30 @@ if ~isfield(sett.bf,'reg')
 end
 
 %------------------
+% .pca (PCA related)
+%------------------
+
+if ~isfield(sett,'pca')
+    sett.pca = struct;
+end
+if ~isfield(sett.pca,'residual_prior')
+    sett.pca.res_prior = 14;
+    % Prior on residuals precision - expected value
+end
+if ~isfield(sett.pca,'residual_df')
+    sett.pca.res_df = eps;
+    % Prior on residuals precision - degrees of freedom: 0=ML, Inf=fixed
+end
+if ~isfield(sett.pca,'latent_prior')
+    sett.pca.latent_prior = 1;
+    % Prior on latent precision - expected value
+end
+if ~isfield(sett.pca,'latent_df')
+    sett.pca.latent_df = eps;
+    % Prior on latent precision - degrees of freedom: 0=ML, Inf=fixed
+end
+
+%------------------
 % .do (enable/disable functionality)
 %------------------
 
@@ -166,6 +191,9 @@ if ~isfield(sett,'do')
 end
 if ~isfield(sett.do,'gmm')
     sett.do.gmm = true;
+end
+if ~isfield(sett.do,'pca')
+    sett.do.pca = false;
 end
 if ~isfield(sett.do,'infer')    
     sett.do.infer = 1; % 0, 1, 2
@@ -182,6 +210,9 @@ end
 if ~isfield(sett.do,'updt_template')
     sett.do.updt_template = true;
 end
+if ~isfield(sett.do,'updt_subspace')
+    sett.do.updt_template = true;
+end
 if ~isfield(sett.do,'updt_vel')
     sett.do.updt_vel = true;
 end
@@ -192,6 +223,9 @@ end
 % Depending on what is disabled, disable other stuff too
 if ~sett.do.gmm
     sett.do.updt_bf = false;
+end
+if ~sett.do.pca
+    sett.do.updt_subspace = false;
 end
 
 %------------------
@@ -210,6 +244,10 @@ if ~isfield(sett.gen,'run2d')
 end
 if ~isfield(sett.gen,'samp')
     sett.gen.samp = 3;
+end
+if ~isfield(sett.gen,'max_mem')
+    sett.gen.max_mem = 1;
+    % size (GB) above which the template/subspace is stored on disk
 end
 
 %------------------

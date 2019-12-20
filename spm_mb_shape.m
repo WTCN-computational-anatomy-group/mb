@@ -6,23 +6,32 @@ function varargout = spm_mb_shape(varargin)
 % FORMAT psi0          = spm_mb_shape('Affine',d,Mat)
 % FORMAT psi           = spm_mb_shape('Compose',psi1,psi0)
 % FORMAT id            = spm_mb_shape('Identity',d)
-% FORMAT dat           = spm_mb_shape('Init',dat,sett)
-% FORMAT [dat,mu,sett] = spm_mb_shape('InitMu',dat,K,sett)
+% FORMAT dat           = spm_mb_shape('InitDat',dat,sett)
+% FORMAT model         = spm_mb_shape('InitModel',sett)
+% FORMAT model         = spm_mb_shape('InitSubspace',model,sett)
+% FORMAT [dat,mu]      = spm_mb_shape('InitTemplate',dat,K,sett)
 % FORMAT l             = spm_mb_shape('LSE',mu,dr)
 % FORMAT a1            = spm_mb_shape('Pull1',a0,psi,r)
 % FORMAT [f1,w1]       = spm_mb_shape('Push1',f,psi,d,r)
-% FORMAT mu1           = spm_mb_shape('ShrinkTemplate',mu,oMmu,sett)
+% FORMAT mu1           = spm_mb_shape('Shrink',mu,oMmu,sett)
 % FORMAT P             = spm_mb_shape('Softmax',mu,dr)
 % FORMAT [Mmu,d]       = spm_mb_shape('SpecifyMean',dat,vx)
-% FORMAT E             = spm_mb_shape('TemplateEnergy',mu,sett)
 % FORMAT mun           = spm_mb_shape('TemplateK1',mun,ax)
 % FORMAT dat           = spm_mb_shape('UpdateAffines',dat,mu,sett)
-% FORMAT [mu,dat]      = spm_mb_shape('UpdateMean',dat, mu, sett)
+% FORMAT [model,dat]   = spm_mb_shape('UpdateMean',dat, model, sett)
 % FORMAT dat           = spm_mb_shape('UpdateSimpleAffines',dat,mu,sett)
 % FORMAT [mu,dat]      = spm_mb_shape('UpdateSimpleMean',dat, mu, sett)
-% FORMAT dat           = spm_mb_shape('UpdateVelocities',dat,mu,sett)
+% FORMAT dat           = spm_mb_shape('UpdateVelocities',dat,model,sett)
 % FORMAT dat           = spm_mb_shape('UpdateWarps',dat,sett)
-% FORMAT dat           = spm_mb_shape('VelocityEnergy',dat,sett)
+% FORMAT [dat,model]   = spm_mb_shape('UpdateLatent',dat,model,sett)
+% FORMAT model         = spm_mb_shape('UpdateSubspace',dat,model,sett)
+% FORMAT model         = spm_mb_shape('UpdateLatentPrecision',model,sett)
+% FORMAT model         = spm_mb_shape('UpdateResidualPrecision',model,sett)
+% FORMAT [dat,model]   = spm_mb_shape('OrthoSubspace',dat,model,sett)
+% FORMAT model         = spm_mb_shape('SuffStatVelocities',dat,model,sett)
+% FORMAT model         = spm_mb_shape('SuffStatTemplate',dat,model,sett)
+% FORMAT E             = spm_mb_shape('ShapeEnergy',model,sett)
+% FORMAT [dat,model]   = spm_mb_shape('OrthoSubspace',dat,model,sett)
 % FORMAT [dat,mu]      = spm_mb_shape('ZoomVolumes',dat,mu,sett,oMmu)
 %
 %__________________________________________________________________________
@@ -41,10 +50,14 @@ switch id
         [varargout{1:nargout}] = Compose(varargin{:});
     case 'Identity'
         [varargout{1:nargout}] = Identity(varargin{:});
-    case 'Init'
-        [varargout{1:nargout}] = Init(varargin{:});                
-    case 'InitMu'
-        [varargout{1:nargout}] = InitMu(varargin{:});         
+    case 'InitDat'
+        [varargout{1:nargout}] = InitDat(varargin{:});                
+    case 'InitTemplate'
+        [varargout{1:nargout}] = InitTemplate(varargin{:});         
+    case 'InitModel'
+        [varargout{1:nargout}] = InitModel(varargin{:});          
+    case 'InitSubspace'
+        [varargout{1:nargout}] = InitSubspace(varargin{:});        
     case 'LSE'
         [varargout{1:nargout}] = LSE(varargin{:});
     case 'Pull1'
@@ -52,7 +65,7 @@ switch id
     case 'Push1'
         [varargout{1:nargout}] = Push1(varargin{:});    
     case 'ShrinkTemplate'
-        [varargout{1:nargout}] = ShrinkTemplate(varargin{:});
+        [varargout{1:nargout}] = Shrink(varargin{:});
     case 'Softmax'
         [varargout{1:nargout}] = Softmax(varargin{:});       
     case 'SpecifyMean'
@@ -71,12 +84,26 @@ switch id
         [varargout{1:nargout}] = UpdateSimpleMean(varargin{:});
     case 'UpdateVelocities'
         [varargout{1:nargout}] = UpdateVelocities(varargin{:});
+    case 'UpdateLatent'
+        [varargout{1:nargout}] = UpdateLatent(varargin{:});
+    case 'UpdateLatentPrecision'
+        [varargout{1:nargout}] = UpdateLatentPrecision(varargin{:});
+    case 'UpdateResidualPrecision'
+        [varargout{1:nargout}] = UpdateResidualPrecision(varargin{:});
+    case 'UpdateSubspace'
+        [varargout{1:nargout}] = UpdateSubspace(varargin{:});
     case 'UpdateWarps'
-        [varargout{1:nargout}] = UpdateWarps(varargin{:});  
+        [varargout{1:nargout}] = UpdateWarps(varargin{:}); 
+    case 'OrthoSubspace'
+        [varargout{1:nargout}] = OrthoSubspace(varargin{:}); 
     case 'ZoomVolumes'
         [varargout{1:nargout}] = ZoomVolumes(varargin{:});        
-    case 'VelocityEnergy'
-        [varargout{1:nargout}] = VelocityEnergy(varargin{:});              
+    case 'SuffStatVelocities'
+        [varargout{1:nargout}] = SuffStatVelocities(varargin{:});    
+    case 'SuffStatTemplate'
+        [varargout{1:nargout}] = SuffStatTemplate(varargin{:});   
+    case 'ShapeEnergy'
+        [varargout{1:nargout}] = ShapeEnergy(varargin{:});             
     otherwise
         help spm_mb_shape
         error('Unknown function %s. Type ''help spm_mb_shape'' for help.', id)
@@ -109,7 +136,7 @@ end
 
 %==========================================================================
 % Init()
-function dat = Init(dat,sett)
+function dat = InitDat(dat,sett)
 
 % Parse function settings
 B       = sett.registr.B;
@@ -147,13 +174,157 @@ for n=1:numel(dat)
             dat(n).psi  = nii;
         end
     end
+    dat(n).ss.trLSv = 0;
 end
 end
 %==========================================================================
 
+
 %==========================================================================
-% InitMu()
-function [dat,mu,sett] = InitMu(dat,K,sett)
+% InitModel()
+function [dat,model] = InitModel(dat,sett)
+% Initialise model structure:
+%   . if sett.pca.do: A, nA, lam, nlam, Z, ZZ, Sz, dat.z
+%   . ss.trLVV, ss.trLSV
+
+model = struct;
+
+% -----
+%  PCA
+% -----
+if sett.do.pca
+    npc = sett.pca.npc;
+    
+    % Latent precision
+    if isscalar(sett.pca.latent_prior)
+        if ~isfinite(sett.pca.latent_prior)
+            sett.pca.latent_prior = 1;
+        end
+        sett.pca.latent_prior = sett.pca.latent_prior * eye(npc);
+    elseif size(sett.pca.latent_prior,1) ~= npc
+        npc0 = size(sett.pca.latent_prior,1);
+        warning(['Latent prior number of principal component not ' ...
+                 'consistant: %d vs %d'], npc, npc0);
+        A0 = sett.pca.latent_prior;
+        sett.pca.latent_prior = eye(sett.pca.npc);
+        npc0 = min(npc,npc0);
+        sett.pca.npc(1:npc0,1:npc0) = A0(1:npc0,1:npc0);
+    end
+    model.A = A0;
+    if isfinite(sett.pca.latent_df) && sett.pca.latent_df > 0
+        model.nA = sett.pca.latent_df;
+    else
+        model.nA = Inf;
+    end
+    
+    % Residual precision
+    if ~isfinite(sett.pca.residual_prior)
+        sett.pca.residual_prior = 10;
+    end
+    model.lam = sett.pca.residual_prior;
+    if isfinite(sett.pca.residual_df) && sett.pca.residual_df > 0
+        model.nlam = sett.pca.residual_df;
+    else
+        model.nlam = Inf;
+    end
+    
+    % Latent variable (random but orthogonal initialisation)
+    model.Z  = zeros(npc,numel(dat));
+    model.Sz = eye(npc)/numel(dat);
+    model.ZZ = 0;
+    for n=1:numel(dat)
+        z            = randn(npc,1);
+        dat(n).z     = z;
+        model.Z(:,n) = z;
+        model.ZZ     = model.ZZ + (z*z');
+    end
+    [U,S] = svd(model.ZZ);
+    Q = S^(-0.5)*U';
+    model.ZZ = Q * (model.ZZ / Q);
+    model.ZZ = (model.ZZ + model.ZZ')/2;
+    model.ZZ = model.ZZ + eye(npc);
+    model.Z  = Q * model.Z;
+    for n=1:numel(dat)
+        dat(n).z     = Q * dat(n).z;
+    end
+end
+    
+% Sufficient statistics
+model.ss.trLVV = 0;
+model.ss.trLSV = 0;
+end
+
+
+%==========================================================================
+% InitSubspace()
+function model = InitSubspace(model,sett)
+% Initialise subspace and relatd sufficient statistics
+
+if ~sett.do.pca, return; end
+
+updt_subspace = sett.do.updt_subspace;
+dir_res   = sett.write.dir_res;
+max_mem   = sett.gen.max_mem;
+lat       = [sett.var.d 1];
+lat       = lat(1:3);
+npc       = sett.pca.npc;
+Mmu       = sett.var.Mmu;
+v_setting = sett.var.v_settings;
+
+if ~isfield(model, 'U')
+    if prod(lat)*3*npc*4 > max_mem
+        % Create file
+        fname       = fullfile(dir_res,'subspace.nii');
+        fa          = file_array(fname,[lat 1 3 npc],'float32');
+        nii         = nifti;
+        nii.dat     = fa;
+        nii.mat     = Mmu;
+        nii.mat0    = Mmu;
+        nii.descrip = 'Subspace';
+        create(nii);
+        model.U        = nii.dat;
+        model.U(end)   = 0;
+        model.U.dim(4) = [];
+    else
+        % Keep in memory
+        model.U = zeros([lat 3 npc], 'single');
+    end
+    model.Su  = eye(npc);
+    model.ULU = model.Su * 3*prod(lat);
+else
+    D    = [size(model.U) 1 1 1];
+    D    = prod(D(1:4));             % Number of voxels * 3
+    L    = size(model.U,5);          % nb PCs
+
+    % posterior precision
+    if updt_subspace
+        model.Su = eye(npc);
+    else
+        model.Su = zeros(npc);
+    end
+
+    % 2nd order moment
+    ULU = zeros(npc);
+    for l=1:L
+        U1  = single(model.U(:,:,:,:,l));
+        LU1 = spm_diffeo('vel2mom', U1, v_setting);
+        ULU(l,l) = sum(LU1(:) .* U1(:), 'double');
+        for k=(l+1):L
+            U2       = single(model.U(:,:,:,:,k));
+            ULU(l,k) = sum(LU1(:) .* U2(:), 'double');
+            ULU(k,l) = ULU(l,k);
+        end
+    end
+    clear U1 LU1 U2
+    model.ULU = ULU + D * model.Su;  
+end
+end
+%==========================================================================
+
+
+%==========================================================================
+% InitTemplate()
+function [dat,mu] = InitTemplate(dat,K,sett)
 % Make 'quick' initial estimates of GMM posteriors and template on very coarse
 % scale
 
@@ -363,12 +534,14 @@ end
 %==========================================================================
 
 %==========================================================================
-% ShrinkTemplate()
-function mu1 = ShrinkTemplate(mu,oMmu,sett)
+% Shrink()
+function mu1 = Shrink(mu,oMmu,sett)
 
 % Parse function settings
-d   = sett.var.d;
-Mmu = sett.var.Mmu;
+d       = sett.var.d;
+Mmu     = sett.var.Mmu;
+max_mem = sett.gen.max_mem*1E9; % (GB)
+dir_res = sett.write.dir_res;
 
 d0      = [size(mu,1) size(mu,2) size(mu,3)];
 Mzoom   = Mmu\oMmu;
@@ -376,8 +549,28 @@ if norm(Mzoom-eye(4))<1e-4 && all(d0==d)
     mu1 = mu;
 else
     y       = reshape(reshape(Identity(d0),[prod(d0),3])*Mzoom(1:3,1:3)'+Mzoom(1:3,4)',[d0 3]);
-    [mu1,c] = Push1(mu,y,d);
-    mu1     = mu1./(c+eps);
+    if isa(mu, 'file_array') ...
+            && prod(d)*size(mu,4)*size(mu,5)*4 > max_mem
+        mu1 = nifti(mu.fname);
+        [~,fname,ext] = mu1.dat.fname;
+        mu1.dat.fname = fullfile(dir_res, [fname '_shrink' ext]);
+        mu1.dat.dim(1:3) = d;
+        mu1.mat = Mmu;
+        create(mu1);
+        mu1 = mu1.dat;
+        [mu11,c] = Push1(mu(:,:,:,1,1),y,d);
+        mu11     = mu11./(c+eps);
+        mu1(:,:,:,1,1) = mu11;
+        for k=1:size(mu,4)
+            for l=1:size(mu,5)
+                mu11 = Push1(mu(:,:,:,1,1),y,d);
+                mu1(:,:,:,1,1) = mu11./(c+eps);
+            end
+        end
+    else
+        [mu1,c] = Push1(mu,y,d);
+        mu1     = mu1./(c+eps);
+    end
 end
 end
 %==========================================================================
@@ -429,23 +622,6 @@ end
 %==========================================================================
 
 %==========================================================================
-% TemplateEnergy()
-function E = TemplateEnergy(mu,sett)
-
-% Parse function settings
-do_updt_template = sett.do.updt_template;
-mu_settings      = sett.var.mu_settings;
-
-if do_updt_template
-    g = spm_field('vel2mom', mu, mu_settings);
-    E = 0.5*mu(:)'*g(:);
-else
-    E = 0;
-end
-end
-%==========================================================================
-
-%==========================================================================
 % TemplateK1()
 function mun = TemplateK1(mun,ax)
 mx  = max(max(mun,[],ax),0);
@@ -456,7 +632,7 @@ end
 
 %==========================================================================
 % UpdateAffines()
-function dat = UpdateAffines(dat,mu,sett)
+function dat = UpdateAffines(dat,model,sett)
 
 % Parse function settings
 B           = sett.registr.B;
@@ -468,7 +644,7 @@ if ~do_updt_aff, return; end
 % Update the affine parameters
 if ~isempty(B)
     for n=1:numel(dat)
-        dat(n) = UpdateAffinesSub(dat(n),mu,sett);
+        dat(n) = UpdateAffinesSub(dat(n),model.mu,sett);
     end
 
     if groupwise
@@ -484,7 +660,7 @@ end
 
 %==========================================================================
 % UpdateMean()
-function [mu,dat] = UpdateMean(dat, mu, sett)
+function [model,dat] = UpdateMean(dat, model, sett)
 
 % Parse function settings
 accel            = sett.gen.accel;
@@ -494,16 +670,16 @@ s_settings       = sett.shoot.s_settings;
 
 if ~do_updt_template, return; end
 
-g  = spm_field('vel2mom', mu, mu_settings);
-M  = size(mu,4);
+g  = spm_field('vel2mom', model.mu, mu_settings);
+M  = size(model.mu,4);
 H  = zeros([sett.var.d M*(M+1)/2],'single');
-H0 = AppearanceHessian(mu,accel);
+H0 = AppearanceHessian(model.mu,accel);
 for n=1:numel(dat)
-    [gn,Hn,dat(n)] = UpdateMeanSub(dat(n),mu,H0,sett);
+    [gn,Hn,dat(n)] = UpdateMeanSub(dat(n),model.mu,H0,sett);
     g              = g + gn;
     H              = H + Hn;
 end
-mu = mu - spm_field(H, g, [mu_settings s_settings]);  
+model.mu = model.mu - spm_field(H, g, [mu_settings s_settings]);  
 end
 %==========================================================================
 
@@ -566,7 +742,7 @@ end
 
 %==========================================================================
 % UpdateVelocities()
-function dat = UpdateVelocities(dat,mu,sett)
+function dat = UpdateVelocities(dat,model,sett)
 
 % Parse function settings
 accel       = sett.gen.accel;
@@ -574,15 +750,161 @@ do_updt_vel = sett.do.updt_vel;
 
 if ~do_updt_vel, return; end
 
-G  = spm_diffeo('grad',mu);
-H0 = VelocityHessian(mu,G,accel);
+G  = spm_diffeo('grad',model.mu);
+H0 = VelocityHessian(model.mu,G,accel);
 if size(G,3) == 1
     % Data is 2D -> add some regularisation
     H0(:,:,:,3) = H0(:,:,:,3) + mean(reshape(H0(:,:,:,[1 2]),[],1));
 end
 for n=1:numel(dat)
-    dat(n) = UpdateVelocitiesSub(dat(n),mu,G,H0,sett);
+    dat(n) = UpdateVelocitiesSub(dat(n),model,G,H0,sett);
 end
+end
+%==========================================================================
+
+%==========================================================================
+% UpdateLatent()
+function [dat,model] = UpdateLatent(dat,model,sett)
+
+if ~sett.do.pca, return; end
+
+N = numel(dat); % Number of subjects
+L = size(model.U,5);
+
+% Posterior variance
+% (common to all subjects so we pre-compute the value)
+model.Sz = model.A + model.lam * model.ULU;
+model.Sz = inv(model.Sz);
+
+% Posterior mean
+model.Z  = zeros(L,N);
+model.ZZ = zeros(L);
+for n=1:N
+    dat(n)       = UpdateLatentSub(dat(n), model, vsett);
+    model.Z(:,n) = dat(n).z;
+    model.ZZ     = model.ZZ + dat(n).z*dat(n).z';
+end
+model.ZZ = model.ZZ + N*model.Sz;
+
+end
+%==========================================================================
+
+%==========================================================================
+% UpdateLatentPrecision()
+function model = UpdateLatentPrecision(model,sett)
+% Posterior update of a Wishart distribution.
+
+% n0 == 0:   Maximum-likelihood
+% n0 >  0:   Posterior
+% n0 == Inf: Fixed value
+
+if ~sett.do.pca, return; end
+if ~isfinite(sett.pca.latent_df), return; end % Fixed value
+
+ndat = size(model.Z,2);         % Numbe of subjects (ss0)
+ZZ   = model.ZZ;                % 2nd order moment  (ss2)
+A0   = sett.pca.latent_prior;   % Prior expected value
+n0   = sett.pca.latent_df;      % Prior deg. freedom
+
+n = n0 + ndat;
+if n0 > 0,  A = (n*A0)/(A0*ZZ +  n0*eye(ZZ));
+else,       A = n*inv(ZZ + eps*eye(ZZ)); % slight regularisation
+end
+
+model.A = A;
+if n0 > 0, model.nA = n;
+else,      model.nA = Inf;
+end
+
+end
+%==========================================================================
+
+%==========================================================================
+% UpdateResidualPrecision()
+function model = UpdateResidualPrecision(model,sett)
+% Posterior update of a Gamma distribution.
+
+% n0 == 0:   Maximum-likelihood
+% n0 >  0:   Posterior
+% n0 == Inf: Fixed value
+
+if ~sett.do.pca, return; end
+if ~isfinite(sett.pca.residual_df), return; end % Fixed value
+
+ndat = size(model.Z,2);          % Numbe of subjects (ss0)
+lam0 = sett.pca.residual_prior;  % Prior expected value
+n0   = sett.pca.residual_df;     % Prior deg. freedom
+trLVV = model.ss.trLVV;          % suff stat: tr(L*(V-WZ)*(V-WZ)')
+trLSV = model.ss.trLSV;          % suff stat: tr(L*Cov[V])
+Su    = model.Su;                % subspace posterior covariance (one vox)
+Sz    = model.Sz;                % latent posterior covariance (one subj)
+D     = [size(model.U) 1 1 1];
+D     = prod(D(1:4));            % Number of voxels * 3
+
+n   = n0 + ndat;
+ss2 = trLVV/D + N*trace(Su*Sz) + trLSV/D;
+if n0 > 0,  lam = (n*lam0)/(lam0*ss2 +  n0);
+else,       lam = n/(ss2 + eps); % slight regularisation
+end
+
+model.lam = lam;
+if n0 > 0, model.nlam = n;
+else,      model.nlam = Inf;
+end
+
+end
+%==========================================================================
+
+%==========================================================================
+% UpdateSubspace()
+function model = UpdateSubspace(dat,model,sett)
+% Posterior update of a Gaussian Matrix distribution.
+
+% n0 == 0:   Maximum-likelihood
+% n0 >  0:   Posterior
+% n0 == Inf: Fixed value
+
+if ~sett.do.pca, return; end
+if ~sett.do.updt_subspace, return; end
+
+v_setting = sett.var.v_settings;
+Z    = model.Z;                  % expected latent   (per subject)
+ZZ   = model.ZZ;                 % 2nd order moment  (ss2)
+D    = [size(model.U) 1 1 1];
+D    = prod(D(1:4));             % Number of voxels * 3
+lam  = model.lam;                % Residual precision
+L    = size(model.U,5);          % nb PCs
+
+% posterior precision
+model.Su  = inv(eye(size(ZZ)) + lam * ZZ);
+
+% posterior mean
+ZS = lam * Z' * model.Su;
+for l=1:L
+    U1 = 0;
+    for n=1:numel(dat)
+        v  = spm_mb_io('GetData',dat(n).v);
+        U1 = U1 + v * ZS(n,l);
+    end
+    model.U(:,:,:,:,l) = U1;
+end
+clear v U1
+
+% 2nd order moment
+ULU = zeros(size(ZZ));
+for l=1:L
+    U1  = single(model.U(:,:,:,:,l));
+    LU1 = spm_diffeo('vel2mom', U1, v_setting);
+    ULU(l,l) = sum(LU1(:) .* U1(:), 'double');
+    for k=(l+1):L
+        U2       = single(model.U(:,:,:,:,k));
+        ULU(l,k) = sum(LU1(:) .* U2(:), 'double');
+        ULU(k,l) = ULU(l,k);
+    end
+end
+clear U1 LU1 U2
+model.ULU = ULU + D * model.Su;
+
 end
 %==========================================================================
 
@@ -614,18 +936,129 @@ end
 %==========================================================================
 
 %==========================================================================
+% OrthoSubspace()
+function model = OrthoSubspace(dat,model,sett)
+% Posterior update of a Gaussian Matrix distribution.
+
+% n0 == 0:   Maximum-likelihood
+% n0 >  0:   Posterior
+% n0 == Inf: Fixed value
+
+if ~sett.do.pca, return; end
+if ~sett.do.updt_subspace, return; end    % Need subspace not fixed
+if sett.pca.latent_df == Inf, return; end % Need latent precision not fixed
+
+lat = [size(model.U) 1 1 1];
+lat = lat(1:4);
+L   = size(model.U,5);         % nb PCs
+N   = numel(dat);              % Number of subjects
+ULU = model.ULU;               % subspace 2nd order moment 
+ZZ  = model.ZZ;                % latent 2nd order moment
+A0  = sett.pca.latent_prior;   % Prior expected value
+n0  = sett.pca.latent_df;      % Prior deg. freedom
+
+
+% -------------------------------------------------------------------------
+% Orthogonalise (= joint diagonalisation of ULU and ZZ)
+[T, iT] = JointDiag(ZZ,ULU);
+
+ULU = iT' * ULU * iT;  % < now a diagonal matrix
+ZZ  = T   * ZZ  * T';  % < now a diagonal matrix
+
+% -------------------------------------------------------------------------
+% Rescale (= optimise additional diagoal loading)
+[Q, iQ] = ScaleSubspace(ULU, ZZ, A0, n0, N, prod(lat));
+Q  = Q  * T;
+iQ = iT * iQ;
+
+% -------------------------------------------------------------------------
+% Rotate subspace (slice-wise for memory)
+slice_lat    = lat;
+slice_lat(3) = 1;
+for z=1:lat(3)
+    Uz = single(model.U(:,:,z,:,:));
+    Uz = reshape(Uz, [], L) * iQ;
+    Uz = reshape(Uz, [slice_lat L]);
+    model.U(:,:,z,:,:) = Uz;
+end
+clear Uz
+
+% -------------------------------------------------------------------------
+% Rotate sufficient statistics
+model.ULU = iQ' * model.ULU * iQ;
+model.Su  = iQ' * model.Su * iQ;
+model.ZZ  = Q   * model.ZZ  * Q';
+model.Sz  = Q   * model.Sz  * Q';
+model.Z   = Q   * model.ZZ;
+
+% -------------------------------------------------------------------------
+% Rotate subjects
+for n=1:ndat
+    dat(n).z = Q * dat(n).z;
+end
+
+% -------------------------------------------------------------------------
+% Update latent prior
+model = UpdateLatentPrecision(model,sett);
+
+end
+%==========================================================================
+
+%==========================================================================
 % ZoomVolumes()
-function [dat,mu] = ZoomVolumes(dat,mu,sett,oMmu)
+function [dat,model] = ZoomVolumes(dat,model,sett,oMmu)
 
 % Parse function settings
-d   = sett.var.d;
-Mmu = sett.var.Mmu;
+d       = sett.var.d;
+Mmu     = sett.var.Mmu;
+do_pca  = sett.pca.do;
+max_mem = sett.gen.max_mem*1E9; % (GB)
+dir_res = sett.write.dir_res;
 
-d0    = [size(mu,1) size(mu,2) size(mu,3)];
-z     = single(reshape(d./d0,[1 1 1 3]));
-Mzoom = oMmu\Mmu;
-y     = reshape(reshape(Identity(d),[prod(d),3])*Mzoom(1:3,1:3)' + Mzoom(1:3,4)',[d 3]);
-mu    = spm_diffeo('pullc',mu,y);
+d0       = [size(model.mu,1) size(model.mu,2) size(model.mu,3)];
+z        = single(reshape(d./d0,[1 1 1 3]));
+Mzoom    = oMmu\Mmu;
+y        = reshape(reshape(Identity(d),[prod(d),3])*Mzoom(1:3,1:3)' + Mzoom(1:3,4)',[d 3]);
+% --- Template ------------------------------------------------------------
+model.mu = spm_diffeo('pullc',model.mu,y);
+% --- Subspace ------------------------------------------------------------
+if do_pca
+    if isa(model.U, 'file_array')
+        [path,fname,ext] = fileparts(model.U.fname);
+        tmpname = fullfile(path, [fname '_tmp' ext]);
+        ok = copyfile(model.U.fname, tmpname);
+        if ~ok, error('Failed to copy the subspace file'); end
+        nii = nifti(tmpname);
+        nii.dat.fname = fname;
+        nii.dat.dim(1:3) = d;
+        nii.mat = Mmu;
+        create(nii);
+        if nii.dat.dim(4) == 1, nii.dat.dim(4) = []; end
+        U = nii.dat;
+    elseif prod(d)*size(model.U,4)*size(model.U,5)*4 > max_mem
+        fname = fullfile(dir_res, 'subspace.nii');
+        fa = file_array(fname, [d(1:3) 1 size(model.U,4) size(model.U,5)], 'float32');
+        nii = nifti;
+        nii.dat = fa;
+        nii.mat = Mmu;
+        nii.descrip = 'Subspace';
+        create(nii);
+        if nii.dat.dim(4) == 1, nii.dat.dim(4) = []; end
+        U = nii.dat;
+    else
+        U = zeros([d(1:3) size(model.U,4) size(model.U,5)], 'single');
+    end
+    for k=1:size(model.U,4)
+        for l=1:size(model.U,5)
+            U(:,:,:,k,l) = spm_diffeo('pullc',model.U(:,:,:,k,l),y);
+        end
+    end
+    if isa(model.U, 'file_array')
+        delete(model.U.fname);
+    end
+    model.U = U;
+end
+% --- Subject data --------------------------------------------------------
 for n=1:numel(dat)
     v          = spm_mb_io('GetData',dat(n).v);
     v          = spm_diffeo('pullc',v,y).*z;
@@ -638,15 +1071,219 @@ end
 
 %==========================================================================
 % VelocityEnergy()
-function dat = VelocityEnergy(dat,sett)
+function model = SuffStatVelocities(dat,model,sett)
+% Update velocity-related sufficient statistics for the model energy.
+%   . ss.trLVV - trace(L*(V-WZ)*(V-WZ)')
+%   . ss.trLSV - trace(L*Var[V])
 
 % Parse function settings
 v_settings = sett.var.v_settings;
+do_pca     = sett.do.pca;
 
+model.ss.trLVV = 0;
+model.ss.trLSV = 0;
 for n=1:numel(dat)
-    v           = spm_mb_io('GetData',dat(n).v);
-    u0          = spm_diffeo('vel2mom', v, v_settings); % Initial momentum
-    dat(n).E(2) = 0.5*sum(u0(:).*v(:));                 % Prior term
+    v = spm_mb_io('GetData',dat(n).v);
+    if do_pca
+        v0 = 0;
+        du = spm_mb_io('GetSize',model.U);
+        for l=1:du(5)
+            v0 = v0 + spm_mb_io('GetData',model.U,5,l) * datn.z(l);
+        end
+        v = v - v0;
+    end
+    u0  = spm_diffeo('vel2mom', v, v_settings); % Initial momentum
+    model.ss.trLVV = model.ss.trLVV + sum(u0(:).*v(:));
+    model.ss.trLSV = model.ss.trLSV + dat(n).ss.trLSv;
+end
+end
+%==========================================================================
+
+%==========================================================================
+% TemplateEnergy()
+function model = SuffStatTemplate(model,sett)
+
+% Parse function settings
+do_updt_template = sett.do.updt_template;
+mu_settings      = sett.var.mu_settings;
+
+if do_updt_template
+    g = spm_field('vel2mom', model.mu, mu_settings);
+    model.ss.mLm = sum(model.mu(:).*g(:));
+else
+    model.ss.mLm = 0;
+end
+end
+%==========================================================================
+
+%==========================================================================
+% ShapeEnergy()
+function E = ShapeEnergy(model,sett)
+% Compute energy of the PCA shape model from sufficient statistics.
+%
+%   . All sufficient statistics must have been updated prior to caling this
+%     function.
+%   . By energy we mean 'free energy' or 'negative evidence lower bound', 
+%     in the variational Bayes context.
+%   . When the PCA model is used (sett.do.pca == true), the velocity energy
+%     is part of it. Else, it is stored in each subject (dat.E(3)).
+
+E = [EnergyTemplate(model,sett) ...
+     EnergyVelocity(model,sett) ...
+     EnergyLatent(model,sett) ...
+     EnergyLatentPrecision(model,sett) ...
+     EnergyResidualPrecision(model,sett) ...
+     EnergySubspace(model,sett)];
+
+end
+%==========================================================================
+
+
+%==========================================================================
+function E = EnergyTemplate(model, sett)
+% Negative log-likelihood of a multivariate Gaussian distribution
+
+E = 0.5*model.ss.mLm;
+
+% TODO: we could learn the template regularisation
+% (like we learn the residual precision in the PCA model)
+% KL divergence between two multivariate Gaussian distributions.
+% Log-determinants of the prior and posterior precision cannot be computed
+% exactly so are dropped from the energy.
+
+end
+%==========================================================================
+
+
+%==========================================================================
+function E = EnergyVelocity(model, sett)
+% KL divergence between two multivariate Gaussian distributions.
+% Log-determinants of the prior and posterior precision cannot be computed
+% exactly so are dropped from the energy.
+
+% . trLVV  = trace(L(V-WZ)(V-WZ)')  [sum across subjects]
+% . Su     = Var[U'LU]/(DF)         [single voxel: need *DF]
+% . Sz     = Var[zz']               [single subject: need *N]
+% . trLSv  = trace(LVar[VV'])       [sum across subjects]
+% . loglam = E[log(lam)]
+
+if ~sett.do.pca
+    % Mode estimate -> negative log-likelihood
+    E = model.ss.trLVV;
+else
+    % Variational posterior -> KL
+    N      = size(model.Z,2);
+    D      = size(model.U,1)*size(model.U,2)*size(model.U,3);
+    F      = size(model.U,4);
+    Su     = model.Su;        % subspace posterior covariance wrt PCs
+    Sz     = model.Sz;        % latent posterior covariance (per subj)
+    trLVV  = model.ss.trLVV;  % expected velocity prior (sum subj)
+    trLSV  = model.ss.trLSV;  % velocity posterior covariance: Tr(L*Var[Z]) (sum subj)
+    lam    = model.lam;       % residual noise precision (mean)
+    nlam   = model.nlam;      % residual noise precision (deg. freedom)
+    loglam = ELogGamma(lam,nlam);
+    
+    E = N*D*F*(loglam - 1) + lam*(trLVV + N*D*F*trace(Su*Sz) + trLSV);
+
+end
+E = 0.5*E;
+
+end
+%==========================================================================
+
+%==========================================================================
+function E = EnergyLatent(model, sett)
+% KL divergence between two multivariate Gaussian distributions (xN subj)
+
+if ~sett.do.pca, E = 0; return; end
+    
+N  = size(pca.Z,2);  % Number of subjects
+L  = size(pca.U,5);  % Number of principal components
+ZZ = model.ZZ;       % latent 2nd order moment     (sum subj)
+Sz = model.Sz;       % latent posterior covariance (per subj)
+A  = model.A;        % residual precision matrix (mean)
+nA = model.nA;       % residual precision matrix (deg. freedom)
+    
+E =     trace(A*ZZ) ...
+  - N * LogDetChol(Sz) ...
+  - N * ELogDetWishart(A,nA) ...
+  - N * L;
+E = E/2;
+end
+%==========================================================================
+
+%==========================================================================
+function E = EnergySubspace(model, sett)
+% KL divergence between two multivariate Gaussian distributions (xDF vox)
+% The prior is set to be a standard Normal (zero-mean, identity covariance)
+
+if ~sett.do.pca, E = 0; return; end
+
+D   = size(model.U,1)*size(model.U,2)*size(model.U,3); % Number of voxels
+F   = size(model.U,4);   % Should be 3
+L   = size(model.U,5);   % Number of principal components
+ULU = model.ULU;         % subspace 2nd order moment
+Su  = model.Su;          % subspace posterior covariance wrt PCs
+
+E =         trace(ULU) ...
+    - D*F * LogDetChol(Su) ...
+    - D*F * L;
+E = E/2;
+end
+%==========================================================================
+
+%==========================================================================
+function E = EnergyLatentPrecision(model, sett)
+% KL divergence between two Wishart distributions.
+
+if ~sett.do.pca, E = 0; return; end
+
+L = size(model.U,5);
+
+n0 = sett.pca.latent_df;
+A0 = sett.pca.latent_prior;
+n  = model.nA;
+A  = model.A;
+
+if ~isfinite(n0) || n0 == 0  % Fixed value | Maximum likelihood
+    E = 0;
+else
+    E =   n0 * (LogDetChol(A0) - LogDetChol(A))...
+        + n0 * L * (log(n) - log(n0)) ...
+        + n0 * trace(A0\A) ...
+        - n * L ...
+        + 2 * (LogGamma(n0/2,L) - LogGamma(n/2,L)) ...
+        + (n-n0) * DiGamma(n/2,L);
+    E = E/2;
+end
+end
+%==========================================================================
+
+%==========================================================================
+function E = EnergyResidualPrecision(model, sett)
+% KL divergence between two Gamma distributions.
+%
+%   The Gamma distributions are parameterised by lam and n, where
+%   alpha = n*D/2, beta = n*D/(2*lam) and D is the number of elements in a
+%   velocity field (D=nvox*3). This parameterisation allows lam to act as 
+%   an expected value and n to act as a degrees of freedom.
+
+D = size(model.U,1)*size(model.U,2)*size(model.U,3);
+F = size(model.U,4);
+
+n0   = sett.pca.res_df;
+lam0 = sett.pca.res_prior;
+n    = model.nlam;
+lam  = model.lam;
+
+if ~isfinite(n0) || n0 == 0  % Fixed value | Maximum likelihood
+    E = 0;
+else
+    E =   D*F * n0 * log((lam0/n0)/(lam/n)) ...
+        + D*F * n * ((lam/n)/(lam0/n0) - 1) ...
+        +   2 * (LogGamma(n0*D*F/2) - LogGamma(n*D*F/2)) ...
+        + D*F * (n-n0) * DiGamma(n*D*F/2);
+    E = E/2;
 end
 end
 %==========================================================================
@@ -1173,7 +1810,7 @@ end
 
 %==========================================================================
 % UpdateVelocitiesSub()
-function datn = UpdateVelocitiesSub(datn,mu,G,H0,sett)
+function datn = UpdateVelocitiesSub(datn,model,G,H0,sett)
 
 % Parse function settings
 B          = sett.registr.B;
@@ -1182,15 +1819,27 @@ Mmu        = sett.var.Mmu;
 s_settings = sett.shoot.s_settings;
 scal       = sett.optim.scal_v;
 v_settings = sett.var.v_settings;
+do_pca     = sett.do.pca;
 
-v         = spm_mb_io('GetData',datn.v);
+v0 = 0;
+if do_pca
+    % Compute subject-specific mean velocity from PCA
+    du = spm_mb_io('GetSize',model.U);
+    for l=1:du(5)
+        v0 = v0 + spm_mb_io('GetData',model.U,5,l) * datn.z(l);
+    end
+    % Modulate precision
+    v_settings(4:end) = v_settings(4:end) * model.lam;
+end
+
+v         = spm_mb_io('GetData',datn.v) - v0;
 q         = datn.q;
 Mn        = datn.Mat;
 Mr        = spm_dexpm(q,B);
 Mat       = Mmu\Mr*Mn;
 df        = spm_mb_io('GetSize',datn.f);
 psi       = Compose(spm_mb_io('GetData',datn.psi),Affine(df,Mat));
-mu        = Pull1(mu,psi);
+mu        = Pull1(model.mu,psi);
 [f,datn]  = spm_mb_io('GetClasses',datn,mu,sett);
 [a,w]     = Push1(f - Softmax(mu,4),psi,d);
 psi = []; f = []; mu = [];
@@ -1199,16 +1848,43 @@ g         = reshape(sum(a.*G,4),[d 3]);
 H         = w.*H0;
 a = []; w = [];
 
-u0        = spm_diffeo('vel2mom', v, v_settings);                          % Initial momentum
-datn.E(2) = 0.5*sum(u0(:).*v(:));                                          % Prior term
-v         = v - scal*spm_diffeo('fmg',H, g + u0, [v_settings s_settings]); % Gauss-Newton update
+g         = g + spm_diffeo('vel2mom', v, v_settings);                             % Prior term
+v         = v + v0 - scal*spm_diffeo('fmg', H, g, [v_settings s_settings]); % Gauss-Newton update
+
+if do_pca
+    datn.ss.LSv = spm_diffeo('trapprox', H, [v_settings s_settings]);
+    datn.ss.LSv = datn.ss.LSv / lam;
+end
 
 if d(3)==1, v(:,:,:,3) = 0; end % If 2D
-if v_settings(1)==0             % Mean displacement should be 0
+if v_settings(4)==0             % Mean displacement should be 0
     avg = mean(mean(mean(v,1),2),3);
     v   = v - avg;
 end
-datn.v = spm_mb_io('SetData',datn.v,v);
+datn.v   = spm_mb_io('SetData',datn.v,v);
+end
+%==========================================================================
+
+%==========================================================================
+% UpdateLatentSub()
+function datn = UpdateLatentSub(datn,pca,sett)
+
+v_settings = sett.var.v_settings;
+L          = size(pca.subspace,5);
+
+m = spm_mb_io('GetData',datn.v);
+m = spm_diffeo('vel2mom',m,v_settings); % Compute momentum: L * v
+m = m(:);
+
+datn.z = zeros(L,1);
+for j=1:L
+    U1        = single(pca.subspace(:,:,:,:,j)); % Extract j-th mode
+    datn.z(j) = sum(U1(:).*m,'double');          % Project on subspace
+end
+clear U1
+
+datn.z  = pca.lam * pca.Sz * datn.z;
+
 end
 %==========================================================================
 
@@ -1254,3 +1930,244 @@ for m1=1:M
 end
 end
 %==========================================================================
+
+%==========================================================================
+function [T, iT] = JointDiag(ZZ, ULU)
+% FORMAT [T, iT] = JointDiag(ZZ,ULU)
+%
+% ** Input **
+% ezz - E[ZZ']  = E[Z]E[Z]'   + inv(Az)
+% ww  - E[U'LU] = E[U]'LE[U]' + inv(Au)
+% ** Output **
+% T   - Orthogonalisation matrix,  s.t.   T * ZZ  * T' ~ diag
+% iT  - Almost inverse of T,       s.t. iT' * ULU * iT ~ diag
+
+
+[Vz, Dz2]  = svd(double(ZZ));
+[Vw, Dw2]  = svd(double(ULU));
+Dz         = diag(sqrt(diag(Dz2) + eps));
+Dw         = diag(sqrt(diag(Dw2) + eps));
+[U, D, V]  = svd(Dw * Vw' * Vz * Dz');
+% Dz         = loaddiag(Dz);
+% Dw         = loaddiag(Dw);
+T          = D * V' * (Dz \ Vz');
+iT         = Vw * (Dw \ U);
+end
+%==========================================================================
+    
+%==========================================================================
+function [Q, iQ, q] = ScaleSubspace(ULU, ZZ, A0, n0, ndat, nvox, q0)
+% FORMAT [Q, iQ] = ScaleSubspace(ULU, ZZ, A0, n0, ndat, nvox, q0)
+% ULU  - E[U'LU] (subspace suff stat)
+%        > Must have been orthogonalised before.
+% ZZ   - E[Z*Z'] (latent suff stat)
+%        > Must have been orthogonalised before.
+% A0   - Expected value of Wishart prior (n0*V0)
+% n0   - Degrees of freedom of Wishart prior
+% ndat - Number of subjects
+% nvox - Number of voxels
+% q0   - Initial parameters [defaut: -0.5*log(nvox)]
+%
+% Gauss-Newton optimisation of the scaling factor between U and Z
+
+M = size(ZZ, 1);
+
+if nargin < 9 || isempty(q0)
+    q0    = zeros(M,1)-0.5*log(nvox);
+end
+
+q = min(max(q0,-10),10);  % Heuristic to avoid bad starting estimate
+Q = diag(exp(q));
+A = UpdateWishart(Q*ZZ*Q, ndat, A0, n0);
+E = 0.5*(trace(Q*ZZ*Q*A) + trace(ULU/(Q*Q))) ...
+  + (nvox - ndat) * logdet_stable(Q);
+% fprintf('[%3d %2d] %15.6g',0,0,E)
+
+all_E0 = E;
+for iter=1:100 % EM loop
+    A   = UpdateWishart(Q*ZZ*Q, ndat, A0, n0);
+    oE0 = E;
+
+    all_E = E;
+    for subit=1:10 % Gauss-Newton loop
+        R  = A.*ZZ'+A'.*ZZ;
+        g1 = Q*R*diag(Q);
+        g2 =-2*(Q^2\diag(ULU));
+        g  = g1 + g2 + 2 * (nvox - ndat);
+
+        H1 = Q*R*Q + diag(g1);
+        H2 = 4*(Q^2\ULU);
+        H  = H1+H2;
+
+        H  = LoadDiag(H);
+        q  = q - H\g;
+        q  = min(max(q,-10),10); % Heuristic to avoid overshoot
+        Q  = diag(exp(q));
+
+        oE = E;
+        E  = 0.5*(trace(Q*ZZ*Q*A) + trace(ULU/(Q*Q))) ...
+              + (nvox - ndat) * LogDetChol(Q);
+        all_E = [all_E E];
+
+        % fprintf('\n[%3d %2d] %15.6g (%8.1e)',iter,subit,E, ...
+        %     abs(oE-E)/(max(all_E)-min(all_E)+eps))
+        if abs(oE-E)/(max(all_E)-min(all_E)+eps) < 1e-8, break; end
+    end
+    all_E0 = [all_E0 E];
+    % fprintf(' (%8.1e)', abs(oE0-E)/(max(all_E0)-min(all_E0)+eps))
+    if abs(oE0-E)/(max(all_E0)-min(all_E0)+eps) < 1e-20, break; end
+end
+iQ = inv(Q);
+% fprintf('\n');
+
+% % Code for working out the gradients and Hessians
+% q   = sym('q',[3,1],'real');
+% Q   = diag(exp(q));
+% % A   = diag(sym('a',[3,1],'real'));
+% % ZZ  = diag(sym('z',[3,1],'real'));
+% % WW   = diag(sym('w',[3,1],'real'));
+% A   = sym('a',[3,3],'real');
+% ZZ  = sym('z',[3,3],'real');
+% WW   = sym('w',[3,3],'real');
+% DmN = sym('DmN','real');
+% %%
+% E   = trace(Q*ZZ*Q*A) + trace(WW*inv(Q*Q)) + 2 * DmN * log(det(Q));
+% %%
+% pretty(simplify(diff(E,sym('q1')),1000))
+% pretty(simplify(diff(diff(E,sym('q1')),sym('q2')),1000))
+% pretty(simplify(diff(diff(E,sym('q1')),sym('q1')),1000))
+% %%
+% g1 =  Q*(A.*ZZ'+A'.*ZZ)*diag(Q);
+% g2 = -Q^2\diag(WW)*2;
+% g  =  g1+g2+2*DmN;
+% H1 =  Q*(A'.*ZZ + A.*ZZ')*Q +diag(g1);
+% H2 =  4*WW*Q^(-2);
+% H  =  H1+H2;
+% %%
+% d1  = simplify(g(1)  -diff(E,sym('q1')),1000)
+% d11 = simplify(H(1,1)-diff(diff(E,sym('q1')),sym('q1')),1000)
+%==========================================================================
+
+
+% === LogGamma ============================================================
+function lg = LogGamma(a, p)
+% Multivariate log Gamma function.
+%
+% FORMAT lg = LogGamma(a, p)
+% a - value
+% p - dimension [1]
+if nargin < 2
+    p = 1;
+end
+lg = (p*(p-1)/4)*log(pi);
+for i=1:p
+    lg = lg + gammaln(a + (1-p)/2);
+end
+end
+
+% === DiGamma =============================================================
+function dg = DiGamma(a, p, k)
+% Multivariate di/tri/etc Gamma function.
+%
+% FORMAT lg = DiGamma(a, p, k)
+% a - value
+% p - dimension  [1]
+% k - derivative [0=digamma], 1=trigamma, 2=tetragamma, etc.
+if nargin < 3
+    k = 0;
+    if nargin < 2
+        p = 1;
+    end
+end
+dg = 0;
+for i=1:p
+    dg = dg + psi(k, a + (1-i)/2);
+end
+end
+
+% === LogDetChol ==========================================================
+function ld = LogDetChol(A)
+% Log-determinant of a positive-definite matrix.
+% Cholesky factorisation is used to compute a more stable log-determinant.
+%
+% FORMAT ld = LogDetChol(A)
+% A  - A postive-definite square matrix
+% ld - Logarithm of determinant of A
+
+% Cholseki decomposition of A (A = C' * C, with C upper-triangular)
+[C, p] = chol(double(A));
+
+if p > 0
+   % A should usually be positive definite, but check anyway.
+   warning(['Attempting to compute log determinant of matrix ' ...
+            'that is not positive definite (p=%d).'], p);
+end
+
+% Because C is triangular, |C| = prod(diag(C))
+% Hence: log|C| = sum(log(diag(C)))
+% And:   log|A| = log|C'*C| = log(|C|^2) = 2 * sum(log(diag(C)))
+ld = 2 * sum(log(diag(C)));
+end
+
+% === LoadDiag ===========================================================
+function A = LoadDiag(A)
+% A  - A square matrix
+%
+% Load A's diagonal until it is well conditioned for inversion.
+
+factor = 1e-7;
+while rcond(A) < 1e-5
+    A = A + factor * max([diag(A); eps]) * eye(size(A));
+    factor = 10 * factor;
+end
+end
+
+% === ELogGamma ===========================================================
+function ld = ELogGamma(lam, n, k)
+% Expected log of a Gamma random variable.
+%   
+%   /!\ It is parameterised by the expected value and degrees of freedom,
+%       not the shape and scale.
+%   If n == 0 or n == Inf, returns simple log.
+%
+% FORMAT ld = ELogGamma(A,n,[k])
+% A  - Expected value of the Wishart distribution
+% n  - Degrees of freedom
+% k  - Dimension [1]
+% ld - Expected logarithm of G(nk/2,nk/(2lam))
+if nargin < 3, k = 1; end
+ld = log(lam);
+if isfinite(n) && n > 0
+    ld = ld + DiGamma(k*n/2) - log(k*n/2);
+end
+end
+
+% === ELogDetWishart ======================================================
+function ld = ELogDetWishart(A, n)
+% Expected log-determinant of a Wishart random variable.
+%   
+%   /!\ It is parameterised by the expected value, not the scale matrix.
+%   If n == 0 or n == Inf, returns simple log-determinant.
+%
+% FORMAT ld = LogDetWishart(A,n)
+% A  - Expected value of the Wishart distribution
+% n  - Degrees of freedom
+% ld - Expected log determinant of W(A/n,n)
+ld = LogDetChol(A);
+if isfinite(n) && n > 0
+    k  = size(A, 1);
+    ld = ld + DiGamma(n/2, k) - k*log(n/2);
+end
+end
+
+
+% === UpdateWishart =======================================================
+function [A,n] = UpdateWishart(ZZ, ndat, A0, n0)
+n = n0 + ndat;
+if n0 > 0,  A = (n*A0)/(A0*ZZ +  n0*eye(ZZ));
+else,       A = n*inv(ZZ + eps*eye(ZZ)); % slight regularisation
+end
+if nargout > 1 && n0 == 0
+    n = Inf;
+end
+end

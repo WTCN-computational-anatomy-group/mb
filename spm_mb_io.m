@@ -5,9 +5,10 @@ function varargout = spm_mb_io(varargin)
 %
 % FORMAT to         = spm_mb_io('CopyFields',from,to)
 % FORMAT [P,datn]   = spm_mb_io('GetClasses',datn,mu,sett)
-% FORMAT [out,M]    = spm_mb_io('GetData',in)
+% FORMAT [out,M]    = spm_mb_io('GetData',in,[sl,idx])
+% FORMAT [out,M]    = spm_mb_io('MemMapData',in)
 % FORMAT Mat        = spm_mb_io('GetMat',fin)
-% FORMAT [d,M]      = spm_mb_io('GetSize',fin)
+% FORMAT [d,K,L]    = spm_mb_io('GetSize',fin)
 % FORMAT s          = spm_mb_io('GetScale',fin,sett);
 % FORMAT dat        = spm_mb_io('InitDat',data,sett)
 % FORMAT model      = spm_mb_io('MakeModel',dat,model,sett)
@@ -34,6 +35,8 @@ switch id
         [varargout{1:nargout}] = GetClasses(varargin{:});
     case 'GetData'
         [varargout{1:nargout}] = GetData(varargin{:});
+    case 'MemMapData'
+        [varargout{1:nargout}] = MemMapData(varargin{:});
     case 'GetMat'
         [varargout{1:nargout}] = GetMat(varargin{:});
     case 'GetSize'
@@ -160,10 +163,23 @@ end
 
 %==========================================================================
 % GetData()
-function [out,Mn] = GetData(in)
+function [out,Mn] = GetData(in, slice, idx)
+% FORMAT [out,Mn] = GetData(in, [dim, idx])
+% in    - array or file_array or nifti or filename
+% slice - Dimension along which to slice [none]
+% idx   - Index to read in slice [all]
+
+if nargin < 2, slice = 0; end
 Mn = eye(4);
-if isnumeric(in)
-    out = single(in);
+if isnumeric(in) || isa(in, 'file_array')
+    if slice > 0
+        [subs{1:numel(size(in))}] = deal(':');
+        subs{slice} = idx;
+        subs = struct('type', '()', 'subs', {subs});
+        out = single(subsref(in, subs));
+    else
+        out = single(in());
+    end
     return
 end
 if isa(in,'char')
@@ -171,18 +187,38 @@ if isa(in,'char')
 end
 if isa(in,'nifti')
     C  = numel(in);
-    d  = size(in(1).dat,[1 2 3 4 5]);
+    d  = size(in(1).dat);
     Mn = in(1).mat;
     if C>1
+        d(end+1:4) = 1;
         d(4) = C;
+        if slice > 0
+            d(end+1:slice) = 1;
+            d(slice) = 1;
+        end
         out = zeros(d,'single');
+        [subsin{1:numel(d)}] = deal(':');
+        subsout = subsin;
+        if slice > 0
+            subsin{slice} = idx;
+        end
+        subsin  = struct('type', '()', 'subs', {subsin});
+        subsout = struct('type', '()', 'subs', {subsout});
         for m=1:C
-            out(:,:,:,m) = single(in(m).dat(:,:,:,:,:));
+            subsout.subs{4} = m;
+            out = subsasgn(out, subsout, subsref(in(m).dat, subsin));
         end
     else
-        out = single(in.dat(:,:,:,:,:));
+        if slice > 0
+            [subs{1:numel(d)}] = deal(':');
+            subs{slice} = idx;
+            subs = struct('type', '()', 'subs', {subs});
+            out = single(subsref(in.dat, subs));
+        else
+            out = single(in.dat());
+        end
         if numel(d)>4 && d(4)==1
-            out = reshape(out,[d(1:3) d(5)]);
+            out = reshape(out,[d(1:3) d(5:end)]);
         end
     end
     return
@@ -190,6 +226,35 @@ end
 error('Unknown datatype.');
 end
 %==========================================================================
+
+
+%==========================================================================
+% GetData()
+function [out,Mn] = MemMapData(in)
+% FORMAT [out,Mn] = MemMapData(in)
+% in  - nifti or filename
+% out - file_array
+
+if isa(in,'char')
+    in = nifti(in);
+end
+if isa(in,'nifti')
+    C    = numel(in);
+    Mn   = in(1).mat;
+    dats = cell(1,C);
+    for c=1:C
+        dats{c} = in(c).dat;
+        if C ==1 && numel(size(in(c).dat)) > 4 && size(in(c).dat,4) == 1
+            dats{c}.dat(4) = [];
+        end
+    end
+    out = cat(4, dats{:});
+    return
+end
+error('Unknown datatype.');
+end
+%==========================================================================
+
 
 %==========================================================================
 % GetMat()
@@ -211,9 +276,10 @@ end
 
 %==========================================================================
 % GetSize()
-function [d,M] = GetSize(fin)
+function [d,M,N] = GetSize(fin)
 d = [GetDimensions(fin) 1 1 1];
 M = d(4);
+N = d(5);
 d = d(1:3);
 end
 %==========================================================================
@@ -224,6 +290,7 @@ function dat = InitDat(data,sett)
 
 % Parse function settings
 do_gmm = sett.do.gmm;
+do_pca = sett.do.pca;
 run2d  = sett.gen.run2d;
 
 % Initialise for each subject
@@ -276,16 +343,20 @@ for n=1:N
     [~,C] = spm_mb_io('GetSize',dat(n).f);
     
     % Parameters
-    dat(n).M     = M0;    
-    dat(n).q     = zeros(6,1);    
-    dat(n).v     = [];    
-    dat(n).psi   = [];    
-    dat(n).E     = [0 0 0]; % Px Pv Pbf
-    dat(n).bf    = [];    
-       
+    dat(n).M     = M0;              % Orientation matrix
+    dat(n).q     = zeros(6,1);      % Affine parameters
+    dat(n).v     = [];              % Velocity field
+    dat(n).psi   = [];              % Warp
+    dat(n).E     = [0 0 0];         % Energy: (gmm) (velocity) (bias field) 
+    dat(n).ss    = struct;          % Sufficent statistics for energy
+    
+    if do_pca
+        dat(n).z   = [];            % PCA latent variable
+    end
+        
     if do_gmm
-        dat(n).mog = [];
-        dat(n).bf  = [];                
+        dat(n).mog = [];            % GMM parameters
+        dat(n).bf  = [];            % Bias field  
     end
     
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -415,7 +486,7 @@ end
 
 %==========================================================================
 % SaveTemplate()
-function dat = SaveTemplate(dat,mu,sett)
+function SaveTemplate(mu,sett)
 
 % Parse function settings
 dir_res          = sett.write.dir_res;
@@ -525,7 +596,7 @@ end
 function d = GetDimensions(fin)
 if isnumeric(fin)
     d = size(fin);
-    d = [d 1 1];
+    d(end+1:5) = 1;
     return
 end
 if isa(fin,'char')
@@ -541,6 +612,7 @@ if isa(fin,'nifti')
             d = [d(1:3) d(5)];
         end
     end
+    d(end+1:5) = 1;
     return
 end
 end
