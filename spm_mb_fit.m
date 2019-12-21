@@ -82,8 +82,13 @@ vxmu = sqrt(sum(Mmu(1:3,1:3).^2));
 % Set affine bases
 %------------------
 
-if dmu(3) == 1, sett.registr.B = spm_mb_shape('AffineBases','SE(2)');
-else,           sett.registr.B = spm_mb_shape('AffineBases','SE(3)');
+if dmu(3) == 1 % 2D
+    sett.registr.B      = spm_mb_shape('AffineBases','SE(2)');
+    denom_aff_tol       = N*100^3;               % smaller convergence threshold
+    sett.var.v_settings = 4*sett.var.v_settings; % more regularisation for fitting velocities
+else           % 3D
+    sett.registr.B = spm_mb_shape('AffineBases','SE(3)');
+    denom_aff_tol  = N*100^4;
 end
 
 %------------------
@@ -156,7 +161,7 @@ if do_updt_aff
             end
         end         
         
-        if it_init > 1 && (oE - E)/(N*100^4) < 1e-4
+        if it_init > 1 && (oE - E)/denom_aff_tol < 1e-4
             % Finished rigid alignment
             break; 
         end        
@@ -166,7 +171,7 @@ if do_updt_aff
         dat = spm_mb_shape('UpdateSimpleAffines',dat,mu,sett);
         dat = spm_mb_appearance('UpdatePrior',dat, mu, sett);
         E   = sum(sum(cat(2,dat.E),2),1) + te;
-        t   = toc;                
+        t   = toc;                        
         
         if show_level > 0, fprintf('it=%i q  \t%g\t%g\t%g\n', it_init, E, t, (oE - E)/prevt); end
         prevt     = t;
