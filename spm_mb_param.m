@@ -289,7 +289,7 @@ if ~isfield(sett.show,'level')
     sett.show.level = 1;
 end
 if ~isfield(sett.show,'mx_subjects')
-    sett.show.mx_subjects = 4;
+    sett.show.mx_subjects = 2;
 end
 
 %------------------
