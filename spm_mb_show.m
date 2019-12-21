@@ -120,12 +120,12 @@ if size(mu,3) > 1
     % 3D
     ShowCat(mu,1,2,3,1,fig_name);
     ShowCat(mu,2,2,3,2,fig_name);
-    ShowCat(mu,3,2,3,3,fig_name);
+    ShowCat(mu,3,2,3,3,fig_name,true); % true -> show colorbar
     title(nam);
     subplot(2,1,2);     
 else
     % 2D
-    ShowCat(mu,3,1,2,1,fig_name);
+    ShowCat(mu,3,1,2,1,fig_name,true); % true -> show colorbar
     title(nam);
     subplot(1,2,2); 
 end
@@ -305,7 +305,7 @@ for n=1:nd
     ShowCat(zn,ax,nr_tiss,nd,n + nd,fig_name_tiss);        
     if isfield(dat,'mog')
         % and image (if using GMM)     
-        ShowIm(bf(:,:,:,c).*fn(:,:,:,c),ax,nr_tiss,nd,n + 2*nd,fig_name_tiss,is_ct);        
+        ShowIm(bf(:,:,:,c).*fn(:,:,:,c),ax,nr_tiss,nd,n + 2*nd,fig_name_tiss,true,is_ct);        
     end
     zn = [];
     
@@ -516,7 +516,9 @@ end
 
 %==========================================================================
 % ShowCat()
-function ShowCat(in,ax,nr,nc,np,fn)
+function ShowCat(in,ax,nr,nc,np,fn,show_colorbar)
+if nargin < 7, show_colorbar = false; end
+
 f = findobj('Type', 'Figure', 'Name', fn);
 if isempty(f)
     f = figure('Name', fn, 'NumberTitle', 'off');
@@ -572,7 +574,13 @@ end
 
 c = squeeze(c(:,:,:,:));
 imagesc(c); axis off image xy;   
+colormap(pal);
 
+if show_colorbar    
+    cb = colorbar;
+    set(gca, 'clim', [0.5 K+0.5]);
+    set(cb, 'ticks', 1:K, 'ticklabels', 1:K); 
+end
 end
 %==========================================================================
 
