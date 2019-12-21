@@ -967,10 +967,10 @@ B   = sett.registr.B;
 Mmu = sett.var.Mmu;
 
 C   = size(fn,2);
-mx  = zeros(1,C);
-mn  = zeros(1,C);
-avg = zeros(1,C);
-vr  = zeros(1,C);
+mx  = zeros(C,1);
+mn  = zeros(C,1);
+avg = zeros(C,1);
+vr  = zeros(C,1);
 m   = zeros(C,K);
 ico = zeros(C,C,K);
 for c=1:C
