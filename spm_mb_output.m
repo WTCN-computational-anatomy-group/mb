@@ -38,6 +38,7 @@ dmu        = sett.var.d;
 dir_res    = sett.write.dir_res;
 do_infer   = sett.do.infer;
 fwhm       = sett.bf.fwhm;
+mg_ix      = sett.model.mg_ix;
 Mmu        = sett.var.Mmu;
 reg        = sett.bf.reg;
 write_bf   = sett.write.bf; % field
@@ -45,23 +46,27 @@ write_df   = sett.write.df; % forward, inverse
 write_im   = sett.write.im; % image, corrected, warped, warped corrected
 write_tc   = sett.write.tc; % native, warped, warped-mod
 
-if ~(exist(dir_res,'dir') == 7)  
-    mkdir(dir_res);  
-end
-s       = what(dir_res); % Get absolute path
-dir_res = s.path;
-
 % Get parameters
 [df,C] = spm_mb_io('GetSize',datn.f);
 K      = size(mun,4);
 K1     = K + 1;
-if isa(datn.f(1),'nifti'), [~,namn] = fileparts(datn.f(1).dat.fname);                
-else,                         namn  = ['n' num2str(ix)];
+Kmg    = numel(mg_ix);
+if isa(datn.f(1),'nifti') 
+    [pth,namn] = fileparts(datn.f(1).dat.fname);                
+else
+    namn  = ['n' num2str(ix)];
+    pth   = '.';
 end            
 Mr    = spm_dexpm(double(datn.q),B);
 Mn    = datn.Mat;                
 do_bf = datn.do_bf;
 is_ct = datn.is_ct;
+
+% Set output path
+if ~isempty(dir_res) && ~(exist(dir_res,'dir') == 7), mkdir(dir_res); end
+if  isempty(dir_res), dir_res = pth; end
+s       = what(dir_res); % Get absolute path
+dir_res = s.path;
 
 % Integrate K1 and C into write settings
 if size(write_bf,1) == 1 && C  > 1, write_bf = repmat(write_bf,[C  1]); end    
@@ -103,6 +108,11 @@ if isfield(datn,'mog') && (any(write_bf(:) == true) || any(write_im(:) == true) 
     mun    = mun + labels;
     labels = [];
     
+    % Integrate use of multiple Gaussians per tissue
+    mg_w = datn.mog.mg_w;
+    mun  = mun(:,mg_ix);
+    mun  = mun + log(mg_w);   
+        
     % Format for spm_gmm
     [bffn,code_image,msk_chn] = spm_gmm_lib('obs2cell', bf.*fn);
     mun                       = spm_gmm_lib('obs2cell', mun, code_image, false);
@@ -128,7 +138,12 @@ if isfield(datn,'mog') && (any(write_bf(:) == true) || any(write_im(:) == true) 
         fn = spm_gmm_lib('InferMissing',fn,zn,{MU,A},msk_chn,sample_post);        
     end
 
-    % TODO: Possible post-processing (MRF + clean-up)
+    % If using multiple Gaussians per tissue, collapse so that zn is of
+    % size K1
+    if Kmg > K1
+        for k=1:K1, zn(:,:,:,k) = sum(zn(:,:,:,mg_ix==k),4); end
+        zn(:,:,:,K1 + 1:end)    = [];
+    end
 
     % Make 3D    
     if any(do_bf == true)

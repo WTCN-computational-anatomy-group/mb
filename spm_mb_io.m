@@ -281,7 +281,7 @@ for n=1:N
     dat(n).v     = [];    
     dat(n).psi   = [];    
     dat(n).E     = [0 0 0]; % Px Pv Pbf
-    dat(n).bf    = [];    
+    dat(n).bf    = [];   
        
     if do_gmm
         dat(n).mog = [];
@@ -356,9 +356,14 @@ do_updt_template = sett.do.updt_template;
 dir_res          = sett.write.dir_res;
 write_model      = sett.write.model;
 
+if isempty(dir_res) 
+    pth     = fileparts(dat(1).f(1).dat.fname);
+    dir_res = pth; 
+end
+
 if do_updt_template
     % Shape related
-    f                    = fullfile(dir_res ,'mu_log.nii');
+    f                    = fullfile(dir_res ,'mu_log_spm_mb.nii');
     model.shape.template = f;
 end
 
@@ -379,7 +384,7 @@ end
 
 if write_model && (do_updt_template || do_updt_int)
     % Save model
-    save(fullfile(dir_res,'model.mat'),'model')
+    save(fullfile(dir_res,'model_spm_mb.mat'),'model')
 end
 end
 %==========================================================================
@@ -401,9 +406,11 @@ psi  = spm_mb_shape('Compose',psi1,spm_mb_shape('Affine',d,Mmu\spm_dexpm(q,B)*Mn
 psi  = reshape(reshape(psi,[prod(d) 3])*Mmu(1:3,1:3)' + Mmu(1:3,4)',[d 1 3]);
 fpth = '';
 if isa(datn.psi(1),'nifti')
-    to_delete = datn.psi(1).dat.fname;
-    [~,nam,~] = fileparts(datn.f(1).dat.fname);
-    fpth = fullfile(dir_res,['y_' nam '.nii']);
+    to_delete   = datn.psi(1).dat.fname;
+    [pth,nam,~] = fileparts(datn.f(1).dat.fname);
+    if isempty(dir_res), dir_res = pth; end
+    fpth        = fullfile(dir_res,['y_' nam '.nii']);
+    
     datn.psi(1).dat.fname = fpth;
     datn.psi(1).dat.dim = [d 1 3];
     datn.psi(1).mat = datn.f(1).mat0; % For working with "imported" images;
@@ -426,10 +433,15 @@ do_updt_template = sett.do.updt_template;
 Mmu              = sett.var.Mmu;
 write_mu         = sett.write.mu;
 
+if isempty(dir_res) 
+    pth     = fileparts(dat(1).f(1).dat.fname);
+    dir_res = pth; 
+end
+
 if ~isempty(mu) && do_updt_template
     if write_mu(1)
         % Log
-        f        = fullfile(dir_res ,'mu_log.nii');
+        f        = fullfile(dir_res ,'mu_log_spm_mb.nii');
         fa       = file_array(f,size(mu),'float32',0);
         Nmu      = nifti;
         Nmu.dat  = fa;
@@ -445,7 +457,7 @@ if ~isempty(mu) && do_updt_template
         mu = spm_mb_shape('TemplateK1',mu,4);
         mu = exp(mu);    
 
-        f        = fullfile(dir_res ,'mu_softmax.nii');        
+        f        = fullfile(dir_res ,'mu_softmax_spm_mb.nii');        
         fa       = file_array(f,size(mu),'float32',0);
         Nmu      = nifti;
         Nmu.dat  = fa;

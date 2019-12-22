@@ -59,6 +59,11 @@ do_updt_template = sett.do.updt_template;
 dat  = spm_mb_io('InitDat',data,sett); 
 data = [];
 
+if isempty(dir_res) 
+    pth     = fileparts(dat(1).f(1).dat.fname);
+    dir_res = pth; 
+end
+
 % Get number of template classes (if not using GMM)
 if ~do_gmm, [~,K] = spm_mb_io('GetSize',dat(1).f); end
 if template_given
@@ -85,7 +90,7 @@ vxmu = sqrt(sum(Mmu(1:3,1:3).^2));
 if dmu(3) == 1 % 2D
     sett.registr.B      = spm_mb_shape('AffineBases','SE(2)');
     denom_aff_tol       = N*100^3;               % smaller convergence threshold
-    sett.var.v_settings = 4*sett.var.v_settings; % more regularisation for fitting velocities
+%     sett.var.v_settings = 4*sett.var.v_settings; % more regularisation for fitting velocities
 else           % 3D
     sett.registr.B = spm_mb_shape('AffineBases','SE(3)');
     denom_aff_tol  = N*100^4;
@@ -179,8 +184,8 @@ if do_updt_aff
         
         if write_interm && (do_updt_template || do_updt_int)
             % Save stuff
-            save(fullfile(dir_res,'fit.mat'),'dat','mu','sett')
-        end                
+            save(fullfile(dir_res,'fit_spm_mb.mat'),'dat','mu','sett')
+        end          
     end
     
     % Show stuff
@@ -257,7 +262,7 @@ for zm=numel(sz):-1:1 % loop over zoom levels
                 
         if write_interm && (do_updt_template || do_updt_int)
             % Save stuff
-            save(fullfile(dir_res,'fit.mat'),'dat','mu','sett')
+            save(fullfile(dir_res,'fit_spm_mb.mat'),'dat','mu','sett')
         end                
     end    
        

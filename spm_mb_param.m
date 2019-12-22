@@ -181,6 +181,13 @@ end
 if ~isfield(sett.model,'K')
     sett.model.K = 6;
 end
+if ~isfield(sett.model,'mg_ix')    
+    % For using multiple Gaussians per tissue (as in spm_preproc8)
+    sett.model.mg_ix = 1;
+end
+if isscalar(sett.model.mg_ix)
+    sett.model.mg_ix = repelem(1:sett.model.K + 1,sett.model.mg_ix);
+end
 if ~isfield(sett.model,'vx')    
     sett.model.vx = 1;    
 end
@@ -337,11 +344,11 @@ if ~isfield(sett.write,'bf')
 end
 if ~isfield(sett.write,'clean_def')
     % Remove nifti file containing deformation after algorithm finishes
-    sett.write.clean_def = false;
+    sett.write.clean_def = true;
 end
 if ~isfield(sett.write,'clean_vel')
     % Remove nifti file containing velocities after algorithm finishes
-    sett.write.clean_vel = false;
+    sett.write.clean_vel = true;
 end
 if ~isfield(sett.write,'df')
     sett.write.df = false(1,2); % forward, inverse
@@ -353,20 +360,20 @@ if ~isfield(sett.write,'mu')
     sett.write.mu = [true false]; % log, softmax
 end
 if ~isfield(sett.write,'dir_res')
-    sett.write.dir_res = '.';
+    sett.write.dir_res = '';
 end
 if ~isfield(sett.write,'im')
     sett.write.im = false(1,4); % image, corrected, warped, warped corrected
 end
 if ~isfield(sett.write,'intermediate')
-    sett.write.intermediate = true;
+    sett.write.intermediate = false;
 end
 if ~isfield(sett.write,'tc')
-    sett.write.tc = true(1,3); % native, warped, warped-mod
+    sett.write.tc = false(1,3); % native, warped, warped-mod
 end
     
 % Make directories (if does not exist)
-if ~(exist(sett.write.dir_res,'dir') == 7)  
+if ~isempty(sett.write.dir_res) && ~(exist(sett.write.dir_res,'dir') == 7)  
     mkdir(sett.write.dir_res);  
 end
 s                  = what(sett.write.dir_res); % Get absolute path

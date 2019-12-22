@@ -278,6 +278,7 @@ function [zn,datn] = Update(datn,mun0,sett)
 % Parse function settings
 do_updt_bf   = sett.do.updt_bf;
 fwhm         = sett.bf.fwhm;
+mg_ix        = sett.model.mg_ix;
 nit_bf       = sett.nit.bf;
 nit_gmm      = sett.nit.gmm;
 nit_gmm_miss = sett.nit.gmm_miss;
@@ -291,10 +292,12 @@ tol_gmm      = sett.appear.tol_gmm;
 [df,C]     = spm_mb_io('GetSize',datn.f);
 K          = size(mun0,4);
 K1         = K + 1;
+Kmg        = numel(mg_ix);
 Mn         = datn.Mat;
 scl_samp   = 1; % sampling scaling (defined as W = prod(d0(1:3))/prod(d(1:3)), when samp > 1)
 do_bf      = datn.do_bf;
 is_ct      = datn.is_ct;
+mg_w         = datn.mog.mg_w;
 
 % Get image data
 fn = spm_mb_io('GetData',datn.f);
@@ -356,6 +359,9 @@ mun = spm_mb_shape('TemplateK1',mun,2);
 mun    = mun + labels;
 labels = [];
 
+% Expand, if using multiple Gaussians per tissue
+mun = mun(:,mg_ix);
+
 % Bias field related
 if any(do_bf == true) 
     chan       = BiasFieldStruct(datn,C,df,reg,fwhm,[],datn.bf.T,samp);
@@ -378,15 +384,16 @@ for it_appear=1:nit_appear
     % Update GMM and get responsibilities (zn)
     %------------------------------------------------------------
 
-    [zn,mog,~,lb] = spm_gmm_lib('loop',bffn,scl_samp,{{m,b},{W,n}},{'LogProp', mun}, ...
-                                 'GaussPrior',   {m0,b0,W0,n0}, ...
-                                 'Missing',      msk_chn, ...
-                                 'LowerBound',   lb, ...
-                                 'IterMax',      nit_gmm, ...
-                                 'Tolerance',    tol_gmm, ...
-                                 'SubIterMax',   nit_gmm_miss, ...
-                                 'SubTolerance', tol_gmm, ...
-                                 'Verbose',      [0 0]);
+    [zn,mog,~,lb,mg_w] = spm_gmm_lib('loop',bffn,scl_samp,{{m,b},{W,n}},{'LogProp', mun}, ...
+                                   'GaussPrior',   {m0,b0,W0,n0}, ...
+                                   'Missing',      msk_chn, ...
+                                   'LowerBound',   lb, ...
+                                   'IterMax',      nit_gmm, ...
+                                   'Tolerance',    tol_gmm, ...
+                                   'SubIterMax',   nit_gmm_miss, ...
+                                   'SubTolerance', tol_gmm, ...
+                                   'Verbose',      [0 0], ...
+                                   'MultGaussPi',  {mg_ix,mg_w});
     m = mog.MU;
     b = mog.b;
     W = mog.V;
@@ -408,8 +415,8 @@ for it_appear=1:nit_appear
 
     if do_updt_bf && any(do_bf == true)        
 
-        % Make sure to use the latest responsibilties
-        zn = Responsibility(m,b,W,n,bffn,mun,msk_chn);
+        % Make sure to use the latest responsibilties         
+        zn = Responsibility(m,b,W,n,bffn,ReWeightMu(mun,log(mg_w)),msk_chn);
 
         % Recompute parts of objective function that depends on bf
         lx  = LowerBound('ln(P(X|Z))',bffn,zn,msk_chn,{m,b},{W,n},scl_samp);
@@ -442,7 +449,7 @@ for it_appear=1:nit_appear
                     
                     go = 0; % Gradient accumulated accross clusters
                     Ho = 0; % Hessian accumulated accross clusters
-                    for k=1:K1
+                    for k=1:Kmg
                         % Compute expected precision (see GMM + missing data)
                         Woo = W(ixo,ixo,k);
                         Wom = W(ixo,ixm,k);
@@ -515,7 +522,7 @@ for it_appear=1:nit_appear
                     bffn       = spm_gmm_lib('obs2cell', bffn, code_image, true);
                     
                     % Recompute responsibilities (with updated bias field)
-                    zn = Responsibility(m,b,W,n,bffn,mun,msk_chn);
+                    zn = Responsibility(m,b,W,n,bffn,ReWeightMu(mun,log(mg_w)),msk_chn);
 
                     % Compute new lower bound
                     lx  = LowerBound('ln(P(X|Z))',bffn,zn,msk_chn,{m,b},{W,n},scl_samp);            
@@ -540,7 +547,7 @@ for it_appear=1:nit_appear
                             bffn  = bf.*fn;
                             bffn  = spm_gmm_lib('obs2cell', bffn, code_image, true);
                             pr_bf = opr_bf;
-                            zn    = Responsibility(m,b,W,n,bffn,mun,msk_chn);
+                            zn    = Responsibility(m,b,W,n,bffn,ReWeightMu(mun,log(mg_w)),msk_chn);
                         end
                     end
                 end
@@ -561,7 +568,7 @@ if samp > 1
     fn = reshape(fn,[prod(df(1:3)) C]);
     fn = Mask(fn,is_ct);
     
-    mun0 = reshape(mun0,[prod(df(1:3)) K]);
+    % Bias field
     if any(do_bf == true)
         % Get full-sized bias field
         chan = BiasFieldStruct(datn,C,df,reg,fwhm,[],datn.bf.T);
@@ -571,23 +578,36 @@ if samp > 1
     else
         bffn = fn;
     end
-    fn = [];
-       
+    fn                        = [];       
     [bffn,code_image,msk_chn] = spm_gmm_lib('obs2cell', bffn);    
 
+    % Template
+    mun0 = reshape(mun0,[prod(df(1:3)) K]);
     mun0 = spm_mb_shape('TemplateK1',mun0,2);
     
+    % Integrate labels and multiple Gaussians per tissue
     labels = GetLabels(datn,sett);    
     mun0   = mun0 + labels;
+    mun0   = mun0(:,mg_ix);
+    mun0   = mun0 + log(mg_w);
     labels = [];
     
+    % Compute full-size resps
     mun0 = spm_gmm_lib('obs2cell', mun0, code_image, false);            
     zn   = Responsibility(m,b,W,n,bffn,mun0,msk_chn);
+    mun0 = [];
 end       
 zn = spm_gmm_lib('cell2obs', zn, code_image, msk_chn);
 
 % Get 4D versions of K1 - 1 classes
-zn = reshape(zn(:,1:K),[df(1:3) K]);
+zn = reshape(zn(:,mg_ix <= K),[df(1:3) sum(mg_ix <= K)]);
+
+% If using multiple Gaussians per tissue, collapse so that zn is of
+% size K
+if size(zn,4) > K
+    for k=1:K, zn(:,:,:,k) = sum(zn(:,:,:,mg_ix==k),4); end
+    zn(:,:,:,K + 1:end)    = [];
+end
 
 % Update datn     
 datn.E(1)     = -lb.sum(end);
@@ -596,6 +616,7 @@ datn.mog.po.b = b;
 datn.mog.po.W = W;
 datn.mog.po.n = n;          
 datn.mog.lb   = lb;  
+datn.mog.mg_w   = mg_w;
 end
 %==========================================================================
 
@@ -605,6 +626,9 @@ function dat = UpdatePrior(dat, mu, sett)
 
 if ~sett.do.updt_int,      return; end
 if ~isfield(dat(1),'mog'), return; end
+
+% Parse function settings
+mg_ix = sett.model.mg_ix;
 
 % Get population indices
 p_ix = GetPopulationIdx(dat);
@@ -620,7 +644,7 @@ for p=1:numel(p_ix) % Loop over populations
 
     % Get all posteriors
     K     = size(mu,4);
-    K1    = K + 1;
+    K1    = numel(mg_ix);
     po    = cell(1,N);
     for n=1:N
         n1          = p_ix{p}(n);
@@ -776,13 +800,15 @@ function dat = InitPopulation(dat,mu,pr,K,sett)
 % Parse function settings
 do_gmm = sett.do.gmm;
 fwhm   = sett.bf.fwhm;
+mg_ix    = sett.model.mg_ix;
 reg    = sett.bf.reg;
 
 if ~do_gmm, return; end
 
-N  = numel(dat);
-K1 = K + 1;
-lb = struct('sum', NaN, 'X', [], 'XB', [], ...
+N   = numel(dat);
+K1  = K + 1;
+Kmg = numel(mg_ix);
+lb  = struct('sum', NaN, 'X', [], 'XB', [], ...
             'Z', [], 'P', [], 'MU', [], 'A', []);
 
 [~,C] = spm_mb_io('GetSize',dat(1).f);
@@ -825,6 +851,7 @@ for n=1:N
     [po,mx(:,n),mn(:,n),avg(:,n),vr(:,n)] = InitPosteriorGMM(dat(n),fn,mu,pr,K1,sett);
     mog.po     = po;
     mog.lb     = lb;
+    mog.mg_w   = ones(1,K1);
     dat(n).mog = mog;
 end
 
@@ -834,6 +861,33 @@ if isempty(pr)
 end
 for n=1:numel(dat)                
     dat(n).mog.pr = pr; 
+end
+
+if K1 < Kmg
+    % Modify posteriors and priors for when using multiple Gaussians per
+    % tissue
+    for n=1:N        
+        % Posterior
+        po       = dat(n).mog.po;
+        gmm      = spm_gmm_lib('extras', 'more_gmms', {po.m,po.b,po.W,po.n}, mg_ix);        
+        po.m     = gmm{1};
+        po.b     = gmm{2};
+        po.W     = gmm{3};
+        po.n     = gmm{4};
+        dat(n).mog.po = po;
+        
+        % Prior
+        pr       = dat(n).mog.pr;
+        [gmm,mg_w] = spm_gmm_lib('extras', 'more_gmms', {pr.m,pr.b,pr.W,pr.n}, mg_ix);        
+        pr.m     = gmm{1};
+        pr.b     = gmm{2};
+        pr.W     = gmm{3};
+        pr.n     = gmm{4};
+        dat(n).mog.pr = pr;
+        
+        % Weight
+        dat(n).mog.mg_w = mg_w;
+    end
 end
 end
 %==========================================================================
@@ -1045,6 +1099,16 @@ if 0
 end
 end
 %==========================================================================  
+
+%==========================================================================
+% ReWeightMu()
+function mun = ReWeightMu(mun,logmg_w)
+if sum(logmg_w) == 0, return; end
+for i=1:numel(mun)
+    mun{i} = mun{i} + logmg_w; 
+end
+end
+%==========================================================================
 
 %==========================================================================
 % SubSample()

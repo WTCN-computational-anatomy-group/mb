@@ -196,9 +196,10 @@ for n=1:numel(dat)
         dat(n).psi = psi1;
     else
         if isa(dat(n).f,'nifti')
-            [~,nam,~] = fileparts(dat(n).f(1).dat.fname);
-            vname    = fullfile(dir_res,['v_' nam '.nii']);
-            pname    = fullfile(dir_res,['psi_' nam '.nii']);
+            [pth,nam,~] = fileparts(dat(n).f(1).dat.fname);
+            if isempty(dir_res), dir_res = pth; end
+            vname       = fullfile(dir_res,['v_' nam '.nii']);
+            pname       = fullfile(dir_res,['psi_' nam '.nii']);
             
             fa       = file_array(vname,[d(1:3) 1 3],'float32',0);
             nii      = nifti;
@@ -238,6 +239,7 @@ if ~do_gmm, return; end
 % Change some settings
 do_updt_bf      = sett.do.updt_bf;
 ix_init         = sett.model.ix_init_pop;
+mg_ix           = sett.model.mg_ix;
 nit_appear      = sett.nit.appear;
 nit_gmm         = sett.nit.gmm;
 samp            = sett.gen.samp;
@@ -247,6 +249,7 @@ sett.gen.samp   = 5;
 sett.nit.appear = 1;
 
 % Get population indices
+Kmg        = numel(mg_ix);
 p_ix       = spm_mb_appearance('GetPopulationIdx',dat);
 Npop       = numel(p_ix);
 first_subj = true;
@@ -267,12 +270,12 @@ for p=[ix_init pop_rng(pop_rng ~= ix_init)] % loop over populations (starting in
     avg_pr = mean(avg_pr,2);
     
     for n=p_ix{p}
-        dat(n).mog.pr.m = repmat(avg_pr,[1 K + 1]);        
+        dat(n).mog.pr.m = repmat(avg_pr,[1 Kmg]);        
         if first_subj            
             first_subj = false;
             continue
         end        
-        dat(n).mog.po.m = repmat(avg_po,[1 K + 1]);        
+        dat(n).mog.po.m = repmat(avg_po,[1 Kmg]);        
     end
 end
 

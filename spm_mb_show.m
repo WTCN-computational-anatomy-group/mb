@@ -120,8 +120,8 @@ if size(mu,3) > 1
     % 3D
     ShowCat(mu,1,2,3,1,fig_name);
     ShowCat(mu,2,2,3,2,fig_name);
-    ShowCat(mu,3,2,3,3,fig_name,true); % true -> show colorbar
     title(nam);
+    ShowCat(mu,3,2,3,3,fig_name,true); % true -> show colorbar    
     subplot(2,1,2);     
 else
     % 2D
@@ -179,6 +179,7 @@ if nargin < 3, p = []; end
 % Parse function settings
 fig_name = sett.show.figname_int;
 if ~isempty(p), fig_name = [fig_name ' (p=' num2str(p) ')']; end
+mg_ix    = sett.model.mg_ix;
 
 if ~isfield(dat(1),'mog'), return; end
 
@@ -188,7 +189,7 @@ b0 = dat(n).mog.pr.b;
 W0 = dat(n).mog.pr.W;
 n0 = dat(n).mog.pr.n;
 
-spm_gmm_lib('plot','gaussprior',{m0,b0,W0,n0},[],fig_name);
+spm_gmm_lib('plot','gaussprior',{m0,b0,W0,n0},mg_ix,fig_name);
 end
 %==========================================================================
 
@@ -206,6 +207,7 @@ fig_name_bf   = sett.show.figname_bf;
 fig_name_par  = sett.show.figname_parameters;
 fig_name_tiss = sett.show.figname_subjects;
 fwhm          = sett.bf.fwhm;
+mg_ix         = sett.model.mg_ix;
 Mmu           = sett.var.Mmu;
 mx_subj       = sett.show.mx_subjects;
 reg           = sett.bf.reg;
@@ -229,6 +231,7 @@ end
 clr = {'r','g','b','y','m','c',};
 K   = size(mu0,4);
 K1  = K + 1;
+Kmg = numel(mg_ix);
 nd  = min(numel(dat),mx_subj);
 for n=1:nd
     % Parameters
@@ -238,7 +241,7 @@ for n=1:nd
     Mr     = spm_dexpm(q,B);
     Mn     = dat(n).Mat;
     do_bf  = dat(n).do_bf;
-    is_ct  = dat(n).is_ct;
+    is_ct  = dat(n).is_ct;    
     
     % Warp template
     psi1 = spm_mb_io('GetData',dat(n).psi);
@@ -263,19 +266,23 @@ for n=1:nd
         fn   = reshape(fn,[prod(df(1:3)) C]);
         fn   = spm_mb_appearance('Mask',fn,is_ct);
         
+        % Integrate labels and multiple Gaussians per tissue
         labels = spm_mb_appearance('GetLabels',dat(n),sett);
-                        
+        mg_w   = dat(n).mog.mg_w;
+        
         [bffn,code_image,msk_chn] = spm_gmm_lib('obs2cell', bf.*fn);
-        mun                       = reshape(mun,[prod(df(1:3)) K1]);
+        mun                       = reshape(mun,[prod(df(1:3)) K + 1]);
         mun1                      = mun + labels;
         labels                    = [];
+        mun1                      = mun1(:,mg_ix);
+        mun1                      = mun1 + log(mg_w);        
         mun1                      = spm_gmm_lib('obs2cell', mun1, code_image, false);
                     
         % Get responsibility
-        zn  = spm_mb_appearance('Responsibility',dat(n).mog.po.m,dat(n).mog.po.b, ...
+        zn   = spm_mb_appearance('Responsibility',dat(n).mog.po.m,dat(n).mog.po.b, ...
                                     dat(n).mog.po.W,dat(n).mog.po.n,bffn,mun1,msk_chn);           
-        zn  = spm_gmm_lib('cell2obs', zn, code_image, msk_chn);                
-        mu1 = [];
+        zn   = spm_gmm_lib('cell2obs', zn, code_image, msk_chn);                
+        mun1 = [];
         
         % Just to insert NaNs..
         mun     = spm_gmm_lib('obs2cell', mun, code_image, false);
@@ -283,9 +290,16 @@ for n=1:nd
         msk_chn = []; 
         
         % Reshape back
-        zn  = reshape(zn,[df(1:3) K1]);
+        zn  = reshape(zn,[df(1:3) Kmg]);
         fn  = reshape(fn,[df(1:3) C]);
-        mun = reshape(mun,[df(1:3) K1]);
+        mun = reshape(mun,[df(1:3) K + 1]);
+        
+        % If using multiple Gaussians per tissue, collapse so that zn is of
+        % size K1
+        if Kmg > K1
+            for k=1:K1, zn(:,:,:,k) = sum(zn(:,:,:,mg_ix==k),4); end
+            zn(:,:,:,K1 + 1:end)    = [];
+        end
     else
         zn = spm_mb_io('GetData',dat(n).f); 
         zn = cat(4,zn,1 - sum(zn,4));
@@ -352,9 +366,10 @@ for n=1:nd
             mun(~msk) = 0;
             mun       = sum(mun,1);
             mun       = mun./sum(mun);
-
+            mun       = mun(mg_ix).*mg_w;
+            
             % Plot GMM fit        
-            ShowGMMFit(bf(:,:,:,c).*fn(:,:,:,c),mun,dat(n).mog,nr_par,nd,n + 2*nd,c);
+            ShowGMMFit(bf(:,:,:,c).*fn(:,:,:,c),mun,dat(n).mog,nr_par,nd,n + 2*nd,c,mg_ix);
 
             % Lower bound
             subplot(nr_par,nd,n + 3*nd) 
@@ -586,9 +601,9 @@ end
 
 %==========================================================================
 % ShowGMMFit()
-function ShowGMMFit(f,PI,mog,nr,nd,n,c)
+function ShowGMMFit(f,PI,mog,nr,nd,n,c,mg_ix)
 K      = size(mog.po.m,2);
-colors = hsv(K);
+colors = hsv(max(mg_ix));
 
 sp = subplot(nr,nd,n);
 cla(sp); % clear subplot
@@ -612,7 +627,7 @@ for k=1:K
     
     x = linspace(MU - 3*sqrt(sig2), MU + 3*sqrt(sig2),100);
     y = PI(k)*spm_Npdf(x, MU, sig2);
-    plot(x, y, 'Color', colors(k,:), 'LineWidth', 1)
+    plot(x, y, 'Color', colors(mg_ix(k),:), 'LineWidth', 1)
     xlims = [min([xlims(1) x]) max([xlims(2) x])];
 end
 
