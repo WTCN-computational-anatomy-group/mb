@@ -99,7 +99,7 @@ dat  = struct('pths_im',cl,'pths_lab',cl,'do_bf',cl,'ix_pop',cl,'is_ct',cl,'cm_m
 for p=1:Npop % loop over populations
     
     % Defaults
-    ix_pop = p; is_ct = false; do_bf = true; cm_map = []; Nsubj = Inf;
+    ix_pop = []; is_ct = false; do_bf = true; cm_map = []; Nsubj = Inf;
     
     dir_data                    = P{p}{1};
     modality                    = P{p}{2};    
@@ -108,6 +108,8 @@ for p=1:Npop % loop over populations
     if numel(P{p}) >= 5, cm_map = P{p}{5}; end
     if numel(P{p}) >= 6, is_ct  = P{p}{6}; end
     if numel(P{p}) >= 7, do_bf  = P{p}{7}; end
+    
+    if isempty(P{p}{4}), ix_pop = p; end
     
     dat(p).ix_pop = ix_pop;    
     dat(p).cm_map = cm_map;    
