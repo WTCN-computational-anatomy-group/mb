@@ -258,24 +258,56 @@ for p=[ix_init pop_rng(pop_rng ~= ix_init)] % loop over populations (starting in
     % To make the algorithm more robust when using multiple populations,
     % set posterior and prior means (m) of GMMs of all but the first population to
     % uniform  
-    avg_po = 0;
-    avg_pr = 0;
+    
+    C = size(dat(p_ix{p}(1)).mog.po.m,1);
+   
+    avg_m_po  = 0;
+    avg_m_pr  = 0;
+    avg_vr_po = 0;
+    avg_vr_pr = 0;
     for n=p_ix{p}
-        avg_po = avg_po + dat(n).mog.po.m;
-        avg_pr = avg_pr + dat(n).mog.pr.m;
+        % mean
+        avg_m_po = avg_m_po + dat(n).mog.po.m;
+        avg_m_pr = avg_m_pr + dat(n).mog.pr.m;
+        
+        % variance
+        vr_po = reshape(dat(n).mog.po.n,[1 1 Kmg]).*dat(n).mog.po.W;
+        vr_pr = reshape(dat(n).mog.pr.n,[1 1 Kmg]).*dat(n).mog.pr.W;
+        for k=1:Kmg
+            vr_po(:,:,k) = inv(vr_po(:,:,k));
+            vr_pr(:,:,k) = inv(vr_pr(:,:,k));
+        end
+        avg_vr_po = avg_vr_po + vr_po;
+        avg_vr_pr = avg_vr_pr + vr_pr;
     end
-    avg_po = avg_po./numel(p_ix{p});
-    avg_po = mean(avg_po,2);
-    avg_pr = avg_pr./numel(p_ix{p});
-    avg_pr = mean(avg_pr,2);
+    
+    % Average means
+    avg_m_po = avg_m_po./numel(p_ix{p});
+    avg_m_po = mean(avg_m_po,2);
+    avg_m_pr = avg_m_pr./numel(p_ix{p});
+    avg_m_pr = mean(avg_m_pr,2);
+        
+    % Average variances
+    avg_vr_po = avg_vr_po./numel(p_ix{p});
+    avg_vr_po = mean(avg_vr_po,3)/Kmg;
+    avg_vr_pr = avg_vr_pr./numel(p_ix{p});
+    avg_vr_pr = mean(avg_vr_pr,3)/Kmg;
+        
+    % Make posterior Kmg long
+    avg_m_po = repmat(avg_m_po,[1 Kmg]);
+    
+    % Add a bit of random noise to prior
+    w        = 1./(1 + exp(-(Kmg - 1)*0.25)) - 0.5;          
+%     avg_m_po = sqrtm(avg_vr_po)*randn(C,Kmg)*w + repmat(avg_m_po,[1 Kmg]);
+    avg_m_pr = sqrtm(avg_vr_pr)*randn(C,Kmg)*w + repmat(avg_m_pr,[1 Kmg]);
     
     for n=p_ix{p}
-        dat(n).mog.pr.m = repmat(avg_pr,[1 Kmg]);        
+        dat(n).mog.pr.m = avg_m_pr;        
         if first_subj            
             first_subj = false;
             continue
         end        
-        dat(n).mog.po.m = repmat(avg_po,[1 Kmg]);        
+        dat(n).mog.po.m = avg_m_po;        
     end
 end
 
