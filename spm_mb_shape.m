@@ -249,6 +249,7 @@ sett.gen.samp   = 5;
 sett.nit.appear = 1;
 
 % Get population indices
+K1         = K + 1;
 Kmg        = numel(mg_ix);
 p_ix       = spm_mb_appearance('GetPopulationIdx',dat);
 Npop       = numel(p_ix);
@@ -289,25 +290,41 @@ for p=[ix_init pop_rng(pop_rng ~= ix_init)] % loop over populations (starting in
         
     % Average variances
     avg_vr_po = avg_vr_po./numel(p_ix{p});
-    avg_vr_po = mean(avg_vr_po,3)/Kmg;
+    avg_vr_po = mean(avg_vr_po,3);
     avg_vr_pr = avg_vr_pr./numel(p_ix{p});
-    avg_vr_pr = mean(avg_vr_pr,3)/Kmg;
+    avg_vr_pr = mean(avg_vr_pr,3);
         
-    % Make posterior Kmg long
-    avg_m_po = repmat(avg_m_po,[1 Kmg]);
+    % Add a bit of random noise to prior    
+    mpo = zeros(C,Kmg);
+    mpr = zeros(C,Kmg);
+    for k=1:K1
+        kk = sum(mg_ix == k);
+        w  = 1./(1 + exp(-(kk - 1)*0.25)) - 0.5;
+                
+        rng(1);
+        mn                = avg_m_po;
+        vr                = avg_vr_po;                
+        mpo(:,mg_ix == k) = sqrtm(vr)*sort(randn(C,kk),2)*w + repmat(mn,[1 kk]);
+        
+        rng(1);
+        mn                = avg_m_pr;
+        vr                = avg_vr_pr;                
+        mpr(:,mg_ix == k) = sqrtm(vr)*sort(randn(C,kk),2)*w + repmat(mn,[1 kk]);
+    end
     
-    % Add a bit of random noise to prior
-    w        = 1./(1 + exp(-(Kmg - 1)*0.25)) - 0.5;          
-%     avg_m_po = sqrtm(avg_vr_po)*randn(C,Kmg)*w + repmat(avg_m_po,[1 Kmg]);
-    avg_m_pr = sqrtm(avg_vr_pr)*randn(C,Kmg)*w + repmat(avg_m_pr,[1 Kmg]);
-    
+    % Assign
     for n=p_ix{p}
-        dat(n).mog.pr.m = avg_m_pr;        
+        dat(n).mog.pr.m = mpr;        
         if first_subj            
             first_subj = false;
             continue
         end        
-        dat(n).mog.po.m = avg_m_po;        
+        dat(n).mog.po.m = mpo;        
+    end
+    
+    if 0
+        spm_gmm_lib('plot','gaussprior',{mpo,dat(n).mog.po.b,dat(n).mog.po.W,dat(n).mog.po.n},[],'InitMu');
+        spm_gmm_lib('plot','gaussprior',{mpr,dat(n).mog.pr.b,dat(n).mog.pr.W,dat(n).mog.pr.n},[],'InitMu');
     end
 end
 
