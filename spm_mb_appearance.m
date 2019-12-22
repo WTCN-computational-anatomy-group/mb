@@ -655,6 +655,8 @@ for p=1:numel(p_ix) % Loop over populations
     end
 
 if false
+    % Add one artificial observation (increases numerical stability)
+    
     % Get overall mean and variance for regularising
     avgmn = 0;
     sum_b = 0;
@@ -673,12 +675,12 @@ if false
     avgmn = avgmn/sum_b;
     avgpr = diag(1./diag(avgvr));
 
-    % Add one artificial observation
+    % Add the artificial observation
     po1{1}{1} = repmat(avgmn,[1 K1]);     % m
     po1{1}{2} = zeros(1,K1) + 0.01;       % b
     po1{2}{1} = repmat(avgpr/C,[1 1 K1]); % W
     po1{2}{2} = C*ones(1,K1);             % n
-%   po{N+1}   = po1; %%% DISABLED
+    po{end+1} = po1;
 end
  
     % Update prior
@@ -868,21 +870,21 @@ if K1 < Kmg
     % tissue
     for n=1:N        
         % Posterior
-        po       = dat(n).mog.po;
-        gmm      = spm_gmm_lib('extras', 'more_gmms', {po.m,po.b,po.W,po.n}, mg_ix);        
-        po.m     = gmm{1};
-        po.b     = gmm{2};
-        po.W     = gmm{3};
-        po.n     = gmm{4};
+        po            = dat(n).mog.po;
+        gmm           = spm_gmm_lib('extras', 'more_gmms', {po.m,po.b,po.W,po.n}, mg_ix);        
+        po.m          = gmm{1};
+        po.b          = gmm{2};
+        po.W          = gmm{3};
+        po.n          = gmm{4};
         dat(n).mog.po = po;
         
         % Prior
-        pr       = dat(n).mog.pr;
-        [gmm,mg_w] = spm_gmm_lib('extras', 'more_gmms', {pr.m,pr.b,pr.W,pr.n}, mg_ix);        
-        pr.m     = gmm{1};
-        pr.b     = gmm{2};
-        pr.W     = gmm{3};
-        pr.n     = gmm{4};
+        pr            = dat(n).mog.pr;
+        [gmm,mg_w]    = spm_gmm_lib('extras', 'more_gmms', {pr.m,pr.b,pr.W,pr.n}, mg_ix);        
+        pr.m          = gmm{1};
+        pr.b          = gmm{2};
+        pr.W          = gmm{3};
+        pr.n          = gmm{4};
         dat(n).mog.pr = pr;
         
         % Weight

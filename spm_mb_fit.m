@@ -19,6 +19,9 @@ sett  = p.Results.sett;
 spm_mb_io('SetBoundCond');
 spm_mb_io('SetPath');
 
+% Repeatable random numbers
+rng('default'); rng(1);
+
 t0 = tic;
 
 %------------------
