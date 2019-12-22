@@ -142,16 +142,23 @@ function Speak(nam,sett,varargin)
 % Parse function settings
 do_updt_int      = sett.do.updt_int;
 do_updt_template = sett.do.updt_template;
+mg_ix            = sett.model.mg_ix;
 nit              = sett.nit.init;
 show_level       = sett.show.level;
 
 if show_level < 1, return; end
 
+Kmg = numel(mg_ix);
+
 switch nam
     case 'Finished'
         t = varargin{1}; 
         
-        fprintf('Algorithm finished in %.1f seconds.\n', t);
+        s0 = sprintf('Algorithm finished in %.1f seconds.', t);
+        s1 = sprintf('%s',repmat('=',[1 numel(s0)]));
+        fprintf('%s\n',s1)
+        fprintf('%s\n',s0)
+        fprintf('%s\n\n',s1)
     case 'InitAff'
         fprintf('Optimising parameters at largest zoom level (nit = %i)\n',nit)
     case 'Iter'
@@ -162,9 +169,11 @@ switch nam
         N = varargin{1};
         K = varargin{2};        
 
-        fprintf('=========================================================================\n')
-        fprintf('| Algorithm starting (N = %i, K = %i, updt_intprior = %i, updt_template = %i)\n',N,K,do_updt_int,do_updt_template)
-        fprintf('=========================================================================\n\n')
+        s0 = sprintf('| Algorithm starting (N = %i, K = %i, Kmg = %i, updt_intprior = %i, updt_template = %i) |',N,K,Kmg,do_updt_int,do_updt_template);
+        s1 = sprintf('%s',repmat('=',[1 numel(s0)]));
+        fprintf('%s\n',s1)
+        fprintf('%s\n',s0)
+        fprintf('%s\n\n',s1)
     otherwise
         error('Unknown input!')
 end
