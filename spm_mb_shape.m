@@ -780,6 +780,9 @@ for n=1:numel(dat)
     v           = spm_mb_io('GetData',dat(n).v);
     u0          = spm_diffeo('vel2mom', v, v_settings); % Initial momentum
     dat(n).E(2) = 0.5*sum(u0(:).*v(:));                 % Prior term
+    
+    % Ensure correct lower bound
+    dat(n).mog.lb.pr_v(end + 1) = -dat(n).E(2);
 end
 end
 %==========================================================================

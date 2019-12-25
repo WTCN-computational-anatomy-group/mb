@@ -377,13 +377,12 @@ mun                       = spm_gmm_lib('obs2cell', mun, code_image, false);
 code_list                 = unique(code_image);
 code_list                 = code_list(code_list ~= 0);
 
-ol = lb.sum(end);
 for it_appear=1:nit_appear
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Update GMM and get responsibilities (zn)
     %------------------------------------------------------------
-
+    
     [zn,mog,~,lb,mg_w] = spm_gmm_lib('loop',bffn,scl_samp,{{m,b},{W,n}},{'LogProp', mun}, ...
                                    'GaussPrior',   {m0,b0,W0,n0}, ...
                                    'Missing',      msk_chn, ...
@@ -399,13 +398,10 @@ for it_appear=1:nit_appear
     W = mog.V;
     n = mog.n;           
 
-    nl = lb.sum(end);        
-%     fprintf('it1=%i\tnl=%0.7f\tgain=%0.7f\n',it_likel,nl,nl - ol);
-    if it_appear > 1 && ((nl - ol)/abs(nl) > -eps('single')*10 || it_appear == nit_appear)
+    if it_appear > 1 && ((lb.sum(end) - lb.sum(end - 1))/abs(lb.sum(end)) > -eps('single')*10 || it_appear == nit_appear)
         % Finished
         break
     end
-    ol = nl;
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Update bias field parameters
@@ -561,6 +557,9 @@ for it_appear=1:nit_appear
         % Update datn     
         datn.bf.T = {chan(:).T};
         datn.E(3) = -sum(pr_bf); % global objective function is negative log-likelihood..
+        
+        % Ensure correct lower bound
+        lb.pr_bf(end + 1) = -datn.E(3);
     end
 end
 fn = []; bf = []; mun = [];
@@ -814,7 +813,7 @@ N   = numel(dat);
 K1  = K + 1;
 Kmg = numel(mg_ix);
 lb  = struct('sum', NaN, 'X', [], 'XB', [], ...
-            'Z', [], 'P', [], 'MU', [], 'A', []);
+            'Z', [], 'P', [], 'MU', [], 'A', [], 'pr_v', [], 'pr_bf',[]);
 
 [~,C] = spm_mb_io('GetSize',dat(1).f);
 mx    = zeros(C,numel(dat));
