@@ -91,6 +91,26 @@ if ~isfield(sett.bf,'reg')
 end
 
 %------------------
+% .clean_z (resp clean-up related, spm_mb_output)
+%------------------
+
+if ~isfield(sett,'clean_z')
+    sett.clean_z = struct;
+end
+if ~isfield(sett.clean_z,'mrf')
+    sett.clean_z.mrf = 0; % 1
+end
+if ~isfield(sett.clean_z,'nit_mrf')
+    sett.clean_z.nit_mrf = 10;
+end
+if ~isfield(sett.clean_z,'gwc_tix')
+    sett.clean_z.gwc_tix = [];
+end
+if ~isfield(sett.clean_z,'gwc_level')
+    sett.clean_z.gwc_level = 0; % 1
+end
+
+%------------------
 % .do (enable/disable functionality)
 %------------------
 

@@ -27,6 +27,105 @@ end
 %==========================================================================
 
 %==========================================================================
+% CleanGWC()
+function zn = CleanGWC(zn,ixt,level)
+if nargin < 2 || isempty(ixt)
+    % Default SPM12 template ordering
+    ixt = struct('gm',1,'wm',2,'csf',3);
+end
+if nargin < 3, level = 1; end
+
+b = sum(zn(:,:,:,ixt.wm),4);
+
+% Build a 3x3x3 seperable smoothing kernel
+kx=[0.75 1 0.75];
+ky=[0.75 1 0.75];
+kz=[0.75 1 0.75];
+sm=sum(kron(kron(kz,ky),kx))^(1/3);
+kx=kx/sm; ky=ky/sm; kz=kz/sm;
+
+% Erosions and conditional dilations
+th1 = 0.15;
+if level==2, th1 = 0.2; end
+niter  = 32;
+niter2 = 32;
+for j=1:niter
+    if j>2, th=th1; else th=0.6; end  % Dilate after two its of erosion
+    for i=1:size(b,3)
+        gp       = double(sum(zn(:,:,i,ixt.gm),4));
+        wp       = double(sum(zn(:,:,i,ixt.wm),4));
+        bp       = double(b(:,:,i));
+        bp       = (bp>th).*(wp+gp);
+        b(:,:,i) = bp;
+    end
+    spm_conv_vol(b,b,kx,ky,kz,-[1 1 1]);
+end
+
+% Also clean up the CSF.
+if niter2 > 0
+    c = b;
+    for j=1:niter2
+        for i=1:size(b,3)
+            gp       = double(sum(zn(:,:,i,ixt.gm),4));
+            wp       = double(sum(zn(:,:,i,ixt.wm),4));
+            cp       = double(sum(zn(:,:,i,ixt.csf),4));
+            bp       = double(c(:,:,i));
+            bp       = (bp>th).*(wp+gp+cp);
+            c(:,:,i) = bp;
+        end
+        spm_conv_vol(c,c,kx,ky,kz,-[1 1 1]);
+    end
+end
+
+th = 0.05;
+for i=1:size(b,3)
+    slices = cell(1,size(zn,4));
+    for k1=1:size(zn,4)
+        slices{k1} = double(zn(:,:,i,k1));
+    end
+    bp           = double(b(:,:,i));
+    bp           = ((bp>th).*(sum(cat(3,slices{ixt.gm}),3)+sum(cat(3,slices{ixt.wm}),3)))>th;
+    for i1=1:numel(ixt.gm)
+        slices{ixt.gm(i1)} = slices{ixt.gm(i1)}.*bp;
+    end
+    for i1=1:numel(ixt.wm)
+        slices{ixt.wm(i1)} = slices{ixt.wm(i1)}.*bp;
+    end
+    
+    if niter2>0
+        cp           = double(c(:,:,i));
+        cp           = ((cp>th).*(sum(cat(3,slices{ixt.gm}),3)+sum(cat(3,slices{ixt.wm}),3)+sum(cat(3,slices{ixt.csf}),3)))>th;
+        
+        for i1=1:numel(ixt.csf)
+            slices{ixt.csf(i1)} = slices{ixt.csf(i1)}.*cp;
+        end        
+    end
+    tot       = zeros(size(bp))+eps;
+    for k1=1:size(zn,4)
+        tot   = tot + slices{k1};
+    end
+    for k1=1:size(zn,4)
+        zn(:,:,i,k1) = slices{k1}./tot;
+    end 
+end
+end
+%==========================================================================
+
+%==========================================================================
+% PostProcMRF()
+function zn = PostProcMRF(zn,Mn,strength,nit)
+P   = zeros(size(zn),'uint8');   
+G   = ones([size(zn,4),1],'single')*strength;
+vx  = sqrt(sum(Mn(1:3,1:3).^2));
+vx2 = 1./single(vx);
+for i=1:nit      
+    spm_mrf(P,zn,G,vx2);        
+end       
+zn = single(P)/255; 
+end
+%==========================================================================
+
+%==========================================================================
 % ProcessSubject()
 function resn = ProcessSubject(datn,resn,mun,ix,sett)
 
@@ -38,8 +137,12 @@ dmu        = sett.var.d;
 dir_res    = sett.write.dir_res;
 do_infer   = sett.do.infer;
 fwhm       = sett.bf.fwhm;
+gwc_level  = sett.clean_z.gwc_level;
+gwc_tix    = sett.clean_z.gwc_tix;
 mg_ix      = sett.model.mg_ix;
 Mmu        = sett.var.Mmu;
+mrf        = sett.clean_z.mrf;
+nit_mrf    = sett.clean_z.nit_mrf;
 reg        = sett.bf.reg;
 write_bf   = sett.write.bf; % field
 write_df   = sett.write.df; % forward, inverse
@@ -145,6 +248,16 @@ if isfield(datn,'mog') && (any(write_bf(:) == true) || any(write_im(:) == true) 
         zn(:,:,:,K1 + 1:end)    = [];
     end
 
+    if mrf > 0
+        % Ad-hoc MRF clean-up of segmentation     
+        PostProcMRF(zn,Mn,mrf,nit_mrf);
+    end
+    
+    if gwc_level > 0
+        % Use an ad hoc brain cleanup procedure
+        zn = CleanGWC(zn,gwc_tix,gwc_level);
+    end    
+    
     % Make 3D    
     if any(do_bf == true)
         bf = reshape(bf,[df(1:3) C]);
