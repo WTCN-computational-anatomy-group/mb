@@ -547,7 +547,8 @@ for it_appear=1:nit_appear
                             bffn  = bf.*fn;
                             bffn  = spm_gmm_lib('obs2cell', bffn, code_image, true);
                             pr_bf = opr_bf;
-                            if nit_appear == 1
+                            if nit_appear == 1 || nit_bf > 1
+                                % Recompute responsibilities
                                 zn = Responsibility(m,b,W,n,bffn,ReWeightMu(mun,log(mg_w)),msk_chn);
                             end
                         end
