@@ -242,23 +242,34 @@ ix_init         = sett.model.ix_init_pop;
 mg_ix           = sett.model.mg_ix;
 nit_appear      = sett.nit.appear;
 nit_gmm         = sett.nit.gmm;
+nit_init_mu     = sett.nit.init_mu;
 samp            = sett.gen.samp;
 sett.do.updt_bf = false;
-sett.nit.gmm    = 100;
+sett.nit.gmm    = 128;
 sett.gen.samp   = 5;
 sett.nit.appear = 1;
 
+% Parameters
+K1  = K + 1;
+Kmg = numel(mg_ix);
+
 % Get population indices
-K1         = K + 1;
-Kmg        = numel(mg_ix);
 p_ix       = spm_mb_appearance('GetPopulationIdx',dat);
 Npop       = numel(p_ix);
 first_subj = true;
 pop_rng    = 1:Npop;
+
+% Was InitGMM run on initialising population?
+[~,C]       = spm_mb_io('GetSize',dat(p_ix{ix_init}(1)).f);
+has_ct      = any(dat(p_ix{ix_init}(1)).is_ct == true);
+use_initgmm = C == 1 && ~has_ct;
+
 for p=[ix_init pop_rng(pop_rng ~= ix_init)] % loop over populations (starting index defined by sett.model.ix_init_pop)
     % To make the algorithm more robust when using multiple populations,
     % set posterior and prior means (m) of GMMs of all but the first population to
     % uniform  
+    
+    if use_initgmm && p == ix_init, continue; end
     
     C = size(dat(p_ix{p}(1)).mog.po.m,1);
    
@@ -315,7 +326,7 @@ for p=[ix_init pop_rng(pop_rng ~= ix_init)] % loop over populations (starting in
     % Assign
     for n=p_ix{p}
         dat(n).mog.pr.m = mpr;        
-        if first_subj            
+        if ~use_initgmm && first_subj            
             first_subj = false;
             continue
         end        
@@ -328,14 +339,18 @@ for p=[ix_init pop_rng(pop_rng ~= ix_init)] % loop over populations (starting in
     end
 end
 
-% Update template based on only first subject..
-[mu,dat(p_ix{ix_init}(1))] = spm_mb_shape('UpdateSimpleMean',dat(p_ix{ix_init}(1)), mu, sett);
-% ..then propagate to all other subjects in populations..
-[mu,dat(p_ix{ix_init})]    = spm_mb_shape('UpdateSimpleMean',dat(p_ix{ix_init}), mu, sett);
+if ~use_initgmm
+    % Update template based on only first subject..
+    [mu,dat(p_ix{ix_init}(1))] = spm_mb_shape('UpdateSimpleMean',dat(p_ix{ix_init}(1)), mu, sett);
+end
+% ..propagate to all other subjects in populations..
+for it=1:nit_init_mu
+    [mu,dat(p_ix{ix_init})] = spm_mb_shape('UpdateSimpleMean',dat(p_ix{ix_init}), mu, sett);
+end
 if Npop > 1
     % ..if more than one population, use template learned on first
     % population to initialise other populations' subjects
-    [mu,dat]         = spm_mb_shape('UpdateSimpleMean',dat,    mu, sett);    
+    [mu,dat] = spm_mb_shape('UpdateSimpleMean',dat,    mu, sett);    
 end
 
 % Restore settings

@@ -4,7 +4,7 @@ function varargout = spm_mb_appearance(varargin)
 % Functions for appearance model related.
 %
 % FORMAT [bfn,lln] = spm_mb_appearance('BiasField',chan,d,varargin)
-% FORMAT chan      = spm_mb_appearance('BiasFieldStruct',datn,C,df,reg,fwhm,scl,T,samp)
+% FORMAT chan      = spm_mb_appearance('BiasFieldStruct',datn,C,df,reg,fwhm,dc,T,samp)
 % FORMAT labels    = spm_mb_appearance('GetLabels',datn,sett,do_samp)
 % FORMAT p_ix      = spm_mb_appearance('GetPopulationIdx',dat)
 % FORMAT dat       = spm_mb_appearance('Init',dat,model,K,sett)
@@ -80,7 +80,7 @@ end
 
 %==========================================================================
 % BiasFieldStruct()
-function chan = BiasFieldStruct(datn,C,df,reg,fwhm,scl,T,samp)
+function chan = BiasFieldStruct(datn,C,df,reg,fwhm,dc,T,samp)
 if nargin < 7, T    = {}; end
 if nargin < 8, samp = 1; end
 
@@ -133,13 +133,13 @@ for c=1:C
         chan(c).T = T{c};
     end
 
-    if ~isempty(scl) && do_bf(c)
+    if ~isempty(dc) && do_bf(c)
         % Change DC component of bias field to make intensities more
         % simillar between MR images.
         b1               = chan(c).B1(1,1);
         b2               = chan(c).B2(1,1);
         b3               = chan(c).B3(1,1);
-        chan(c).T(1,1,1) = 1/(b1*b2*b3)*log(scl(c));
+        chan(c).T(1,1,1) = 1/(b1*b2*b3)*dc(c);
     end
 end   
 end
@@ -158,7 +158,7 @@ use_labels = sett.labels.use;
 if ~use_labels || isempty(datn.labels) || isempty(datn.labels{1}) || isempty(datn.labels{2})
     % Do not use labels
     K1     = K + 1;
-    labels = zeros(1,K1);
+    labels = zeros(1,K1,'single');
     return
 end
 
@@ -213,9 +213,15 @@ end
 %==========================================================================
 % Init()
 function dat = Init(dat,model,K,sett)
+
+% Parse function settings
+ix_init = sett.model.ix_init_pop;
+
+% Get population parameters
 p_ix = spm_mb_appearance('GetPopulationIdx',dat);
 Np   = numel(p_ix);
 
+% What model parameters were given?
 appear_given   = isfield(model,'appear');
 template_given = (isfield(model,'shape') && isfield(model.shape,'template'));
 
@@ -224,12 +230,28 @@ if template_given, mu = spm_mb_io('GetData',model.shape.template);
 else,              mu = [];
 end
 
+% Init over populations
 for p=1:Np
     datn = dat(p_ix{p});
+    
+    % Load prior if given
     if appear_given, pr = model.appear(num2str(datn(1).ix_pop));
     else,            pr = [];
     end
-    dat(p_ix{p}) = InitPopulation(datn,mu,pr,K,sett);
+    
+    % If init population (given by sett.model.ix_init_pop), should InitGMM
+    % function be used to initialise GMM parameters and bias field scaling?
+    % Not used if CT, multi-channel data, or template given.
+    if datn(1).ix_pop == ix_init
+        [~,C]       = spm_mb_io('GetSize',datn(1).f);
+        has_ct      = any(datn(1).is_ct == true);
+        use_initgmm = C == 1 && ~has_ct && ~template_given;
+    else
+        use_initgmm = false;
+    end
+    
+    % Do init for population(s) defined by p_ix
+    dat(p_ix{p}) = InitPopulation(datn,mu,pr,K,use_initgmm,sett);
 end
 end
 %==========================================================================
@@ -799,47 +821,64 @@ end
 
 %==========================================================================
 % InitPopulation()
-function dat = InitPopulation(dat,mu,pr,K,sett)
+function dat = InitPopulation(dat,mu,pr,K,use_initgmm,sett)
 
 % Parse function settings
 do_gmm = sett.do.gmm;
 fwhm   = sett.bf.fwhm;
-mg_ix    = sett.model.mg_ix;
+mg_ix  = sett.model.mg_ix;
 reg    = sett.bf.reg;
 
 if ~do_gmm, return; end
 
-N   = numel(dat);
-K1  = K + 1;
-Kmg = numel(mg_ix);
-lb  = struct('sum', NaN, 'X', [], 'XB', [], ...
-            'Z', [], 'P', [], 'MU', [], 'A', [], 'pr_v', [], 'pr_bf',[]);
-
+% Parameters
+N     = numel(dat);
+K1    = K + 1;
+Kmg   = numel(mg_ix);
 [~,C] = spm_mb_io('GetSize',dat(1).f);
-mx    = zeros(C,numel(dat));
-mn    = zeros(C,numel(dat));
-avg   = zeros(C,numel(dat));
-vr    = zeros(C,numel(dat));
 
+% Lower bound struct
+lb  = struct('sum', NaN, 'X', [], 'XB', [], 'Z', [], 'P', [], 'MU', [], ...
+             'A', [], 'pr_v', [], 'pr_bf',[]);
+     
+if ~use_initgmm
+    % A simple scheme based on image statistics is used to init the GMM
+    % parameters
+    mx  = zeros(C,numel(dat));
+    mn  = zeros(C,numel(dat));
+    avg = zeros(C,numel(dat));
+    vr  = zeros(C,numel(dat));
+    dc  = zeros(1,C);
+else
+    % The InitGMM function is used to init GMM posterior and prior, as well
+    % as the bias field DC scaling
+    [po,pr,dc] = InitGMM(dat,sett);
+end 
+
+% Loop over subjects in population(s)
 for n=1:N
     [df,C] = spm_mb_io('GetSize',dat(n).f);
-    fn     = spm_mb_io('GetData',dat(n).f);
-    fn     = reshape(fn,[prod(df(1:3)) C]);
-    fn     = spm_mb_appearance('Mask',fn,dat(n).is_ct);
-    if any(dat(n).do_bf == true)
-        val = 1e3;
-        scl = ones(1,C);
-        for c=1:C
-            msk    = isfinite(fn(:,c));
-            scl(c) = val./mean(fn(msk,c));
+    
+    if ~use_initgmm        
+        fn     = spm_mb_io('GetData',dat(n).f);
+        fn     = reshape(fn,[prod(df(1:3)) C]);
+        fn     = spm_mb_appearance('Mask',fn,dat(n).is_ct);
+        if any(dat(n).do_bf == true)
+            % Set bias field DC component based on making images in
+            % population closs to a mean value given by val
+            val = 1e3;
+            dc  = ones(1,C);
+            for c=1:C
+                msk   = isfinite(fn(:,c));
+                dc(c) = val./mean(fn(msk,c));
+            end
+            dc = log(dc);
         end
-    else
-        scl = ones(1,C);
     end
- 
+
     if any(dat(n).do_bf == true)
         % Get bias field parameterisation struct
-        chan        = spm_mb_appearance('BiasFieldStruct',dat(n),C,df,reg,fwhm,scl);
+        chan        = spm_mb_appearance('BiasFieldStruct',dat(n),C,df,reg,fwhm,dc);
         dat(n).bf.T = {chan(:).T};
 
         % Get bias field
@@ -847,22 +886,28 @@ for n=1:N
     else
         bf = ones([1 C],'single');
     end
- 
-    % Modulate with bias field
-    fn = bf.*fn;
- 
-    % Init GMM
-    [po,mx(:,n),mn(:,n),avg(:,n),vr(:,n)] = InitPosteriorGMM(dat(n),fn,mu,pr,K1,sett);
+
+    if ~use_initgmm
+        % Modulate with bias field
+        fn = bf.*fn;
+    
+        % Init GMM
+        [po,mx(:,n),mn(:,n),avg(:,n),vr(:,n)] = InitSimplePosteriorGMM(dat(n),fn,mu,pr,K1,sett);
+    end
+    
+    % Assign GMM
     mog.po     = po;
     mog.lb     = lb;
     mog.mg_w   = ones(1,K1);
     dat(n).mog = mog;
 end
 
-if isempty(pr)
+if isempty(pr) && ~use_initgmm
     % Init GMM empirical prior
-    pr = InitPriorGMM(mx,mn,avg,vr,mu,K1);
+    pr = InitSimplePriorGMM(mx,mn,avg,vr,mu,K1);
 end
+
+% Assign prior
 for n=1:numel(dat)                
     dat(n).mog.pr = pr; 
 end
@@ -945,15 +990,233 @@ end
 end
 %==========================================================================
 
+%==========================================================================
+% InitGMM()
+function [po,pr,dc] = InitGMM(dat,sett)
+% Code for initialising a GMM over lots of images of the same contrast, and 
+% which might be scaled differently.
+%
+% FORMAT [po,pr,dc] = InitGMM(dat,sett)
+% dat  - Structure holding data of N subjects
+% sett - Structure of settings
+% po   - Structure of posterior parameters (m, b, W, n)
+% pr   - Structure of prior parameters (m, b, W, n)
+% dc   - DC component of bias field model (used to rescale image to
+%        simillar intensities)
+
+% Parse function settings
+K  = sett.model.K;
+
+% Parameters
+K1 = K + 1;      % Number of classes
+M  = 1;          % Number of populations
+N  = numel(dat); % Number of subjects
+
+% Get sample of image data (and labels, if provided)
+F   = cell(1,N);                 % hold imaging data
+L   = cell(M,N);                 % hold label data
+Nvx = min(round(256^3/N),10000); % number of voxels to sample from each image
+for n=1:N % Loop over subjects
+    
+    fn = zeros([M,Nvx],'single');     
+    for m=1:M % Loop over populations
+        
+        % Read images and labels
+        img    = spm_mb_io('GetData',dat(n).f);
+        labels = spm_mb_appearance('GetLabels',dat(n),sett);
+        
+        % Sample data
+        d       = numel(img);
+        r       = floor(rand(Nvx,1)*d) + 1;
+        fn(m,:) = img(r);        
+        if size(labels,1) > 1, L{m,n} = labels(r,:)';
+        else,                  L{m,n} = labels';
+        end
+    end
+    
+    % Mask
+    mask = all(isfinite(fn) & fn~=0,1);   
+    fn   = fn(:,mask);
+    F{n} = fn;
+    for m=1:M
+        if size(L{m,n},2) > 1, L{m,n} = L{m,n}(:,mask); end
+    end
+end
+fn = []; mask = []; img = []; labels = [];
+
+% Init bias field DC component
+dc = zeros(M,N);
+mx = zeros(M,1);
+for n=1:N % Loop over subjects
+    fn      = F{n};
+    mx      = max(mx,max(fn,[],2));
+    dc(:,n) = -log(mean(fn,2));
+end
+
+% Make DC component zero mean, across N
+dc = dc - mean(dc,2);
+
+% Init GMM parameters
+gam = ones(K1,1)./K1;
+mu  = rand(M,K1).*mx;
+Sig = diag((mx/10).^2).*ones([1,1,K1]);
+
+% Fit model
+ll = -Inf;
+for it=1:256
+    llo = ll;
+
+    if false        
+        % Visualise
+        figure(666)
+        m = 1;
+        x = linspace(0,mx(m),1000);
+        p = 0;
+        clf
+        subplot(2,1,1);        
+        hold on
+        for k=1:K1
+            pk = exp(log(gam(k)) - 0.5*log(Sig(m,m,k)) - 0.5*log(2*pi) - 0.5*(x-mu(m,k)).^2/(Sig(m,m,k)));
+            p  = p + pk;
+            plot(x,pk,'b-','LineWidth',1);
+        end
+        plot(x,p,'r-','LineWidth',3);
+        hold off
+        
+        subplot(2,1,2); bar(exp(dc(m,:)));
+        drawnow;
+    end
+
+    % Update GMM parameters
+    ss0 = zeros(K1,1);
+    ss1 = zeros(M,K1);
+    ss2 = zeros(M,M,K1);
+    ll  = 0;
+    for n=1:N % Loop over subjects
+        fn = F{n};
+        Ns = size(fn,2);
+        fn = fn.*exp(dc(:,n));         
+        
+        % Compute responsibilities
+        R = zeros(K1,Ns,'single');
+        for k=1:K1
+            C      = chol(Sig(:,:,k));
+            res    = C'\(fn - mu(:,k));
+            R(k,:) = L{m,n}(k,:) + log(gam(k)) - sum(log(diag(C))) + sum(dc(:,n)) - 0.5*M*log(2*pi) - 0.5*sum(res.^2,1);
+        end        
+        mxR = max(R,[],1);
+        R   = exp(R-mxR);
+        ll  = ll + sum(mxR+log(sum(R,1)),2);
+        R   = R./sum(R,1);
+        
+        % Compute suffstats
+        for k=1:K1
+            ss0(k)     = ss0(k)     + sum(R(k,:));
+            ss1(:,k)   = ss1(:,k)   + (fn*R(k,:)');
+            ss2(:,:,k) = ss2(:,:,k) + (R(k,:).*fn)*fn';
+        end
+    end
+    
+    % Compute GMM parameters
+    gam  = ss0./sum(ss0);
+    mu   = ss1./ss0';
+    Sig0 = (sum(ss2,3) - (ss0'.*mu)*mu')/sum(ss0);
+    n0   = Nvx/10;
+    for k=1:K1
+        Sig(:,:,k)  = (ss2(:,:,k) - ss0(k)*mu(:,k)*mu(:,k)' + n0*Sig0)./(ss0(k)+n0);
+    end
+
+    % Update rescaling s
+    ll = 0;
+    for n=1:N % Loop over subjects
+        fn = F{n};
+        Ns = size(fn,2);
+        fn = fn.*exp(dc(:,n));
+        
+        % Compute responsibilities
+        R = zeros(K1,Ns,'single');
+        for k=1:K1
+            C      = chol(Sig(:,:,k));
+            res    = C'\(fn - mu(:,k));
+            R(k,:) = L{m,n}(k,:) + log(gam(k)) - sum(log(diag(C))) + sum(dc(:,n)) - 0.5*M*log(2*pi) - 0.5*sum(res.^2,1);
+        end        
+        mxR = max(R,[],1);
+        R   = exp(R-mxR);
+        ll  = ll + sum(mxR+log(sum(R,1)),2);
+        R   = R./sum(R,1);
+        
+        % Compute gradient and Hessian
+        g0  = 0;
+        H0  = 0;
+        for k=1:K1
+            rk = R(k,:);
+            g0 = g0 + Sig(:,:,k)\(rk.*(fn-mu(:,k)));
+            H0 = H0 + ((rk.*fn)*fn').*inv(Sig(:,:,k));
+        end
+        g      = sum(fn.*g0,2) - Ns;
+        H      = H0            + Ns*eye(M);
+        
+        % Gauss-Newton update
+        dc(:,n) = dc(:,n) - ((N-1)/N)*(H\g);
+    end
+    
+    % Make DC component zero mean, across N
+    dc  = dc - mean(dc,2);
+
+    if (ll - llo)/abs(ll + llo) < 1e-6
+        % Finished
+        break; 
+    end
+end
+
+if false
+    % Visualise
+    figure(666)
+    clf
+    m = 1;
+    for n=1:N
+        xn = F{n}(m,:).*exp(dc(m,n));
+        x  = 0:20:max(xn);
+        h  = hist(xn,x);
+        h  = h/sum(h)/20;
+        plot(x,h,'k.','MarkerSize',1);
+        hold on
+    end
+    x = linspace(0,max(xn),1000);
+    p = 0;
+    for k=1:K1
+        pk = exp(log(gam(k)) - 0.5*log(Sig(m,m,k)) - 0.5*log(2*pi) - 0.5*(x-mu(m,k)).^2/(Sig(m,m,k)));
+        p  = p + pk;
+        plot(x,pk,'b-','LineWidth',1);
+    end
+    plot(x,p,'r-','LineWidth',3);
+    hold off
+end
+F = []; L = [];
+
+% Make function output
+C   = 1;
+b   = zeros(1,K1) + 0.01;
+ico = zeros(C,C,K1);
+for k=1:K1
+    ico(:,:,k) = inv(Sig(:,:,k));
+end
+W   = ico/C;
+n   = C*ones(1,K1);
+po  = struct('m',mu,'b',b,'W',W,'n',n);
+pr  = po;
+end
+%==========================================================================
+
 %==========================================================================    
-% InitPriorGMM()
-function pr = InitPriorGMM(mx,mn,avg,vr,mu0,K)
+% InitSimplePriorGMM()
+function pr = InitSimplePriorGMM(mx,mn,avg,vr,mu0,K)
 % Initialise the prior parameters of a Gaussian mixture model. 
 %
 %   This function is only used to initialise the GMM parameters at the
 %   beginning of the algorithm.
 % 
-% FORMAT pr = InitPriorGMM(mx,mn,vr,mu0,K)
+% FORMAT pr = InitSimplePriorGMM(mx,mn,vr,mu0,K)
 % mx   - Maximum observed value [per channel]
 % mn   - Minimum observed value [per channel]
 % avg  - Mean observed value [per channel]
@@ -1000,14 +1263,14 @@ end
 %==========================================================================   
 
 %==========================================================================    
-% InitPosteriorGMM()
-function [po,mx,mn,avg,vr] = InitPosteriorGMM(datn,fn,mu,pr,K,sett)
+% InitSimplePosteriorGMM()
+function [po,mx,mn,avg,vr] = InitSimplePosteriorGMM(datn,fn,mu,pr,K,sett)
 % Initialise the posterior parameters of a Gaussian mixture model. 
 %
 %   This function is only used to initialise the GMM parameters at the
 %   beginning of the algorithm.
 % 
-% FORMAT [po,mx,mn,vr] = InitPosteriorGMM(datn,fn,mu,pr,K,sett)
+% FORMAT [po,mx,mn,vr] = InitSimplePosteriorGMM(datn,fn,mu,pr,K,sett)
 % datn - Structure holding data of a single subject
 % fn   - Bias corrected observed image, in matrix form [nbvox nbchannel]
 % mu   - Log template
