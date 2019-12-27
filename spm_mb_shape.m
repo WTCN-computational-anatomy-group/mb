@@ -353,6 +353,10 @@ if Npop > 1
     [mu,dat] = spm_mb_shape('UpdateSimpleMean',dat,    mu, sett);    
 end
 
+% Update intensity prior
+add_po_observation = true;
+dat = spm_mb_appearance('UpdatePrior',dat, mu, sett, add_po_observation);
+
 % Restore settings
 sett.do.updt_bf = do_updt_bf;
 sett.gen.samp   = samp;

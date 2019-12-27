@@ -11,7 +11,7 @@ function varargout = spm_mb_appearance(varargin)
 % FORMAT fn        = spm_mb_appearance('Mask',fn,is_ct)
 % FORMAT zn        = spm_mb_appearance('Responsibility',m,b,W,n,fn,mu,msk_chn)
 % FORMAT [zn,datn] = spm_mb_appearance('Update',datn,mun0,sett)
-% FORMAT dat       = spm_mb_appearance('UpdatePrior',dat,mu,sett)
+% FORMAT dat       = spm_mb_appearance('UpdatePrior',dat,mu,sett,add_po_observation)
 %__________________________________________________________________________
 % Copyright (C) 2019 Wellcome Trust Centre for Neuroimaging
 
@@ -646,7 +646,8 @@ end
 
 %==========================================================================
 % UpdatePrior()
-function dat = UpdatePrior(dat, mu, sett)
+function dat = UpdatePrior(dat, mu, sett, add_po_observation)
+if nargin < 4, add_po_observation = true; end
 
 if ~sett.do.updt_int,      return; end
 if ~isfield(dat(1),'mog'), return; end
@@ -678,7 +679,7 @@ for p=1:numel(p_ix) % Loop over populations
         po{n}{2}{2} = dat(n1).mog.po.n;
     end
 
-if false
+if add_po_observation
     % Add one artificial observation (increases numerical stability)
     
     % Get overall mean and variance for regularising
