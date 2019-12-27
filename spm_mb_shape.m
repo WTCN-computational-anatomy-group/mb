@@ -7,7 +7,7 @@ function varargout = spm_mb_shape(varargin)
 % FORMAT B             = spm_mb_shape('AffineBases',code)
 % FORMAT psi           = spm_mb_shape('Compose',psi1,psi0)
 % FORMAT id            = spm_mb_shape('Identity',d)
-% FORMAT dat           = spm_mb_shape('Init',dat,sett)
+% FORMAT dat           = spm_mb_shape('InitDef',dat,sett)
 % FORMAT [dat,mu,sett] = spm_mb_shape('InitMu',dat,K,sett)
 % FORMAT l             = spm_mb_shape('LSE',mu,dr)
 % FORMAT a1            = spm_mb_shape('Pull1',a0,psi,r)
@@ -45,8 +45,8 @@ switch id
         [varargout{1:nargout}] = Compose(varargin{:});
     case 'Identity'
         [varargout{1:nargout}] = Identity(varargin{:});
-    case 'Init'
-        [varargout{1:nargout}] = Init(varargin{:});                
+    case 'InitDef'
+        [varargout{1:nargout}] = InitDef(varargin{:});                
     case 'InitMu'
         [varargout{1:nargout}] = InitMu(varargin{:});         
     case 'LSE'
@@ -178,8 +178,8 @@ end
 %==========================================================================
 
 %==========================================================================
-% Init()
-function dat = Init(dat,sett)
+% InitDef()
+function dat = InitDef(dat,sett)
 
 % Parse function settings
 B       = sett.registr.B;

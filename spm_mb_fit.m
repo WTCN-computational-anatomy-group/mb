@@ -93,7 +93,6 @@ vxmu = sqrt(sum(Mmu(1:3,1:3).^2));
 if dmu(3) == 1 % 2D
     sett.registr.B      = spm_mb_shape('AffineBases','SE(2)');
     denom_aff_tol       = N*100^3;               % smaller convergence threshold
-%     sett.var.v_settings = 4*sett.var.v_settings; % more regularisation for fitting velocities
 else           % 3D
     sett.registr.B = spm_mb_shape('AffineBases','SE(3)');
     denom_aff_tol  = N*100^4;
@@ -112,7 +111,7 @@ sett.var = spm_mb_io('CopyFields',sz(end), sett.var);
 % Init shape and apperance model parameters
 %------------------
 
-dat = spm_mb_shape('Init',dat,sett);
+dat = spm_mb_shape('InitDef',dat,sett);
 dat = spm_mb_appearance('Init',dat,model,K,sett);
 
 spm_mb_show('Speak','Start',sett,N,K);
