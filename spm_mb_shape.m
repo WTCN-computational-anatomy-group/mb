@@ -241,11 +241,9 @@ do_updt_bf      = sett.do.updt_bf;
 ix_init         = sett.model.ix_init_pop;
 mg_ix           = sett.model.mg_ix;
 nit_appear      = sett.nit.appear;
-nit_gmm         = sett.nit.gmm;
 nit_init_mu     = sett.nit.init_mu;
 samp            = sett.gen.samp;
 sett.do.updt_bf = false;
-sett.nit.gmm    = 128;
 sett.gen.samp   = 5;
 sett.nit.appear = 1;
 
@@ -256,7 +254,7 @@ Kmg = numel(mg_ix);
 % Get population indices
 p_ix       = spm_mb_appearance('GetPopulationIdx',dat);
 Npop       = numel(p_ix);
-first_subj = true;
+first_subj = true; % For when not using InitGMM, make posterior means of all subjects uninformative, except first subject in population sett.model.ix_init_pop
 pop_rng    = 1:Npop;
 
 % Was InitGMM run on initialising population?
@@ -325,12 +323,12 @@ for p=[ix_init pop_rng(pop_rng ~= ix_init)] % loop over populations (starting in
     
     % Assign
     for n=p_ix{p}
-        dat(n).mog.pr.m = mpr;        
+        dat(n).mog.pr.m = mpr; % prior
         if ~use_initgmm && first_subj            
             first_subj = false;
             continue
         end        
-        dat(n).mog.po.m = mpo;        
+        dat(n).mog.po.m = mpo; % posterior
     end
     
     if 0
@@ -340,16 +338,18 @@ for p=[ix_init pop_rng(pop_rng ~= ix_init)] % loop over populations (starting in
 end
 
 if ~use_initgmm
-    % Update template based on only first subject..
-    [mu,dat(p_ix{ix_init}(1))] = spm_mb_shape('UpdateSimpleMean',dat(p_ix{ix_init}(1)), mu, sett);
+    % Update template based on only first subject of population sett.model.ix_init_pop
+    for it=1:nit_init_mu
+        [mu,dat(p_ix{ix_init}(1))] = spm_mb_shape('UpdateSimpleMean',dat(p_ix{ix_init}(1)), mu, sett);
+    end
 end
-% ..propagate to all other subjects in populations..
+% Update template using all subjects from population sett.model.ix_init_pop
 for it=1:nit_init_mu
     [mu,dat(p_ix{ix_init})] = spm_mb_shape('UpdateSimpleMean',dat(p_ix{ix_init}), mu, sett);
 end
 if Npop > 1
-    % ..if more than one population, use template learned on first
-    % population to initialise other populations' subjects
+    % If more than one population, use template learned on sett.model.ix_init_pop
+    % population to initialise other populations' GMM parameters
     [mu,dat] = spm_mb_shape('UpdateSimpleMean',dat,    mu, sett);    
 end
 
@@ -357,7 +357,6 @@ end
 sett.do.updt_bf = do_updt_bf;
 sett.gen.samp   = samp;
 sett.nit.appear = nit_appear;
-sett.nit.gmm    = nit_gmm;
 end
 %==========================================================================
 
