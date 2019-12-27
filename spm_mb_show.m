@@ -45,25 +45,31 @@ end
 %==========================================================================
 % All()
 function All(dat,mu,Objective,N,sett)
-if sett.show.level >= 2
-    % Template and negative loglikelihood
-    Model(mu,Objective,N,sett);
-end
-if sett.show.level >= 3
-    % Template space images
-    Subjects(dat,mu,sett,false,false); 
-end
-if sett.show.level == 4 || sett.show.level == 5
-    % Segmentations and warped template
-    Subjects(dat,mu,sett,false);    
-end
-if sett.show.level >= 5
-    % Intensity prior fit   
-    IntensityPrior(dat,sett);
-end
-if sett.show.level >= 6
-    % Subject parameters
-    Subjects(dat,mu,sett,true);        
+
+% Parse function settings
+figs = sett.show.figs;
+
+if ~isempty(figs)  
+    if any(strcmp(figs,'model'))
+        % Template and negative loglikelihood
+        Model(mu,Objective,N,sett);
+    end
+    if any(strcmp(figs,'normalised'))
+        % Template space images
+        Subjects(dat,mu,sett,false,false); 
+    end
+    if any(strcmp(figs,'segmentations')) && ~any(strcmp(figs,'parameters'))
+        % Segmentations and warped template
+        Subjects(dat,mu,sett,false);    
+    end
+    if any(strcmp(figs,'intensity'))
+        % Intensity prior fit   
+        IntensityPrior(dat,sett);
+    end
+    if any(strcmp(figs,'parameters'))
+        % Subject parameters
+        Subjects(dat,mu,sett,true);        
+    end      
 end
 end
 %==========================================================================
@@ -144,9 +150,9 @@ do_updt_int      = sett.do.updt_int;
 do_updt_template = sett.do.updt_template;
 mg_ix            = sett.model.mg_ix;
 nit              = sett.nit.init;
-show_level       = sett.show.level;
+print2screen     = sett.show.print2screen;
 
-if show_level < 1, return; end
+if print2screen < 1, return; end
 
 Kmg = numel(mg_ix);
 

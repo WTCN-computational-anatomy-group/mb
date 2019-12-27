@@ -38,7 +38,7 @@ K            = sett.model.K;
 nit_init     = sett.nit.init;
 nit_init_mu  = sett.nit.init_mu;
 nit_zm0      = sett.nit.zm;
-show_level   = sett.show.level;
+print2screen = sett.show.print2screen;
 vx           = sett.model.vx;
 write_interm = sett.write.intermediate;
 
@@ -163,7 +163,7 @@ if do_updt_aff
                 t        = toc;
 
                 % Print stuff
-                if show_level > 0, fprintf('it=%i mu \t%g\t%g\t%g\n', it_init, E, t, (oE - E)/prevt); end
+                if print2screen > 0, fprintf('it=%i mu \t%g\t%g\t%g\n', it_init, E, t, (oE - E)/prevt); end
                 prevt     = t;
                 Objective = [Objective; E];               
             end
@@ -181,7 +181,7 @@ if do_updt_aff
         E   = sum(sum(cat(2,dat.E),2),1) + te;
         t   = toc;                        
         
-        if show_level > 0, fprintf('it=%i q  \t%g\t%g\t%g\n', it_init, E, t, (oE - E)/prevt); end
+        if print2screen > 0, fprintf('it=%i q  \t%g\t%g\t%g\n', it_init, E, t, (oE - E)/prevt); end
         prevt     = t;
         Objective = [Objective; E];        
         
@@ -200,7 +200,7 @@ end
 %------------------
 
 spm_mb_show('Speak','Iter',sett,numel(sz)); 
-if show_level > 0, tic; end
+if print2screen > 0, tic; end
 for zm=numel(sz):-1:1 % loop over zoom levels
     
     sett.gen.samp = min(max(vxmu(1),zm),5);     % coarse-to-fine sampling of observed data    
@@ -262,7 +262,7 @@ for zm=numel(sz):-1:1 % loop over zoom levels
         dat = spm_mb_shape('UpdateWarps',dat,sett);  
         
         % Print stuff
-        if show_level > 0, fprintf('zm=%i it=%i\t%g\t%g\t%g\t%g\t%g\n', zm, it_zm, E0, E1, E2, E3, E4); end               
+        if print2screen > 0, fprintf('zm=%i it=%i\t%g\t%g\t%g\t%g\t%g\n', zm, it_zm, E0, E1, E2, E3, E4); end               
                 
         if write_interm && (do_updt_template || do_updt_int)
             % Save stuff
@@ -273,7 +273,7 @@ for zm=numel(sz):-1:1 % loop over zoom levels
     % Show stuff
     spm_mb_show('All',dat,mu,Objective,N,sett);
     
-    if show_level > 0, fprintf('%g seconds\n\n', toc); tic; end               
+    if print2screen > 0, fprintf('%g seconds\n\n', toc); tic; end               
 end
 
 % Final mean and intensity prior update

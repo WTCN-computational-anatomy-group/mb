@@ -254,7 +254,6 @@ if ~isfield(sett,'optim')
     sett.optim = struct;
 end
 if ~isfield(sett.optim,'nls_bf')
-     % Scaling of q GN updates
     sett.optim.nls_bf = 1;
 end
 if ~isfield(sett.optim,'scal_q')
@@ -287,6 +286,9 @@ end
 if ~isfield(sett.show,'channel')
     sett.show.channel = 1; % 1, ..., C
 end
+if ~isfield(sett.show,'figs')
+    sett.show.figs = {}; % {'model','normalised','segmentations','intensity','parameters'}
+end
 if ~isfield(sett.show,'figname_bf')
     sett.show.figname_bf = '(spm_mb) Bias fields';
 end
@@ -305,15 +307,8 @@ end
 if ~isfield(sett.show,'figname_imtemplatepace')
     sett.show.figname_imtemplatepace = '(spm_mb) Template space data';
 end
-if ~isfield(sett.show,'level')
-    % 0 - No verbose
-    % 1 - Print covergence and timings to command window
-    % 2 - 1 + template and neg. loglikelihood graphics
-    % 3 - 1-2 + template space images
-    % 4 - 1-3 + subject segmentations and warped template graphics
-    % 5 - 1-4 + intensity prior graphics
-    % 6 - 1-5 + subject parameter graphics    
-    sett.show.level = 1;
+if ~isfield(sett.show,'print2screen')
+    sett.show.print2screen = true;
 end
 if ~isfield(sett.show,'mx_subjects')
     sett.show.mx_subjects = 2;
