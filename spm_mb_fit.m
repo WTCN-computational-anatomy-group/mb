@@ -187,9 +187,12 @@ if do_updt_aff
         
         if write_interm && (do_updt_template || do_updt_int)
             % Save stuff
-            save(fullfile(dir_res,'fit_spm_mb.mat'),'dat','mu','sett')
+            save(fullfile(dir_res,'fit_spm_mb.mat'),'dat','sett','-v7.3','-nocompression')
         end          
     end
+    
+    % Save template
+    dat = spm_mb_io('SaveTemplate',dat,mu,sett);
     
     % Show stuff
     spm_mb_show('All',dat,mu,Objective,N,sett);
@@ -266,10 +269,13 @@ for zm=numel(sz):-1:1 % loop over zoom levels
                 
         if write_interm && (do_updt_template || do_updt_int)
             % Save stuff
-            save(fullfile(dir_res,'fit_spm_mb.mat'),'dat','mu','sett')
+            save(fullfile(dir_res,'fit_spm_mb.mat'),'dat','sett','-v7.3','-nocompression')
         end                
-    end    
-       
+    end           
+    
+    % Save template
+    dat = spm_mb_io('SaveTemplate',dat,mu,sett);
+
     % Show stuff
     spm_mb_show('All',dat,mu,Objective,N,sett);
     
