@@ -186,13 +186,13 @@ if do_updt_aff
         Objective = [Objective; E];        
         
         if write_interm && (do_updt_template || do_updt_int)
-            % Save stuff
-            save(fullfile(dir_res,'fit_spm_mb.mat'),'dat','sett','-v7.3','-nocompression')
+            % Save workspace (except template) 
+            save(fullfile(dir_res,'fit_spm_mb.mat'), '-regexp', '^(?!(mu)$).');
         end          
-    end
-    
-    % Save template
-    dat = spm_mb_io('SaveTemplate',dat,mu,sett);
+        
+        % Save template
+        spm_mb_io('SaveTemplate',dat,mu,sett);
+    end        
     
     % Show stuff
     spm_mb_show('All',dat,mu,Objective,N,sett);
@@ -268,13 +268,13 @@ for zm=numel(sz):-1:1 % loop over zoom levels
         if print2screen > 0, fprintf('zm=%i it=%i\t%g\t%g\t%g\t%g\t%g\n', zm, it_zm, E0, E1, E2, E3, E4); end               
                 
         if write_interm && (do_updt_template || do_updt_int)
-            % Save stuff
-            save(fullfile(dir_res,'fit_spm_mb.mat'),'dat','sett','-v7.3','-nocompression')
-        end                
+            % Save workspace (except template) 
+            save(fullfile(dir_res,'fit_spm_mb.mat'), '-regexp', '^(?!(mu)$).');
+        end          
+        
+        % Save template
+        spm_mb_io('SaveTemplate',dat,mu,sett);             
     end           
-    
-    % Save template
-    dat = spm_mb_io('SaveTemplate',dat,mu,sett);
 
     % Show stuff
     spm_mb_show('All',dat,mu,Objective,N,sett);
@@ -287,7 +287,7 @@ end
 dat      = spm_mb_appearance('UpdatePrior',dat, mu, sett, add_po_observation);  
 
 % Save template
-dat = spm_mb_io('SaveTemplate',dat,mu,sett);
+spm_mb_io('SaveTemplate',dat,mu,sett);
 
 % Make model
 model = spm_mb_io('MakeModel',dat,model,sett);

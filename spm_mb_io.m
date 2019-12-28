@@ -12,7 +12,7 @@ function varargout = spm_mb_io(varargin)
 % FORMAT dat        = spm_mb_io('InitDat',data,sett)
 % FORMAT model      = spm_mb_io('MakeModel',dat,model,sett)
 % FORMAT [psi,fpth] = spm_mb_io('SavePsiSub',datn,sett) 
-% FORMAT dat        = spm_mb_io('SaveTemplate',dat,mu,sett)
+% FORMAT              spm_mb_io('SaveTemplate',dat,mu,sett)
 % FORMAT              spm_mb_io('SetBoundCond')
 % FORMAT fout       = spm_mb_io('SetData',fin,f) 
 % FORMAT              spm_mb_io('SetPath')
@@ -425,7 +425,7 @@ end
 
 %==========================================================================
 % SaveTemplate()
-function dat = SaveTemplate(dat,mu,sett)
+function SaveTemplate(dat,mu,sett)
 
 % Parse function settings
 dir_res          = sett.write.dir_res;
