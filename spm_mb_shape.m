@@ -237,16 +237,19 @@ mu = zeros([sett.var.d K],'single');
 
 if ~do_gmm, return; end
 
-% Change some settings
-do_updt_bf      = sett.do.updt_bf;
+% % Change some settings
+% do_updt_bf      = sett.do.updt_bf;
 ix_init         = sett.model.ix_init_pop;
 mg_ix           = sett.model.mg_ix;
 nit_appear      = sett.nit.appear;
 nit_init_mu     = sett.nit.init_mu;
+do_updt_bf      = sett.do.updt_bf;
 samp            = sett.gen.samp;
+nit_gmm         = sett.nit.gmm;
 sett.do.updt_bf = false;
 sett.gen.samp   = 5;
 sett.nit.appear = 1;
+sett.nit.gmm    = 100;
 
 % Parameters
 K1  = K + 1;
@@ -354,14 +357,11 @@ if Npop > 1
     [mu,dat] = spm_mb_shape('UpdateSimpleMean',dat,    mu, sett);    
 end
 
-% Update intensity prior
-add_po_observation = true;
-dat = spm_mb_appearance('UpdatePrior',dat, mu, sett, add_po_observation);
-
-% Restore settings
+% % Restore settings
 sett.do.updt_bf = do_updt_bf;
 sett.gen.samp   = samp;
 sett.nit.appear = nit_appear;
+sett.nit.gmm    = nit_gmm;
 end
 %==========================================================================
 

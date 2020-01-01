@@ -354,6 +354,7 @@ do_gmm           = sett.do.gmm;
 do_updt_int      = sett.do.updt_int;
 do_updt_template = sett.do.updt_template;
 dir_res          = sett.write.dir_res;
+mg_ix            = sett.model.mg_ix;
 write_model      = sett.write.model;
 
 if isempty(dir_res) 
@@ -372,13 +373,16 @@ if do_updt_int && do_gmm
     p_ix = spm_mb_appearance('GetPopulationIdx',dat);
     Npop = numel(p_ix);
 
-    model.appear = containers.Map;
+    model.appear       = struct('pr',[],'mg_ix',[]);
+    model.appear.pr    = containers.Map;    
+    model.appear.mg_ix = mg_ix;
     for p=1:Npop
         n      = p_ix{p}(1);
         datn   = dat(n);
         ix_pop = datn.ix_pop;
         pr     = datn.mog.pr;
-        model.appear(num2str(ix_pop)) = pr;
+        
+        model.appear.pr(num2str(ix_pop)) = pr;
     end
 end
 

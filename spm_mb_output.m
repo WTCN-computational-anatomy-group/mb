@@ -229,7 +229,7 @@ if isfield(datn,'mog') && (any(write_bf(:) == true) || any(write_im(:) == true) 
     % Get responsibilities
     zn  = spm_mb_appearance('Responsibility',m,b,W,n,bffn,mun,msk_chn); 
     zn  = spm_gmm_lib('cell2obs', zn, code_image, msk_chn);        
-    mun = []; msk_chn = [];    
+    mun = []; msk_chn = [];
 
     % Get bias field modulated image data
     fn = bf.*fn;
@@ -244,19 +244,9 @@ if isfield(datn,'mog') && (any(write_bf(:) == true) || any(write_im(:) == true) 
     % If using multiple Gaussians per tissue, collapse so that zn is of
     % size K1
     if Kmg > K1
-        for k=1:K1, zn(:,:,:,k) = sum(zn(:,:,:,mg_ix==k),4); end
-        zn(:,:,:,K1 + 1:end)    = [];
+        for k=1:K1, zn(:,k) = sum(zn(:,mg_ix==k),2); end
+        zn(:,K1 + 1:end)    = [];
     end
-
-    if mrf > 0
-        % Ad-hoc MRF clean-up of segmentation     
-        PostProcMRF(zn,Mn,mrf,nit_mrf);
-    end
-    
-    if gwc_level > 0
-        % Use an ad hoc brain cleanup procedure
-        zn = CleanGWC(zn,gwc_tix,gwc_level);
-    end    
     
     % Make 3D    
     if any(do_bf == true)
@@ -265,7 +255,17 @@ if isfield(datn,'mog') && (any(write_bf(:) == true) || any(write_im(:) == true) 
         bf = reshape(bf,[1 1 1 C]);
     end
     fn = reshape(fn,[df(1:3) C]);
-    zn = reshape(zn,[df(1:3) K1]);
+    zn = reshape(zn,[df(1:3) K1]);    
+    
+    if mrf > 0
+        % Ad-hoc MRF clean-up of segmentation     
+        zn = PostProcMRF(zn,Mn,mrf,nit_mrf);
+    end
+    
+    if ~isempty(gwc_tix) && gwc_level > 0
+        % Use an ad hoc brain cleanup procedure
+        zn = CleanGWC(zn,gwc_tix,gwc_level);
+    end        
 
     if any(write_bf == true) && any(do_bf == true)
         % Write bias field

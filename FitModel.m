@@ -177,8 +177,13 @@ for p=1:Npop % loop over populations
             error('Unknown population!')
     end
     
-    for c=1:C,        pths_im{c} = pths_im{c}(1:min(Nsubj,size(pths_im{c},1)),:); end
-    if ~isempty(pths_lab), pths_lab = pths_lab(1:min(Nsubj,size(pths_lab,1)),:); end
+    if iscell(Nsubj)
+        for c=1:C,        pths_im{c} = pths_im{c}(cell2mat(Nsubj),:); end
+        if ~isempty(pths_lab), pths_lab = pths_lab(cell2mat(Nsubj),:); end
+    else
+        for c=1:C,        pths_im{c} = pths_im{c}(1:min(Nsubj,size(pths_im{c},1)),:); end
+        if ~isempty(pths_lab), pths_lab = pths_lab(1:min(Nsubj,size(pths_lab,1)),:); end
+    end
     
     % Set images and labels
     dat(p).pths_im  = pths_im;

@@ -1,10 +1,21 @@
 function [dat,model,sett] = spm_mb_fit(data,varargin)
-%__________________________________________________________________________
-%
 % Multi-Brain - Groupwise normalisation and segmentation of images
 %
+% FORMAT [dat,model,sett] = spm_mb_fit(data,varargin)
+%
+% INPUT
+% data -
+%
+%
+% OUTPUT
+% dat   -
+% model -
+% sett  -
+%
 %__________________________________________________________________________
-% Copyright (C) 2019 Wellcome Trust Centre for Neuroimaging
+%
+%__________________________________________________________________________
+% Copyright (C) 2020 Wellcome Trust Centre for Neuroimaging
 
 % Parse input
 p              = inputParser;
@@ -40,7 +51,7 @@ nit_init_mu  = sett.nit.init_mu;
 nit_zm0      = sett.nit.zm;
 print2screen = sett.show.print2screen;
 vx           = sett.model.vx;
-write_interm = sett.write.intermediate;
+write_ws     = sett.write.workspace;
 
 spm_mb_show('Clear',sett); % Clear figures
 
@@ -84,7 +95,8 @@ if template_given
 else
     [Mmu,dmu] = spm_mb_shape('SpecifyMean',dat,vx);
 end
-vxmu = sqrt(sum(Mmu(1:3,1:3).^2));
+vxmu     = sqrt(sum(Mmu(1:3,1:3).^2));
+sett.Mmu = Mmu;
 
 %------------------
 % Set affine bases
@@ -111,8 +123,8 @@ sett.var = spm_mb_io('CopyFields',sz(end), sett.var);
 % Init shape and apperance model parameters
 %------------------
 
-dat = spm_mb_shape('InitDef',dat,sett);
-dat = spm_mb_appearance('Init',dat,model,K,sett);
+dat        = spm_mb_shape('InitDef',dat,sett);
+[dat,sett] = spm_mb_appearance('Init',dat,model,K,sett);
 
 spm_mb_show('Speak','Start',sett,N,K);
 
@@ -138,8 +150,10 @@ spm_mb_show('All',dat,mu,[],N,sett);
 Objective          = [];
 E                  = Inf;
 prevt              = Inf;
-te                 = spm_mb_shape('TemplateEnergy',mu,sett);
+te                 = 0;
 add_po_observation = true; % Add one posterior sample to UpdatePrior
+
+if do_updt_template, te = spm_mb_shape('TemplateEnergy',mu,sett); end
 
 if do_updt_aff
     
@@ -185,7 +199,7 @@ if do_updt_aff
         prevt     = t;
         Objective = [Objective; E];        
         
-        if write_interm && (do_updt_template || do_updt_int)
+        if write_ws && (do_updt_template || do_updt_int)
             % Save workspace (except template) 
             save(fullfile(dir_res,'fit_spm_mb.mat'), '-regexp', '^(?!(mu)$).');
         end          
@@ -228,7 +242,7 @@ for zm=numel(sz):-1:1 % loop over zoom levels
 
         % Update template                  
         [mu,dat] = spm_mb_shape('UpdateMean',dat, mu, sett);
-        te       = spm_mb_shape('TemplateEnergy',mu,sett);
+        if do_updt_template, te = spm_mb_shape('TemplateEnergy',mu,sett); end
         dat      = spm_mb_appearance('UpdatePrior',dat, mu, sett, add_po_observation);
         E1       = sum(sum(cat(2,dat.E),2),1) + te;        
                            
@@ -242,7 +256,7 @@ for zm=numel(sz):-1:1 % loop over zoom levels
         dat      = spm_mb_appearance('UpdatePrior',dat, mu, sett, add_po_observation);
                 
         [mu,dat] = spm_mb_shape('UpdateMean',dat, mu, sett);
-        te       = spm_mb_shape('TemplateEnergy',mu,sett);
+        if do_updt_template, te = spm_mb_shape('TemplateEnergy',mu,sett); end
         dat      = spm_mb_appearance('UpdatePrior',dat, mu, sett, add_po_observation);
         E3       = sum(sum(cat(2,dat.E),2),1) + te;
             
@@ -267,7 +281,7 @@ for zm=numel(sz):-1:1 % loop over zoom levels
         % Print stuff
         if print2screen > 0, fprintf('zm=%i it=%i\t%g\t%g\t%g\t%g\t%g\n', zm, it_zm, E0, E1, E2, E3, E4); end               
                 
-        if write_interm && (do_updt_template || do_updt_int)
+        if write_ws && (do_updt_template || do_updt_int)
             % Save workspace (except template) 
             save(fullfile(dir_res,'fit_spm_mb.mat'), '-regexp', '^(?!(mu)$).');
         end          
