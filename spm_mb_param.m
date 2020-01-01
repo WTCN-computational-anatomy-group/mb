@@ -205,9 +205,6 @@ if ~isfield(sett.model,'mg_ix')
     % For using multiple Gaussians per tissue (as in spm_preproc8)
     sett.model.mg_ix = 1;
 end
-if isscalar(sett.model.mg_ix)
-    sett.model.mg_ix = repelem(1:sett.model.K + 1,sett.model.mg_ix);
-end
 if ~isfield(sett.model,'vx')    
     sett.model.vx = 1;    
 end

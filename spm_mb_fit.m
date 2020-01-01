@@ -84,6 +84,9 @@ if template_given
     [~,K]        = spm_mb_io('GetSize',model.shape.template);
     sett.model.K = K;
 end
+if isscalar(sett.model.mg_ix)
+    sett.model.mg_ix = repelem(1:K + 1,sett.model.mg_ix);
+end
 
 %------------------
 % Get template size and orientation
