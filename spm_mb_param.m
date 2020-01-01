@@ -107,7 +107,7 @@ if ~isfield(sett.clean_z,'gwc_tix')
     sett.clean_z.gwc_tix = [];
 end
 if ~isfield(sett.clean_z,'gwc_level')
-    sett.clean_z.gwc_level = 0; % 1
+    sett.clean_z.gwc_level = 1; % 1
 end
 
 %------------------
