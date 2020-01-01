@@ -235,12 +235,14 @@ if isfield(datn,'mog') && (any(write_bf(:) == true) || any(write_im(:) == true) 
     fn = bf.*fn;
     if do_infer
         % Infer missing values
+        code        = sum(bsxfun(@times, ~isnan(fn), 2.^(0:size(fn,2)-1)), 2);
         sample_post = do_infer > 1;
-        MU = datn.mog.po.m;    
-        A  = bsxfun(@times, datn.mog.po.W, reshape(datn.mog.po.n, [1 1 K1]));            
-        fn = spm_gmm_lib('InferMissing',fn,zn,{MU,A},msk_chn,sample_post);        
-    end
-
+        MU          = datn.mog.po.m;    
+        A           = bsxfun(@times, datn.mog.po.W, reshape(datn.mog.po.n, [1 1 Kmg]));            
+        fn          = spm_gmm_lib('InferMissing',fn,zn,{MU,A},code,sample_post);  
+        code        = [];
+    end        
+    
     % If using multiple Gaussians per tissue, collapse so that zn is of
     % size K1
     if Kmg > K1
