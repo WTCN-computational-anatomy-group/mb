@@ -3,15 +3,15 @@ function varargout = spm_mb_appearance(varargin)
 %
 % Functions for appearance model related.
 %
-% FORMAT [bfn,lln] = spm_mb_appearance('BiasField',chan,d,varargin)
-% FORMAT chan      = spm_mb_appearance('BiasFieldStruct',datn,C,df,reg,fwhm,dc,T,samp)
-% FORMAT labels    = spm_mb_appearance('GetLabels',datn,sett,do_samp)
-% FORMAT p_ix      = spm_mb_appearance('GetPopulationIdx',dat)
-% FORMAT dat       = spm_mb_appearance('Init',dat,model,K,sett)
-% FORMAT fn        = spm_mb_appearance('Mask',fn,is_ct)
-% FORMAT zn        = spm_mb_appearance('Responsibility',m,b,W,n,fn,mu,msk_chn)
-% FORMAT [zn,datn] = spm_mb_appearance('Update',datn,mun0,sett)
-% FORMAT dat       = spm_mb_appearance('UpdatePrior',dat,mu,sett,add_po_observation)
+% FORMAT [bfn,lln]  = spm_mb_appearance('BiasField',chan,d,varargin)
+% FORMAT chan       = spm_mb_appearance('BiasFieldStruct',datn,C,df,reg,fwhm,dc,T,samp)
+% FORMAT labels     = spm_mb_appearance('GetLabels',datn,sett,do_samp)
+% FORMAT p_ix       = spm_mb_appearance('GetPopulationIdx',dat)
+% FORMAT [dat,sett] = spm_mb_appearance('Init',dat,model,K,sett)
+% FORMAT fn         = spm_mb_appearance('Mask',fn,is_ct)
+% FORMAT zn         = spm_mb_appearance('Responsibility',m,b,W,n,fn,mu,msk_chn)
+% FORMAT [zn,datn]  = spm_mb_appearance('Update',datn,mun0,sett)
+% FORMAT dat        = spm_mb_appearance('UpdatePrior',dat,mu,sett,add_po_observation)
 %__________________________________________________________________________
 % Copyright (C) 2019 Wellcome Trust Centre for Neuroimaging
 
@@ -212,22 +212,40 @@ end
 
 %==========================================================================
 % Init()
-function dat = Init(dat,model,K,sett)
+function [dat,sett] = Init(dat,model,K,sett)
 
 % Parse function settings
 ix_init = sett.model.ix_init_pop;
+mg_ix   = sett.model.mg_ix;
 
 % Get population parameters
 p_ix = spm_mb_appearance('GetPopulationIdx',dat);
 Np   = numel(p_ix);
+N    = numel(dat);
 
 % What model parameters were given?
 appear_given   = isfield(model,'appear');
 template_given = (isfield(model,'shape') && isfield(model.shape,'template'));
+if appear_given
+    % Set mg_ix to mg_ix that was used when learning intensity model
+    mg_ix            = model.appear.mg_ix;
+    sett.model.mg_ix = mg_ix;
+end
 
 % Get template
-if template_given, mu = spm_mb_io('GetData',model.shape.template);
-else,              mu = [];
+if template_given
+    mu = spm_mb_io('GetData',model.shape.template);                    
+    
+    % Build a weigthed mean (w_mu) that can be used to initi bias field DC scaling
+    w_mu = spm_mb_shape('TemplateK1',mu,4);
+    w_mu = exp(w_mu);
+    w_mu = sum(sum(sum(w_mu,1),2),3);
+    w_mu = w_mu./sum(w_mu);
+    w_mu = reshape(w_mu,[1 numel(w_mu)]);
+    w_mu = w_mu(mg_ix)./arrayfun(@(x) sum(x == mg_ix), mg_ix); % incorporate multiple Gaussians per tissue
+else
+    mu   = [];
+    w_mu = 1;
 end
 
 % Init over populations
@@ -235,7 +253,7 @@ for p=1:Np
     datn = dat(p_ix{p});
     
     % Load prior if given
-    if appear_given, pr = model.appear(num2str(datn(1).ix_pop));
+    if appear_given, pr = model.appear.pr(num2str(datn(1).ix_pop));
     else,            pr = [];
     end
     
@@ -245,13 +263,13 @@ for p=1:Np
     if datn(1).ix_pop == ix_init
         [~,C]       = spm_mb_io('GetSize',datn(1).f);
         has_ct      = any(datn(1).is_ct == true);
-        use_initgmm = C == 1 && ~has_ct && ~template_given;
+        use_initgmm = C == 1 && ~has_ct && ~template_given && N > 1;
     else
         use_initgmm = false;
     end
     
     % Do init for population(s) defined by p_ix
-    dat(p_ix{p}) = InitPopulation(datn,mu,pr,K,use_initgmm,sett);
+    dat(p_ix{p}) = InitPopulation(datn,mu,pr,K,use_initgmm,w_mu,mg_ix,sett);
 end
 end
 %==========================================================================
@@ -822,12 +840,11 @@ end
 
 %==========================================================================
 % InitPopulation()
-function dat = InitPopulation(dat,mu,pr,K,use_initgmm,sett)
+function dat = InitPopulation(dat,mu,pr,K,use_initgmm,w_mu,mg_ix,sett)
 
 % Parse function settings
 do_gmm = sett.do.gmm;
 fwhm   = sett.bf.fwhm;
-mg_ix  = sett.model.mg_ix;
 reg    = sett.bf.reg;
 
 if ~do_gmm, return; end
@@ -849,32 +866,43 @@ if ~use_initgmm
     mn  = zeros(C,numel(dat));
     avg = zeros(C,numel(dat));
     vr  = zeros(C,numel(dat));
-    dc  = zeros(1,C);
 else
     % The InitGMM function is used to init GMM posterior and prior, as well
     % as the bias field DC scaling
-    [po,pr,dc] = InitGMM(dat,sett);
+    [po,pr,dc_all] = InitGMM(dat,sett);
 end 
 
 % Loop over subjects in population(s)
 for n=1:N
     [df,C] = spm_mb_io('GetSize',dat(n).f);
     
-    if ~use_initgmm        
-        fn     = spm_mb_io('GetData',dat(n).f);
-        fn     = reshape(fn,[prod(df(1:3)) C]);
-        fn     = spm_mb_appearance('Mask',fn,dat(n).is_ct);
-        if any(dat(n).do_bf == true)
-            % Set bias field DC component based on making images in
-            % population closs to a mean value given by val
-            val = 1e3;
-            dc  = ones(1,C);
+    if ~use_initgmm                
+        % Load image data
+        fn = spm_mb_io('GetData',dat(n).f);
+        fn = reshape(fn,[prod(df(1:3)) C]);
+        fn = spm_mb_appearance('Mask',fn,dat(n).is_ct);
+        
+        % Set bias field DC component based on making images in
+        % population closs to a mean value given by val
+        if any(dat(n).do_bf == true)            
+            if ~isempty(pr)        
+                % Weighted mean based on template and prior mean                
+                val = w_mu.*pr.m;    
+                val = sum(val,2); 
+            else                
+                val = 1e3*ones(1,C);
+            end
+            
+            % Make mean close to val
+            dc = zeros(1,C);
             for c=1:C
                 msk   = isfinite(fn(:,c));
-                dc(c) = val./mean(fn(msk,c));
+                dc(c) = val(c)./mean(fn(msk,c));
             end
             dc = log(dc);
         end
+    else
+        dc = dc_all(1,n);
     end
 
     if any(dat(n).do_bf == true)
@@ -893,17 +921,17 @@ for n=1:N
         fn = bf.*fn;
     
         % Init GMM
-        [po,mx(:,n),mn(:,n),avg(:,n),vr(:,n)] = InitSimplePosteriorGMM(dat(n),fn,mu,pr,K1,sett);
+        [po,mx(:,n),mn(:,n),avg(:,n),vr(:,n)] = InitSimplePosteriorGMM(dat(n),fn,mu,pr,K1,mg_ix,sett);
     end
     
     % Assign GMM
     mog.po     = po;
     mog.lb     = lb;
-    mog.mg_w   = ones(1,K1);
+    mog.mg_w   = ones(1,Kmg)./arrayfun(@(x) sum(x == mg_ix), mg_ix);
     dat(n).mog = mog;
 end
 
-if isempty(pr) && ~use_initgmm
+if isempty(pr)
     % Init GMM empirical prior
     pr = InitSimplePriorGMM(mx,mn,avg,vr,mu,K1);
 end
@@ -913,7 +941,7 @@ for n=1:numel(dat)
     dat(n).mog.pr = pr; 
 end
 
-if K1 < Kmg
+if K1 < Kmg && numel(pr.n) ~= Kmg
     % Modify posteriors and priors for when using multiple Gaussians per
     % tissue
     for n=1:N        
@@ -928,15 +956,12 @@ if K1 < Kmg
         
         % Prior
         pr            = dat(n).mog.pr;
-        [gmm,mg_w]    = spm_gmm_lib('extras', 'more_gmms', {pr.m,pr.b,pr.W,pr.n}, mg_ix);        
+        gmm           = spm_gmm_lib('extras', 'more_gmms', {pr.m,pr.b,pr.W,pr.n}, mg_ix);        
         pr.m          = gmm{1};
         pr.b          = gmm{2};
         pr.W          = gmm{3};
         pr.n          = gmm{4};
         dat(n).mog.pr = pr;
-        
-        % Weight
-        dat(n).mog.mg_w = mg_w;
     end
 end
 end
@@ -1211,7 +1236,7 @@ end
 
 %==========================================================================    
 % InitSimplePriorGMM()
-function pr = InitSimplePriorGMM(mx,mn,avg,vr,mu0,K)
+function pr = InitSimplePriorGMM(mx,mn,avg,vr,mu0,K1)
 % Initialise the prior parameters of a Gaussian mixture model. 
 %
 %   This function is only used to initialise the GMM parameters at the
@@ -1223,7 +1248,7 @@ function pr = InitSimplePriorGMM(mx,mn,avg,vr,mu0,K)
 % avg  - Mean observed value [per channel]
 % vr   - Variance of observed value [per channel]
 % mu0  - Log template
-% K    - Number of classes
+% K1   - Number of classes
 % pr   - Structure holding prior GMM parameters (m, b, W, n)
 
 mvr  = mean(vr,2); % mean variance across all subjects in population
@@ -1232,27 +1257,27 @@ mmn  = mean(mn,2); % mean mean across all subjects in population
 mavg = mean(avg,2); % mean mean across all subjects in population
 
 C   = size(mx,1);
-m   = zeros(C,K);
-ico = zeros(C,C,K);   
+m   = zeros(C,K1);
+ico = zeros(C,C,K1);   
 for c=1:C      
-    rng    = linspace(mmn(c),mmx(c),K);
+    rng    = linspace(mmn(c),mmx(c),K1);
     rng    = -sum(rng<0):sum(rng>=0) - 1;
-    m(c,:) = rng'*mmx(c)/(1.5*K);
+    m(c,:) = rng'*mmx(c)/(1.5*K1);
     
-    ico(c,c,:) = mmx(c)/(1.5*K);
+    ico(c,c,:) = mmx(c)/(1.5*K1);
     ico(c,c,:) = 1/ico(c,c,:); % precision
 end
 
 if ~isempty(mu0)
     % If template is given, make sure that pr.m is the same for all classes
-    m = repmat(mean(m,2),[1 K]);
+    m = repmat(mean(m,2),[1 K1]);
 end
 
 % Define prior
 pr   = struct('m',[],'b',[],'n',[],'W',[]);
 pr.m = m;
-pr.b = zeros(1,K) + 0.01;
-pr.n = C*ones(1,K);
+pr.b = zeros(1,K1) + 0.01;
+pr.n = C*ones(1,K1);
 pr.W = ico/C;
 
 if 0
@@ -1265,7 +1290,7 @@ end
 
 %==========================================================================    
 % InitSimplePosteriorGMM()
-function [po,mx,mn,avg,vr] = InitSimplePosteriorGMM(datn,fn,mu,pr,K,sett)
+function [po,mx,mn,avg,vr] = InitSimplePosteriorGMM(datn,fn,mu,pr,K1,mg_ix,sett)
 % Initialise the posterior parameters of a Gaussian mixture model. 
 %
 %   This function is only used to initialise the GMM parameters at the
@@ -1276,7 +1301,7 @@ function [po,mx,mn,avg,vr] = InitSimplePosteriorGMM(datn,fn,mu,pr,K,sett)
 % fn   - Bias corrected observed image, in matrix form [nbvox nbchannel]
 % mu   - Log template
 % pr   - Structure holding prior GMM parameters (m, b, W, n)
-% K    - Number of classes
+% K1   - Number of classes
 % sett - Structure of settings
 % po   - Structure of posterior parameters (m, b, W, n)
 % mx   - Maximum observed value [per channel]
@@ -1286,15 +1311,15 @@ function [po,mx,mn,avg,vr] = InitSimplePosteriorGMM(datn,fn,mu,pr,K,sett)
 
 % Parse function settings
 B   = sett.registr.B;
-Mmu = sett.var.Mmu;
+Mmu = sett.Mmu;
 
 C   = size(fn,2);
 mx  = zeros(C,1);
 mn  = zeros(C,1);
 avg = zeros(C,1);
 vr  = zeros(C,1);
-m   = zeros(C,K);
-ico = zeros(C,C,K);
+m   = zeros(C,K1);
+ico = zeros(C,C,K1);
 for c=1:C
     msk    = isfinite(fn(:,c));
     mx(c)  = max(fn(msk,c));
@@ -1302,11 +1327,11 @@ for c=1:C
     avg(c) = mean(fn(msk,c));
     vr(c)  = var(fn(msk,c));
     
-    rng    = linspace(mn(c),mx(c),K);
+    rng    = linspace(mn(c),mx(c),K1);
     rng    = -sum(rng<0):sum(rng>=0) - 1;
-    m(c,:) = rng'*mx(c)/(1.5*K);
+    m(c,:) = rng'*mx(c)/(1.5*K1);
     
-    ico(c,c,:) = mx(c)/(1.5*K);
+    ico(c,c,:) = mx(c)/(1.5*K1);
     ico(c,c,:) = 1/ico(c,c,:); % precision
 end
 
@@ -1315,8 +1340,8 @@ if isempty(pr)
     % No prior given, initialise from image statistics (mean, min, max, var)
     po   = struct('m',[],'b',[],'n',[],'W',[]);
     po.m = m;
-    po.b = zeros(1,K) + 0.01;
-    po.n = C*ones(1,K);
+    po.b = zeros(1,K1) + 0.01;
+    po.n = C*ones(1,K1);
     po.W = ico/C;
 else
     % Use given prior
@@ -1329,7 +1354,7 @@ end
 if (isempty(pr) && ~isempty(mu))
     % Template is given, but not prior, so make sure that m parameter is the
     % same for all classes
-    po.m = repmat(mean(po.m,2),[1 K]);
+    po.m = repmat(mean(po.m,2),[1 K1]);
 end
    
 if ~isempty(mu)
@@ -1339,18 +1364,21 @@ if ~isempty(mu)
     q  = double(datn.q);
     Mr = spm_dexpm(q,B);
     Mn = datn.Mat;    
-    
+
     % Warp template
-    psi1 = spm_mb_io('GetData',datn.psi);
-    psi  = spm_mb_shape('Compose',psi1,spm_mb_shape('Affine',df,Mmu\Mr*Mn));
-    mu   = spm_mb_shape('Pull1',mu,psi);            
-    psi1 = [];
+    mu = spm_mb_shape('Pull1',mu,spm_mb_shape('Affine',df,Mmu\Mr*Mn));                
 
     % Add class, then softmax -> can now be used as resps
-    mu = cat(4,mu,zeros(df(1:3),'single'));
-    mu = spm_mb_shape('Softmax',mu,4);
-    mu = reshape(mu,[prod(df(1:3)) K]);        
+    mu = spm_mb_shape('TemplateK1',mu,4);
+    mu = exp(mu);
+    mu = reshape(mu,[prod(df(1:3)) K1]);        
         
+    if K1 < numel(pr.m)
+        % Prior has more Gaussians then tissue classes, incorporate this
+        % into template model
+        mu = mu(:,mg_ix);
+    end
+    
     % Compute posterior estimates
     [SS0,SS1,SS2] = spm_gmm_lib('SuffStat',fn,mu,1);
     [MU,~,b,W,n]  = spm_gmm_lib('UpdateClusters', SS0, SS1, SS2, {po.m,po.b,po.W,po.n});
