@@ -43,8 +43,6 @@ N                = numel(data); % Number of subjects
 sett             = spm_mb_param('DefaultSettings',sett);
 [sett,given]     = spm_mb_param('ConditionalSettings',model,sett,N); % Decide what to learn
 % TODO: Adapt ConditionalSettings to subspace (+ residual & latent precision)
-print2screen = sett.show.print2screen;
-write_ws     = sett.write.workspace;
 
 dir_res          = sett.write.dir_res;
 do_gmm           = sett.do.gmm;
@@ -55,7 +53,8 @@ K                = sett.model.K;
 nit_init         = sett.nit.init;
 nit_init_mu      = sett.nit.init_mu;
 nit_zm0          = sett.nit.zm;
-show_level       = sett.show.level;
+print2screen     = sett.show.print2screen;
+write_ws         = sett.write.workspace;
 vx               = sett.model.vx;
 do_updt_int      = sett.do.updt_int;
 do_updt_template = sett.do.updt_template;
@@ -70,8 +69,7 @@ dat  = spm_mb_io('InitDat',data,sett);
 clear data
 
 if isempty(dir_res) 
-    pth     = fileparts(dat(1).f(1).dat.fname);
-    dir_res = pth; 
+    dir_res = fileparts(dat(1).f(1).dat.fname);
 end
 
 % Get number of template classes (if not using GMM)
@@ -105,8 +103,8 @@ sett.Mmu = Mmu;
 %------------------
 
 if dmu(3) == 1 % 2D
-    sett.registr.B      = spm_mb_shape('AffineBases','SE(2)');
-    denom_aff_tol       = N*100^3;               % smaller convergence threshold
+    sett.registr.B = spm_mb_shape('AffineBases','SE(2)');
+    denom_aff_tol  = N*100^3;               % smaller convergence threshold
 else           % 3D
     sett.registr.B = spm_mb_shape('AffineBases','SE(3)');
     denom_aff_tol  = N*100^4;
@@ -182,8 +180,6 @@ E         = Inf;
 prevt     = Inf;
 add_po_observation = true; % Add one posterior sample to UpdatePrior
 
-if do_updt_template, te = spm_mb_shape('TemplateEnergy',mu,sett); end
-
 if do_updt_aff
     
     %------------------
@@ -236,11 +232,9 @@ if do_updt_aff
             save(fullfile(dir_res,'fit_spm_mb.mat'), '-regexp', '^(?!(mu)$).');
         end          
         
-        % Save template
         spm_mb_io('SaveTemplate',dat,mu,sett);
     end        
     
-    % Show stuff
     spm_mb_show('All',dat,shape.mu,Objective,N,sett);
 end
 
@@ -260,7 +254,7 @@ for zm=numel(sz):-1:1 % loop over zoom levels
         shape.mu = spm_mb_shape('Shrink',mu0,Mmu,sett);
     end
     if given.subspace && ~do_updt_subspace
-        % Resize template
+        % Resize subspace
         shape.U = spm_mb_shape('Shrink',U0,Mmu,sett);
     end
     
@@ -332,9 +326,6 @@ for zm=numel(sz):-1:1 % loop over zoom levels
         % Save template
         spm_mb_io('SaveTemplate',dat,mu,sett);             
     end           
-
-    % Show stuff
-    spm_mb_show('All',dat,mu,Objective,N,sett);
     
     % Show stuff
     spm_mb_show('All',dat,shape.mu,Objective,N,sett);            
@@ -342,7 +333,7 @@ end
 
 % Final mean update
 [shape,dat] = spm_mb_shape('UpdateMean',dat,shape,sett);
-dat      = spm_mb_appearance('UpdatePrior',dat, mu, sett, add_po_observation);  
+dat         = spm_mb_appearance('UpdatePrior',dat, mu, sett, add_po_observation);  
 
 % Save template
 spm_mb_io('SaveTemplate',shape.mu,sett);

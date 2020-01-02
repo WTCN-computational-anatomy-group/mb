@@ -220,7 +220,7 @@ s = SetDefault(s, 'show.figname_parameters',     '(spm_mb) Parameters');
 s = SetDefault(s, 'show.figname_subjects',       '(spm_mb) Segmentations');
 s = SetDefault(s, 'show.mx_subjects',            2);
 s = SetDefault(s, 'show.print2screen',           true);
-
+% TODO: . print2screen -> verbose?
 
 %------------------
 % .shoot (diffeomorphic shooting)
