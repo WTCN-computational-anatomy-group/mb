@@ -2215,6 +2215,7 @@ for iter=1:100 % EM loop
 end
 iQ = inv(Q);
 % fprintf('\n');
+end
 
 % % Code for working out the gradients and Hessians
 % q   = sym('q',[3,1],'real');
