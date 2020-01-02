@@ -613,7 +613,7 @@ end
 %==========================================================================
 % GetDimensions()
 function d = GetDimensions(fin)
-if isnumeric(fin)
+if isnumeric(fin) || isa(fin, 'file_array')
     d = size(fin);
     d(end+1:5) = 1;
     return

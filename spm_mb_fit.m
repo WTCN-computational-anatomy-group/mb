@@ -133,7 +133,7 @@ if given.subspace
     end
     sett.pca.npc = npc;
 end
-[shape,dat] = spm_mb_shape('InitModel', dat, sett);
+[shape,dat,sett] = spm_mb_shape('InitModel', dat, sett);
 
 %----------------------
 % Init apperance model
@@ -292,8 +292,10 @@ for zm=numel(sz):-1:1 % loop over zoom levels
         dat         = spm_mb_appearance('UpdatePrior',dat,shape.mu,sett);      
 
         % Update pca
-        [dat,shape] = spm_mb_shape('UpdateLatent',dat,shape,sett);
-        shape       = spm_mb_shape('UpdateLatentPrecision',shape,sett);
+        if zm < numel(sz) || it_zm > 1
+            [dat,shape] = spm_mb_shape('UpdateLatent',dat,shape,sett);
+            shape       = spm_mb_shape('UpdateLatentPrecision',shape,sett);
+        end
         shape       = spm_mb_shape('UpdateSubspace',dat,shape,sett);
         [dat,shape] = spm_mb_shape('OrthoSubspace',dat,shape,sett);
         shape       = spm_mb_shape('SuffStatVelocities',dat,shape,sett);

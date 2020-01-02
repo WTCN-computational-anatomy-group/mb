@@ -92,11 +92,11 @@ s = SetDefault(s, 'bf.reg',  1e5);  % Bending energy regularisation
 % .pca (shape modelling)
 %------------------
 
-s = SetDefault(s, 'pca.npc',          10);   % Number of principal components
-s = SetDefault(s, 'pca.res_prior',    14);   % Gamma prior on residuals precision - expected value
-s = SetDefault(s, 'pca.res_df',       eps);  % Gamma prior on residuals precision - degrees of freedom
-s = SetDefault(s, 'pca.latent_prior', 1);    % Wishart prior on latent precision  - expected value
-s = SetDefault(s, 'pca.latent_df',    eps);  % Wishart rior on latent precision   - degrees of freedom
+s = SetDefault(s, 'pca.npc',          10);    % Number of principal components
+s = SetDefault(s, 'pca.res_prior',    14);    % Gamma prior on residuals precision - expected value
+s = SetDefault(s, 'pca.res_df',       1e-3);  % Gamma prior on residuals precision - degrees of freedom
+s = SetDefault(s, 'pca.latent_prior', 1);     % Wishart prior on latent precision  - expected value
+s = SetDefault(s, 'pca.latent_df',    1e-3);  % Wishart rior on latent precision   - degrees of freedom
 % For df: % 0=ML, (>0)=prior, Inf=fixed/dirac
 
 %------------------

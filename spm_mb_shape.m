@@ -283,7 +283,7 @@ end
 
 %==========================================================================
 % InitModel()
-function [model,dat] = InitModel(dat,sett)
+function [model,dat,sett] = InitModel(dat,sett)
 % Initialise model structure:
 %   . if sett.pca.do: A, nA, lam, nlam, Z, ZZ, Sz, dat.z
 %   . ss.trLVV, ss.trLSV
@@ -313,6 +313,8 @@ if sett.do.pca
     end
     model.A = sett.pca.latent_prior;
     if isfinite(sett.pca.latent_df) && sett.pca.latent_df > 0
+        sett.pca.latent_df = max(sett.pca.latent_df, ...
+                                 sett.pca.npc - 1 + 1E-3);
         model.nA = sett.pca.latent_df;
     else
         model.nA = Inf;
@@ -1018,8 +1020,8 @@ A0   = sett.pca.latent_prior;   % Prior expected value
 n0   = sett.pca.latent_df;      % Prior deg. freedom
 
 n = n0 + ndat;
-if n0 > 0,  A = (n*A0)/(A0*ZZ +  n0*eye(ZZ));
-else,       A = n*inv(ZZ + eps*eye(ZZ)); % slight regularisation
+if n0 > 0,  A = (n*A0)/(A0*ZZ +  n0*eye(size(ZZ)));
+else,       A = n*inv(ZZ + 1E-3*eye(size(ZZ))); % slight regularisation
 end
 
 model.A = A;
@@ -1053,7 +1055,7 @@ D     = [size(model.U) 1 1 1];
 D     = prod(D(1:4));            % Number of voxels * 3
 
 n   = n0 + ndat;
-ss2 = trLVV/D + N*trace(Su*Sz) + trLSV/D;
+ss2 = trLVV/D + ndat*trace(Su*Sz) + trLSV/D;
 if n0 > 0,  lam = (n*lam0)/(lam0*ss2 +  n0);
 else,       lam = n/(ss2 + eps); % slight regularisation
 end
@@ -1200,11 +1202,11 @@ model.ULU = iQ' * model.ULU * iQ;
 model.Su  = iQ' * model.Su * iQ;
 model.ZZ  = Q   * model.ZZ  * Q';
 model.Sz  = Q   * model.Sz  * Q';
-model.Z   = Q   * model.ZZ;
+model.Z   = Q   * model.Z;
 
 % -------------------------------------------------------------------------
 % Rotate subjects
-for n=1:ndat
+for n=1:N
     dat(n).z = Q * dat(n).z;
 end
 
@@ -1240,7 +1242,7 @@ if do_pca
         ok = copyfile(model.U.fname, tmpname);
         if ~ok, error('Failed to copy the subspace file'); end
         nii = nifti(tmpname);
-        nii.dat.fname = fname;
+        nii.dat.fname = model.U.fname;
         nii.dat.dim(1:3) = d;
         nii.mat = Mmu;
         create(nii);
@@ -1261,11 +1263,11 @@ if do_pca
     end
     for k=1:size(model.U,4)
         for l=1:size(model.U,5)
-            U(:,:,:,k,l) = spm_diffeo('pullc',model.U(:,:,:,k,l),y);
+            U(:,:,:,k,l) = spm_diffeo('pullc',single(model.U(:,:,:,k,l)),y);
         end
     end
     if isa(model.U, 'file_array')
-        delete(model.U.fname);
+        delete(tmpname);
     end
     model.U = U;
 end
@@ -1297,14 +1299,13 @@ for n=1:numel(dat)
     v = spm_mb_io('GetData',dat(n).v);
     if do_pca
         v0 = 0;
-        du = spm_mb_io('GetSize',model.U);
-        for l=1:du(5)
-            v0 = v0 + spm_mb_io('GetData',model.U,5,l) * datn.z(l);
+        for l=1:size(model.U,5)
+            v0 = v0 + spm_mb_io('GetData',model.U,5,l) * dat(n).z(l);
         end
         v = v - v0;
     end
     u0  = spm_diffeo('vel2mom', v, v_settings); % Initial momentum
-    model.ss.trLVV = model.ss.trLVV + sum(u0(:).*v(:));
+    model.ss.trLVV = model.ss.trLVV + sum(u0(:).*v(:), 'double');
     model.ss.trLSV = model.ss.trLSV + dat(n).ss.trLSv;
 end
 end
@@ -2038,8 +2039,7 @@ v  = spm_mb_io('GetData',datn.v);
 v0 = 0;
 if do_pca
     % Compute subject-specific mean velocity from PCA
-    du = spm_mb_io('GetSize',model.U);
-    for l=1:du(5)
+    for l=1:size(model.U,5)
         v0 = v0 + spm_mb_io('GetData',model.U,5,l) * datn.z(l);
     end
     % Modulate precision
@@ -2066,8 +2066,8 @@ v         = v + v0 - scal*spm_diffeo('fmg', H, g, [v_settings s_settings]); % Ga
 
 if do_pca
     % Uncertainty term for lower bound: tr(L*Sv)
-    datn.ss.LSv = spm_diffeo('trapprox', H, [v_settings s_settings]);
-    datn.ss.LSv = datn.ss.LSv / lam;
+    datn.ss.LSv = double(spm_diffeo('trapprox', H, v_settings));
+    datn.ss.LSv = datn.ss.LSv / model.lam;
     % lam is removed from L so it can be updated after.
 end
 
@@ -2172,7 +2172,7 @@ q = min(max(q0,-10),10);  % Heuristic to avoid bad starting estimate
 Q = diag(exp(q));
 A = UpdateWishart(Q*ZZ*Q, ndat, A0, n0);
 E = 0.5*(trace(Q*ZZ*Q*A) + trace(ULU/(Q*Q))) ...
-  + (nvox - ndat) * logdet_stable(Q);
+  + (nvox - ndat) * LogDetChol(Q);
 % fprintf('[%3d %2d] %15.6g',0,0,E)
 
 all_E0 = E;
@@ -2357,8 +2357,8 @@ end
 % === UpdateWishart =======================================================
 function [A,n] = UpdateWishart(ZZ, ndat, A0, n0)
 n = n0 + ndat;
-if n0 > 0,  A = (n*A0)/(A0*ZZ +  n0*eye(ZZ));
-else,       A = n*inv(ZZ + eps*eye(ZZ)); % slight regularisation
+if n0 > 0,  A = (n*A0)/(A0*ZZ +  n0*eye(size(ZZ)));
+else,       A = n*inv(ZZ + 1E-3*eye(size(ZZ))); % slight regularisation
 end
 if nargout > 1 && n0 == 0
     n = Inf;
