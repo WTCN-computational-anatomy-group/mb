@@ -2066,8 +2066,8 @@ v         = v + v0 - scal*spm_diffeo('fmg', H, g, [v_settings s_settings]); % Ga
 
 if do_pca
     % Uncertainty term for lower bound: tr(L*Sv)
-    datn.ss.LSv = double(spm_diffeo('trapprox', H, v_settings));
-    datn.ss.LSv = datn.ss.LSv / model.lam;
+    datn.ss.trLSv = double(spm_diffeo('trapprox', H, v_settings));
+    datn.ss.trLSv = datn.ss.trLSv(1) / model.lam;
     % lam is removed from L so it can be updated after.
 end
 
