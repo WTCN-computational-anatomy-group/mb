@@ -3,20 +3,17 @@ function varargout = spm_mb_shape(varargin)
 %
 % Functions for shape model related.
 %
-% FORMAT psi0          = spm_mb_shape('Affine',d,Mat)
-% FORMAT psi           = spm_mb_shape('Compose',psi1,psi0)
-% FORMAT id            = spm_mb_shape('Identity',d)
+%--------------------------------------------------------------------------
+% INITIALISE MODEL
+%
 % FORMAT dat           = spm_mb_shape('InitDat',dat,sett)
 % FORMAT model         = spm_mb_shape('InitModel',sett)
 % FORMAT model         = spm_mb_shape('InitSubspace',model,sett)
 % FORMAT [dat,mu]      = spm_mb_shape('InitTemplate',dat,K,sett)
-% FORMAT l             = spm_mb_shape('LSE',mu,dr)
-% FORMAT a1            = spm_mb_shape('Pull1',a0,psi,r)
-% FORMAT [f1,w1]       = spm_mb_shape('Push1',f,psi,d,r)
-% FORMAT mu1           = spm_mb_shape('Shrink',mu,oMmu,sett)
-% FORMAT P             = spm_mb_shape('Softmax',mu,dr)
-% FORMAT [Mmu,d]       = spm_mb_shape('SpecifyMean',dat,vx)
-% FORMAT mun           = spm_mb_shape('TemplateK1',mun,ax)
+%
+%--------------------------------------------------------------------------
+% UPDATE MODEL
+%
 % FORMAT dat           = spm_mb_shape('UpdateAffines',dat,mu,sett)
 % FORMAT [model,dat]   = spm_mb_shape('UpdateMean',dat, model, sett)
 % FORMAT dat           = spm_mb_shape('UpdateSimpleAffines',dat,mu,sett)
@@ -28,14 +25,46 @@ function varargout = spm_mb_shape(varargin)
 % FORMAT model         = spm_mb_shape('UpdateLatentPrecision',model,sett)
 % FORMAT model         = spm_mb_shape('UpdateResidualPrecision',model,sett)
 % FORMAT [dat,model]   = spm_mb_shape('OrthoSubspace',dat,model,sett)
+%
+%--------------------------------------------------------------------------
+% ENERGY
+%
 % FORMAT model         = spm_mb_shape('SuffStatVelocities',dat,model,sett)
 % FORMAT model         = spm_mb_shape('SuffStatTemplate',dat,model,sett)
 % FORMAT E             = spm_mb_shape('ShapeEnergy',model,sett)
 % FORMAT [dat,model]   = spm_mb_shape('OrthoSubspace',dat,model,sett)
-% FORMAT [dat,mu]      = spm_mb_shape('ZoomVolumes',dat,mu,sett,oMmu)
+%
+%--------------------------------------------------------------------------
+% UTILS
+%
+% FORMAT psi0          = spm_mb_shape('Affine',d,Mat)
+% FORMAT psi           = spm_mb_shape('Compose',psi1,psi0)
+% FORMAT id            = spm_mb_shape('Identity',d)
+% FORMAT l             = spm_mb_shape('LSE',mu,dr)
+% FORMAT a1            = spm_mb_shape('Pull1',a0,psi,r)
+% FORMAT [f1,w1]       = spm_mb_shape('Push1',f,psi,d,r)
+% FORMAT P             = spm_mb_shape('Softmax',mu,dr)
+% FORMAT mun           = spm_mb_shape('TemplateK1',mun,ax)
+% FORMAT mu1           = spm_mb_shape('Shrink',mu,oMmu,sett)
+% FORMAT [Mmu,d]       = spm_mb_shape('SpecifyMean',dat,vx)
+% FORMAT [dat,model]   = spm_mb_shape('ZoomVolumes',dat,model,sett,oMmu)
 %
 %__________________________________________________________________________
 % Copyright (C) 2019 Wellcome Trust Centre for Neuroimaging
+
+%__________________________________________________________________________
+% 
+% STUFF TO DISCUSS
+% ----------------
+% . Function name: Mean or Template (need to be consistant)
+% . In th code: math (mu, A, psi) or english (template, latent_prec, warp)
+% . In the model structure: same question
+% . Clean the public API: do all the utils need to be exposed?
+% . It is a bit annoying that (private) subfunctions are very far from
+%   (public) main functions in the file.
+% . Function arguments: model structure or individual variables?
+% . IO: could be a made a bit cleaner using file_arrays.
+%__________________________________________________________________________
 
 if nargin == 0
     help spm_mb_shape
@@ -51,59 +80,59 @@ switch id
     case 'Identity'
         [varargout{1:nargout}] = Identity(varargin{:});
     case 'InitDat'
-        [varargout{1:nargout}] = InitDat(varargin{:});                
-    case 'InitTemplate'
-        [varargout{1:nargout}] = InitTemplate(varargin{:});         
+        [varargout{1:nargout}] = InitDat(varargin{:});          
     case 'InitModel'
-        [varargout{1:nargout}] = InitModel(varargin{:});          
+        [varargout{1:nargout}] = InitModel(varargin{:});         
     case 'InitSubspace'
-        [varargout{1:nargout}] = InitSubspace(varargin{:});        
+        [varargout{1:nargout}] = InitSubspace(varargin{:});              
+    case 'InitTemplate'
+        [varargout{1:nargout}] = InitTemplate(varargin{:});          
     case 'LSE'
         [varargout{1:nargout}] = LSE(varargin{:});
+    case 'OrthoSubspace'
+        [varargout{1:nargout}] = OrthoSubspace(varargin{:});  
     case 'Pull1'
         [varargout{1:nargout}] = Pull1(varargin{:});
     case 'Push1'
-        [varargout{1:nargout}] = Push1(varargin{:});    
+        [varargout{1:nargout}] = Push1(varargin{:});   
+    case 'ShapeEnergy'
+        [varargout{1:nargout}] = ShapeEnergy(varargin{:});   
     case 'ShrinkTemplate'
         [varargout{1:nargout}] = Shrink(varargin{:});
     case 'Softmax'
         [varargout{1:nargout}] = Softmax(varargin{:});       
     case 'SpecifyMean'
-        [varargout{1:nargout}] = SpecifyMean(varargin{:});               
+        [varargout{1:nargout}] = SpecifyMean(varargin{:});   
+    case 'SuffStatVelocities'
+        [varargout{1:nargout}] = SuffStatVelocities(varargin{:});    
+    case 'SuffStatTemplate'
+        [varargout{1:nargout}] = SuffStatTemplate(varargin{:});              
     case 'TemplateEnergy'
         [varargout{1:nargout}] = TemplateEnergy(varargin{:});    
     case 'TemplateK1'
         [varargout{1:nargout}] = TemplateK1(varargin{:});          
     case 'UpdateAffines'
-        [varargout{1:nargout}] = UpdateAffines(varargin{:});                   
+        [varargout{1:nargout}] = UpdateAffines(varargin{:});  
+    case 'UpdateLatent'
+        [varargout{1:nargout}] = UpdateLatent(varargin{:});
+    case 'UpdateLatentPrecision'
+        [varargout{1:nargout}] = UpdateLatentPrecision(varargin{:});                 
     case 'UpdateMean'
         [varargout{1:nargout}] = UpdateMean(varargin{:});
+    case 'UpdateResidualPrecision'
+        [varargout{1:nargout}] = UpdateResidualPrecision(varargin{:});
     case 'UpdateSimpleAffines'
         [varargout{1:nargout}] = UpdateSimpleAffines(varargin{:});
     case 'UpdateSimpleMean'
         [varargout{1:nargout}] = UpdateSimpleMean(varargin{:});
-    case 'UpdateVelocities'
-        [varargout{1:nargout}] = UpdateVelocities(varargin{:});
-    case 'UpdateLatent'
-        [varargout{1:nargout}] = UpdateLatent(varargin{:});
-    case 'UpdateLatentPrecision'
-        [varargout{1:nargout}] = UpdateLatentPrecision(varargin{:});
-    case 'UpdateResidualPrecision'
-        [varargout{1:nargout}] = UpdateResidualPrecision(varargin{:});
     case 'UpdateSubspace'
         [varargout{1:nargout}] = UpdateSubspace(varargin{:});
+    case 'UpdateVelocities'
+        [varargout{1:nargout}] = UpdateVelocities(varargin{:});
     case 'UpdateWarps'
-        [varargout{1:nargout}] = UpdateWarps(varargin{:}); 
-    case 'OrthoSubspace'
-        [varargout{1:nargout}] = OrthoSubspace(varargin{:}); 
+        [varargout{1:nargout}] = UpdateWarps(varargin{:});      
     case 'ZoomVolumes'
-        [varargout{1:nargout}] = ZoomVolumes(varargin{:});        
-    case 'SuffStatVelocities'
-        [varargout{1:nargout}] = SuffStatVelocities(varargin{:});    
-    case 'SuffStatTemplate'
-        [varargout{1:nargout}] = SuffStatTemplate(varargin{:});   
-    case 'ShapeEnergy'
-        [varargout{1:nargout}] = ShapeEnergy(varargin{:});             
+        [varargout{1:nargout}] = ZoomVolumes(varargin{:});              
     otherwise
         help spm_mb_shape
         error('Unknown function %s. Type ''help spm_mb_shape'' for help.', id)
@@ -187,14 +216,13 @@ function [dat,model] = InitModel(dat,sett)
 %   . if sett.pca.do: A, nA, lam, nlam, Z, ZZ, Sz, dat.z
 %   . ss.trLVV, ss.trLSV
 
+
 model = struct;
 
-% -----
-%  PCA
-% -----
 if sett.do.pca
     npc = sett.pca.npc;
     
+    % ---------------------------------------------------------------------
     % Latent precision
     if isscalar(sett.pca.latent_prior)
         if ~isfinite(sett.pca.latent_prior)
@@ -203,20 +231,22 @@ if sett.do.pca
         sett.pca.latent_prior = sett.pca.latent_prior * eye(npc);
     elseif size(sett.pca.latent_prior,1) ~= npc
         npc0 = size(sett.pca.latent_prior,1);
-        warning(['Latent prior number of principal component not ' ...
-                 'consistant: %d vs %d'], npc, npc0);
+        warning(['Latent prior and number of principal component not ' ...
+                 'consistant: %d vs %d'], npc0, npc);
         A0 = sett.pca.latent_prior;
         sett.pca.latent_prior = eye(sett.pca.npc);
         npc0 = min(npc,npc0);
         sett.pca.npc(1:npc0,1:npc0) = A0(1:npc0,1:npc0);
+        sett.pca.latent_prior = A0;
     end
-    model.A = A0;
+    model.A = sett.pca.latent_prior;
     if isfinite(sett.pca.latent_df) && sett.pca.latent_df > 0
         model.nA = sett.pca.latent_df;
     else
         model.nA = Inf;
     end
     
+    % ---------------------------------------------------------------------
     % Residual precision
     if ~isfinite(sett.pca.res_prior)
         sett.pca.res_prior = 10;
@@ -228,6 +258,7 @@ if sett.do.pca
         model.nlam = Inf;
     end
     
+    % ---------------------------------------------------------------------
     % Latent variable (random but orthogonal initialisation)
     model.Z  = zeros(npc,numel(dat));
     model.Sz = eye(npc)/numel(dat);
@@ -249,6 +280,7 @@ if sett.do.pca
     end
 end
     
+% -------------------------------------------------------------------------
 % Sufficient statistics
 model.ss.trLVV = 0;
 model.ss.trLSV = 0;
@@ -263,13 +295,13 @@ function model = InitSubspace(model,sett)
 if ~sett.do.pca, return; end
 
 updt_subspace = sett.do.updt_subspace;
-dir_res   = sett.write.dir_res;
-max_mem   = sett.gen.max_mem;
-lat       = [sett.var.d 1];
-lat       = lat(1:3);
-npc       = sett.pca.npc;
-Mmu       = sett.var.Mmu;
-v_setting = sett.var.v_settings;
+dir_res       = sett.write.dir_res;
+max_mem       = sett.gen.max_mem;
+lat           = [sett.var.d 1];
+lat           = lat(1:3);
+npc           = sett.pca.npc;
+Mmu           = sett.var.Mmu;
+v_setting     = sett.var.v_settings;
 
 if ~isfield(model, 'U')
     if prod(lat)*3*npc*4 > max_mem
@@ -396,6 +428,7 @@ end
 %==========================================================================
 % LSE()
 function l = LSE(mu,dr)
+% Log-Sum-Exp
 mx = max(mu,[],dr);
 l  = log(exp(-mx) + sum(exp(mu - mx),dr)) + mx;
 end
@@ -548,7 +581,7 @@ Mzoom   = Mmu\oMmu;
 if norm(Mzoom-eye(4))<1e-4 && all(d0==d)
     mu1 = mu;
 else
-    y       = reshape(reshape(Identity(d0),[prod(d0),3])*Mzoom(1:3,1:3)'+Mzoom(1:3,4)',[d0 3]);
+    y = reshape(reshape(Identity(d0),[prod(d0),3])*Mzoom(1:3,1:3)'+Mzoom(1:3,4)',[d0 3]);
     if isa(mu, 'file_array') ...
             && prod(d)*size(mu,4)*size(mu,5)*4 > max_mem
         mu1 = nifti(mu.fname);
@@ -578,6 +611,7 @@ end
 %==========================================================================
 % Softmax()
 function P = Softmax(mu,dr)
+% Safe softmax
 mx  = max(mu,[],dr);
 E   = exp(mu-mx);
 den = sum(E,dr)+exp(-mx);
@@ -588,6 +622,8 @@ end
 %==========================================================================
 % SpecifyMean()
 function [Mmu,d] = SpecifyMean(dat,vx)
+% Compute orientation and dimensions of the mean/template space from the
+% individual observed volumes.
 dims = zeros(numel(dat),3);
 Mat0 = zeros(4,4,numel(dat));
 for n=1:numel(dat)
@@ -624,6 +660,8 @@ end
 %==========================================================================
 % TemplateK1()
 function mun = TemplateK1(mun,ax)
+% Add (K+1)-th class to template. This is done in a safe way using the
+% log-sum-exp trick.
 mx  = max(max(mun,[],ax),0);
 lse = mx + log(sum(exp(mun - mx),ax) + exp(-mx));
 mun = cat(ax,mun - lse, -lse);
@@ -765,26 +803,55 @@ end
 %==========================================================================
 % UpdateLatent()
 function [dat,model] = UpdateLatent(dat,model,sett)
+% Posterior update of a multivariate Gaussian distribution.
 
 if ~sett.do.pca, return; end
 
-N = numel(dat); % Number of subjects
-L = size(model.U,5);
+% Dependencies
+N   = numel(dat);         % Number of subjects
+L   = size(model.U,5);    % Number of principal components
+A   = model.A;            % Precision matrix (posterior expected value)
+lam = model.lam;          % Residual precision (posterior expected value)
+ULU = model.ULU;          % Subspace 2nd order moment: E[U'LU]
 
-% Posterior variance
-% (common to all subjects so we pre-compute the value)
-model.Sz = model.A + model.lam * model.ULU;
-model.Sz = inv(model.Sz);
+% Posterior variance (common to all subjects)
+model.Sz = inv(A + lam * ULU);
 
 % Posterior mean
-model.Z  = zeros(L,N);
-model.ZZ = zeros(L);
+model.Z  = zeros(L,N);  % Mean for each subject
+model.ZZ = zeros(L);    % 2nd order moment: E[Z*Z']
 for n=1:N
-    dat(n)       = UpdateLatentSub(dat(n), model, vsett);
+    dat(n)       = UpdateLatentSub(dat(n), model, sett);
     model.Z(:,n) = dat(n).z;
     model.ZZ     = model.ZZ + dat(n).z*dat(n).z';
 end
 model.ZZ = model.ZZ + N*model.Sz;
+
+end
+%==========================================================================
+
+%==========================================================================
+% UpdateLatentSub()
+function datn = UpdateLatentSub(datn,model,sett)
+
+v_settings = sett.var.v_settings;
+
+L   = size(model.U,5);    % Number of principal components
+A   = model.A;            % Precision matrix (posterior expected value)
+lam = model.lam;          % Residual precision (posterior expected value)
+
+m = spm_mb_io('GetData',datn.v);
+m = spm_diffeo('vel2mom',m,v_settings); % Compute momentum: L * v
+m = m(:);
+
+datn.z = zeros(L,1);
+for j=1:L
+    U1        = single(model.U(:,:,:,:,j)); % Extract j-th mode
+    datn.z(j) = sum(U1(:).*m,'double');     % Project on subspace
+end
+clear U1
+
+datn.z  = model.lam * model.Sz * datn.z;
 
 end
 %==========================================================================
@@ -799,6 +866,7 @@ function model = UpdateLatentPrecision(model,sett)
 % n0 == Inf: Fixed value
 
 if ~sett.do.pca, return; end
+if ~sett.do.updt_latent_prior, return; end
 if ~isfinite(sett.pca.latent_df), return; end % Fixed value
 
 ndat = size(model.Z,2);         % Numbe of subjects (ss0)
@@ -1857,29 +1925,6 @@ if v_settings(4)==0             % Mean displacement should be 0
     v   = v - avg;
 end
 datn.v   = spm_mb_io('SetData',datn.v,v);
-end
-%==========================================================================
-
-%==========================================================================
-% UpdateLatentSub()
-function datn = UpdateLatentSub(datn,pca,sett)
-
-v_settings = sett.var.v_settings;
-L          = size(pca.subspace,5);
-
-m = spm_mb_io('GetData',datn.v);
-m = spm_diffeo('vel2mom',m,v_settings); % Compute momentum: L * v
-m = m(:);
-
-datn.z = zeros(L,1);
-for j=1:L
-    U1        = single(pca.subspace(:,:,:,:,j)); % Extract j-th mode
-    datn.z(j) = sum(U1(:).*m,'double');          % Project on subspace
-end
-clear U1
-
-datn.z  = pca.lam * pca.Sz * datn.z;
-
 end
 %==========================================================================
 

@@ -25,33 +25,26 @@ t0 = tic;
 % Get algorithm settings
 %------------------
 
-sett        = spm_mb_param('Settings',sett);
-dir_res     = sett.write.dir_res;
-do_gmm      = sett.do.gmm;
-do_updt_aff = sett.do.updt_aff;
-do_zoom     = sett.do.zoom;
-init_mu_dm  = sett.model.init_mu_dm;
-K           = sett.model.K; 
-nit_init    = sett.nit.init;
-nit_init_mu = sett.nit.init_mu;
-nit_zm0     = sett.nit.zm;
-show_level  = sett.show.level;
-vx          = sett.model.vx;
+N                = numel(data); % Number of subjects
+sett             = spm_mb_param('DefaultSettings',sett);
+[sett,given]     = spm_mb_param('ConditionalSettings',model,sett,N); % Decide what to learn
+% TODO: Adapt ConditionalSettings to subspace (+ residual & latent precision)
 
-spm_mb_show('Clear',sett); % Clear figures
-
-%------------------
-% Decide what to learn
-%------------------
-
-N = numel(data); % Number of subjects
-
-[sett,template_given,~,subspace_given] = spm_mb_param('SetFit',model,sett,N);
-
-% TODO: Adapt SetFit to subspace (+ residual & latent precision)
-
+dir_res          = sett.write.dir_res;
+do_gmm           = sett.do.gmm;
+do_updt_aff      = sett.do.updt_aff;
+do_zoom          = sett.do.zoom;
+init_mu_dm       = sett.model.init_mu_dm;
+K                = sett.model.K; 
+nit_init         = sett.nit.init;
+nit_init_mu      = sett.nit.init_mu;
+nit_zm0          = sett.nit.zm;
+show_level       = sett.show.level;
+vx               = sett.model.vx;
 do_updt_int      = sett.do.updt_int;
 do_updt_template = sett.do.updt_template;
+
+spm_mb_show('Clear',sett); % Clear figures
 
 %------------------
 % Init dat
@@ -60,14 +53,14 @@ do_updt_template = sett.do.updt_template;
 dat  = spm_mb_io('InitDat',data,sett); 
 data = [];
 
-%-----------------------
-% Read final dimensions
-%-----------------------
+%------------------
+% Read template dimensions
+%------------------
 
-if template_given    
+if given.template    
     dmu       = spm_mb_io('GetSize',model.shape.template);
     Mmu       = spm_mb_io('GetMat',model.shape.template);   
-elseif subspace_given
+elseif given.subspace
     dmu       = spm_mb_io('GetSize',model.shape.subspace);
     Mmu       = spm_mb_io('GetMat',model.shape.subspace);
 else
@@ -89,14 +82,14 @@ sett.var = spm_mb_io('CopyFields',sz(end), sett.var);
 %------------------
 
 dat = spm_mb_shape('InitDat',dat,sett);
-if subspace_given
-    [dU,F,L] = spm_mb_io('GetSize',model.shape.subspace);
-    if prod(dU)*F*L*4 > sett.gen.max_mem*1e9
+if given.subspace
+    [dU,~,npc] = spm_mb_io('GetSize',model.shape.subspace);
+    if prod(dU)*3*npc*4 > sett.gen.max_mem*1e9
         U0 = spm_mb_io('MemMapData',model.shape.subspace);
     else
         U0 = spm_mb_io('GetData',model.shape.subspace);
     end
-    sett.pca.npc = L;
+    sett.pca.npc = npc;
 end
 shape = spm_mb_shape('InitModel', sett);
 
@@ -107,7 +100,7 @@ shape = spm_mb_shape('InitModel', sett);
 if ~do_gmm
     [~,K] = spm_mb_io('GetSize',dat(1).f);
 end
-if template_given
+if given.template
     mu0          = spm_mb_io('GetData',model.shape.template); 
     [~,K]        = spm_mb_io('GetSize',model.shape.template);
     sett.model.K = K;
@@ -120,13 +113,13 @@ dat = spm_mb_appearance('Init',dat,model,K,sett);
 
 spm_mb_show('Speak','Start',N,K,sett);
 
-if subspace_given    
+if given.subspace    
     % Shrink given subspace
     shape.U = spm_mb_shape('Shrink',U0,Mmu,sett);
 end
 shape = spm_mb_shape('InitSubspace', shape, sett);
 
-if template_given    
+if given.template    
     % Shrink given template
     shape.mu = spm_mb_shape('Shrink',mu0,Mmu,sett);
 else
@@ -209,11 +202,11 @@ for zm=numel(sz):-1:1 % loop over zoom levels
     
     sett.gen.samp = min(max(vxmu(1),zm),5); % coarse-to-fine sampling of observed data
     
-    if template_given && ~do_updt_template
+    if given.template && ~do_updt_template
         % Resize template
         shape.mu = spm_mb_shape('Shrink',mu0,Mmu,sett);
     end
-    if subspace_given && ~do_updt_subspace
+    if given.subspace && ~do_updt_subspace
         % Resize template
         shape.U = spm_mb_shape('Shrink',U0,Mmu,sett);
     end
