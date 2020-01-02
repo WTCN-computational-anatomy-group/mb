@@ -34,70 +34,6 @@ end
 %==========================================================================
 
 %==========================================================================
-% AffineBases()
-function B = AffineBases(code)
-% This should probably be re-done to come up with a more systematic way of defining the
-% groups.
-g     = regexpi(code,'(?<code>\w*)\((?<dim>\d*)\)','names');
-g.dim = str2num(g.dim);
-if numel(g.dim)~=1 || (g.dim ~=0 && g.dim~=2 && g.dim~=3)
-    error('Can not use size');
-end
-if g.dim==0
-    B        = zeros(4,4,0);
-elseif g.dim==2
-    switch g.code
-    case 'T' 
-        B        = zeros(4,4,2);
-        B(1,4,1) =  1;
-        B(2,4,2) =  1;
-    case 'SO'
-        B        = zeros(4,4,1);
-        B(1,2,1) =  1;
-        B(2,1,1) = -1;
-    case 'SE' 
-        B        = zeros(4,4,3);
-        B(1,4,1) =  1;
-        B(2,4,2) =  1;
-        B(1,2,3) =  1;
-        B(2,1,3) = -1;
-    otherwise
-        error('Unknown group.');
-    end
-elseif g.dim==3
-    switch g.code
-    case 'T' 
-        B        = zeros(4,4,3);
-        B(1,4,1) =  1;
-        B(2,4,2) =  1;
-        B(3,4,3) =  1;
-    case 'SO' 
-        B        = zeros(4,4,3);
-        B(1,2,1) =  1;
-        B(2,1,1) = -1;
-        B(1,3,2) =  1;
-        B(3,1,2) = -1;
-        B(2,3,3) =  1;
-        B(3,2,3) = -1;
-    case 'SE' 
-        B        = zeros(4,4,6);
-        B(1,4,1) =  1;
-        B(2,4,2) =  1;
-        B(3,4,3) =  1;
-        B(1,2,4) =  1;
-        B(2,1,4) = -1;
-        B(1,3,5) =  1;
-        B(3,1,5) = -1;
-        B(2,3,6) =  1;
-        B(3,2,6) = -1;
-    otherwise
-        error('Unknown group.');
-    end
-end
-end
-%==========================================================================
-
-%==========================================================================
 % SetFit()
 function [sett,given] = ConditionalSettings(model,sett,ndat)
 % Change settings based on input model and number of subjects.
@@ -167,6 +103,26 @@ s = SetDefault(s, 'pca.latent_df',    eps);  % Wishart rior on latent precision 
 % For df: % 0=ML, (>0)=prior, Inf=fixed/dirac
 
 %------------------
+% .clean_z (resp clean-up related, spm_mb_output)
+%------------------
+
+if ~isfield(sett,'clean_z')
+    sett.clean_z = struct;
+end
+if ~isfield(sett.clean_z,'mrf')
+    sett.clean_z.mrf = 0; % 1
+end
+if ~isfield(sett.clean_z,'nit_mrf')
+    sett.clean_z.nit_mrf = 10;
+end
+if ~isfield(sett.clean_z,'gwc_tix')
+    sett.clean_z.gwc_tix = [];
+end
+if ~isfield(sett.clean_z,'gwc_level')
+    sett.clean_z.gwc_level = 1; % 1
+end
+
+%------------------
 % .do (enable/disable functionality)
 %------------------
 
@@ -223,6 +179,15 @@ s = SetDefault(s, 'model.vx',         1);     % Final template voxel size
 %         Can't it be inferred from 'do'?
 %         Or should groupwise == false, induce do.<lots> = false?
 %       . I'd prefer 'nclass' or 'ntissue' to 'K'
+if ~isfield(sett.model,'ix_init_pop')
+    % Index of population to use for initialising, then more than one
+    % population
+    sett.model.ix_init_pop = 1;    
+end
+if ~isfield(sett.model,'mg_ix')    
+    % For using multiple Gaussians per tissue (as in spm_preproc8)
+    sett.model.mg_ix = 1;
+end
 
 %------------------
 % .nit (iterations)
@@ -269,8 +234,19 @@ s = SetDefault(s, 'show.figname_int',        '(spm_mb) Intensity model');
 s = SetDefault(s, 'show.figname_model',      '(spm_mb) Template model');
 s = SetDefault(s, 'show.figname_parameters', '(spm_mb) Parameters');
 s = SetDefault(s, 'show.figname_subjects',   '(spm_mb) Segmentations');
-s = SetDefault(s, 'show.level',              2); % Zoom level
 s = SetDefault(s, 'show.mx_subjects',        4);
+if ~isfield(sett.show,'figs')
+    sett.show.figs = {}; % {'model','normalised','segmentations','intensity','parameters'}
+end
+if ~isfield(sett.show,'figname_imtemplatepace')
+    sett.show.figname_imtemplatepace = '(spm_mb) Template space data';
+end
+if ~isfield(sett.show,'print2screen')
+    sett.show.print2screen = true;
+end
+if ~isfield(sett.show,'mx_subjects')
+    sett.show.mx_subjects = 2;
+end
 
 
 %------------------
@@ -306,6 +282,9 @@ s = SetDefault(s, 'write.dir_res',   '.');           % Results directory
 s = SetDefault(s, 'write.im',        false(1,4));    % Input: [native corrected warped warped&corrected] 
 s = SetDefault(s, 'write.tc',        true(1,3));     % Tissue classes: [native warped warped&modulated]
 
+if ~isfield(sett.write,'workspace')
+    sett.write.workspace = false;
+end
 % Make directories (if does not exist)
 if ~(exist(s.write.dir_res,'dir') == 7) 
     ok = mkdir(s.write.dir_res);

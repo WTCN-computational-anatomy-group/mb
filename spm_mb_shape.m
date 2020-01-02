@@ -38,11 +38,13 @@ function varargout = spm_mb_shape(varargin)
 % UTILS
 %
 % FORMAT psi0          = spm_mb_shape('Affine',d,Mat)
+% FORMAT B             = spm_mb_shape('AffineBases',code)
 % FORMAT psi           = spm_mb_shape('Compose',psi1,psi0)
 % FORMAT id            = spm_mb_shape('Identity',d)
 % FORMAT l             = spm_mb_shape('LSE',mu,dr)
 % FORMAT a1            = spm_mb_shape('Pull1',a0,psi,r)
 % FORMAT [f1,w1]       = spm_mb_shape('Push1',f,psi,d,r)
+% FORMAT sd            = spm_mb_shape('SampDens',Mmu,Mn)
 % FORMAT P             = spm_mb_shape('Softmax',mu,dr)
 % FORMAT mun           = spm_mb_shape('TemplateK1',mun,ax)
 % FORMAT mu1           = spm_mb_shape('Shrink',mu,oMmu,sett)
@@ -74,7 +76,9 @@ id = varargin{1};
 varargin = varargin(2:end);
 switch id    
     case 'Affine'
-        [varargout{1:nargout}] = Affine(varargin{:});             
+        [varargout{1:nargout}] = Affine(varargin{:});     
+    case 'AffineBases'
+        [varargout{1:nargout}] = AffineBases(varargin{:});           
     case 'Compose'
         [varargout{1:nargout}] = Compose(varargin{:});
     case 'Identity'
@@ -97,6 +101,8 @@ switch id
         [varargout{1:nargout}] = Push1(varargin{:});   
     case 'ShapeEnergy'
         [varargout{1:nargout}] = ShapeEnergy(varargin{:});   
+    case 'SampDens'
+        [varargout{1:nargout}] = SampDens(varargin{:});
     case 'ShrinkTemplate'
         [varargout{1:nargout}] = Shrink(varargin{:});
     case 'Softmax'
@@ -145,6 +151,71 @@ end
 function psi0 = Affine(d,Mat)
 id    = Identity(d);
 psi0  = reshape(reshape(id,[prod(d) 3])*Mat(1:3,1:3)' + Mat(1:3,4)',[d 3]);
+if d(3) == 1, psi0(:,:,:,3) = 1; end
+end
+%==========================================================================
+
+%==========================================================================
+% AffineBases()
+function B = AffineBases(code)
+% This should probably be re-done to come up with a more systematic way of defining the
+% groups.
+g     = regexpi(code,'(?<code>\w*)\((?<dim>\d*)\)','names');
+g.dim = str2num(g.dim);
+if numel(g.dim)~=1 || (g.dim ~=0 && g.dim~=2 && g.dim~=3)
+    error('Can not use size');
+end
+if g.dim==0
+    B        = zeros(4,4,0);
+elseif g.dim==2
+    switch g.code
+    case 'T' 
+        B        = zeros(4,4,2);
+        B(1,4,1) =  1;
+        B(2,4,2) =  1;
+    case 'SO'
+        B        = zeros(4,4,1);
+        B(1,2,1) =  1;
+        B(2,1,1) = -1;
+    case 'SE' 
+        B        = zeros(4,4,3);
+        B(1,4,1) =  1;
+        B(2,4,2) =  1;
+        B(1,2,3) =  1;
+        B(2,1,3) = -1;
+    otherwise
+        error('Unknown group.');
+    end
+elseif g.dim==3
+    switch g.code
+    case 'T' 
+        B        = zeros(4,4,3);
+        B(1,4,1) =  1;
+        B(2,4,2) =  1;
+        B(3,4,3) =  1;
+    case 'SO' 
+        B        = zeros(4,4,3);
+        B(1,2,1) =  1;
+        B(2,1,1) = -1;
+        B(1,3,2) =  1;
+        B(3,1,2) = -1;
+        B(2,3,3) =  1;
+        B(3,2,3) = -1;
+    case 'SE' 
+        B        = zeros(4,4,6);
+        B(1,4,1) =  1;
+        B(2,4,2) =  1;
+        B(3,4,3) =  1;
+        B(1,2,4) =  1;
+        B(2,1,4) = -1;
+        B(1,3,5) =  1;
+        B(3,1,5) = -1;
+        B(2,3,6) =  1;
+        B(3,2,6) = -1;
+    otherwise
+        error('Unknown group.');
+    end
+end
 end
 %==========================================================================
 
@@ -182,9 +253,10 @@ for n=1:numel(dat)
         dat(n).psi = psi1;
     else
         if isa(dat(n).f,'nifti')
-            [~,nam,~] = fileparts(dat(n).f(1).dat.fname);
-            vname    = fullfile(dir_res,['v_' nam '.nii']);
-            pname    = fullfile(dir_res,['psi_' nam '.nii']);
+            [pth,nam,~] = fileparts(dat(n).f(1).dat.fname);
+            if isempty(dir_res), dir_res = pth; end
+            vname       = fullfile(dir_res,['v_' nam '.nii']);
+            pname       = fullfile(dir_res,['psi_' nam '.nii']);
             
             fa       = file_array(vname,[d(1:3) 1 3],'float32',0);
             nii      = nifti;
@@ -368,56 +440,127 @@ mu = zeros([sett.var.d K],'single');
 
 if ~do_gmm, return; end
 
-% Change some settings
+% % Change some settings
+% do_updt_bf      = sett.do.updt_bf;
+ix_init         = sett.model.ix_init_pop;
+mg_ix           = sett.model.mg_ix;
+nit_appear      = sett.nit.appear;
+nit_init_mu     = sett.nit.init_mu;
 do_updt_bf      = sett.do.updt_bf;
 samp            = sett.gen.samp;
-nit_appear      = sett.nit.appear;
 nit_gmm         = sett.nit.gmm;
 sett.do.updt_bf = false;
-sett.nit.gmm    = 100;
 sett.gen.samp   = 5;
 sett.nit.appear = 1;
+sett.nit.gmm    = 100;
+
+% Parameters
+K1  = K + 1;
+Kmg = numel(mg_ix);
 
 % Get population indices
 p_ix       = spm_mb_appearance('GetPopulationIdx',dat);
 Npop       = numel(p_ix);
-first_subj = true;
-for p=1:Npop
+first_subj = true; % For when not using InitGMM, make posterior means of all subjects uninformative, except first subject in population sett.model.ix_init_pop
+pop_rng    = 1:Npop;
+
+% Was InitGMM run on initialising population?
+[~,C]       = spm_mb_io('GetSize',dat(p_ix{ix_init}(1)).f);
+has_ct      = any(dat(p_ix{ix_init}(1)).is_ct == true);
+use_initgmm = C == 1 && ~has_ct;
+
+for p=[ix_init pop_rng(pop_rng ~= ix_init)] % loop over populations (starting index defined by sett.model.ix_init_pop)
     % To make the algorithm more robust when using multiple populations,
     % set posterior and prior means (m) of GMMs of all but the first population to
     % uniform  
-    avg_po = 0;
-    avg_pr = 0;
-    for n=p_ix{p}
-        avg_po = avg_po + dat(n).mog.po.m;
-        avg_pr = avg_pr + dat(n).mog.pr.m;
-    end
-    avg_po = avg_po./numel(p_ix{p});
-    avg_po = mean(avg_po,2);
-    avg_pr = avg_pr./numel(p_ix{p});
-    avg_pr = mean(avg_pr,2);
     
+    if use_initgmm && p == ix_init, continue; end
+    
+    C = size(dat(p_ix{p}(1)).mog.po.m,1);
+   
+    avg_m_po  = 0;
+    avg_m_pr  = 0;
+    avg_vr_po = 0;
+    avg_vr_pr = 0;
     for n=p_ix{p}
-        dat(n).mog.pr.m = repmat(avg_pr,[1 K + 1]);        
-        if first_subj            
+        % mean
+        avg_m_po = avg_m_po + dat(n).mog.po.m;
+        avg_m_pr = avg_m_pr + dat(n).mog.pr.m;
+        
+        % variance
+        vr_po = reshape(dat(n).mog.po.n,[1 1 Kmg]).*dat(n).mog.po.W;
+        vr_pr = reshape(dat(n).mog.pr.n,[1 1 Kmg]).*dat(n).mog.pr.W;
+        for k=1:Kmg
+            vr_po(:,:,k) = inv(vr_po(:,:,k));
+            vr_pr(:,:,k) = inv(vr_pr(:,:,k));
+        end
+        avg_vr_po = avg_vr_po + vr_po;
+        avg_vr_pr = avg_vr_pr + vr_pr;
+    end
+    
+    % Average means
+    avg_m_po = avg_m_po./numel(p_ix{p});
+    avg_m_po = mean(avg_m_po,2);
+    avg_m_pr = avg_m_pr./numel(p_ix{p});
+    avg_m_pr = mean(avg_m_pr,2);
+        
+    % Average variances
+    avg_vr_po = avg_vr_po./numel(p_ix{p});
+    avg_vr_po = mean(avg_vr_po,3);
+    avg_vr_pr = avg_vr_pr./numel(p_ix{p});
+    avg_vr_pr = mean(avg_vr_pr,3);
+        
+    % Add a bit of random noise to prior    
+    mpo = zeros(C,Kmg);
+    mpr = zeros(C,Kmg);
+    for k=1:K1
+        kk = sum(mg_ix == k);
+        w  = 1./(1 + exp(-(kk - 1)*0.25)) - 0.5;
+                
+        rng(1);
+        mn                = avg_m_po;
+        vr                = avg_vr_po;                
+        mpo(:,mg_ix == k) = sqrtm(vr)*sort(randn(C,kk),2)*w + repmat(mn,[1 kk]);
+        
+        rng(1);
+        mn                = avg_m_pr;
+        vr                = avg_vr_pr;                
+        mpr(:,mg_ix == k) = sqrtm(vr)*sort(randn(C,kk),2)*w + repmat(mn,[1 kk]);
+    end
+    
+    % Assign
+    for n=p_ix{p}
+        dat(n).mog.pr.m = mpr; % prior
+        if ~use_initgmm && first_subj            
             first_subj = false;
             continue
         end        
-        dat(n).mog.po.m = repmat(avg_po,[1 K + 1]);        
+        dat(n).mog.po.m = mpo; % posterior
+    end
+    
+    if 0
+        spm_gmm_lib('plot','gaussprior',{mpo,dat(n).mog.po.b,dat(n).mog.po.W,dat(n).mog.po.n},[],'InitMu');
+        spm_gmm_lib('plot','gaussprior',{mpr,dat(n).mog.pr.b,dat(n).mog.pr.W,dat(n).mog.pr.n},[],'InitMu');
     end
 end
 
-% Update template based on only first subject..
-[mu,dat(p_ix{1}(1))] = spm_mb_shape('UpdateSimpleMean',dat(p_ix{1}(1)), mu, sett);
-% ..then propagate to all other subjects in populations..
-[mu,dat(p_ix{1})]    = spm_mb_shape('UpdateSimpleMean',dat(p_ix{1}), mu, sett);
+if ~use_initgmm
+    % Update template based on only first subject of population sett.model.ix_init_pop
+    for it=1:nit_init_mu
+        [mu,dat(p_ix{ix_init}(1))] = spm_mb_shape('UpdateSimpleMean',dat(p_ix{ix_init}(1)), mu, sett);
+    end
+end
+% Update template using all subjects from population sett.model.ix_init_pop
+for it=1:nit_init_mu
+    [mu,dat(p_ix{ix_init})] = spm_mb_shape('UpdateSimpleMean',dat(p_ix{ix_init}), mu, sett);
+end
 if Npop > 1
-    % ..if more than one population, use template learned on first
-    % population to initialise other populations' subjects
-    [mu,dat]         = spm_mb_shape('UpdateSimpleMean',dat,    mu, sett);    
+    % If more than one population, use template learned on sett.model.ix_init_pop
+    % population to initialise other populations' GMM parameters
+    [mu,dat] = spm_mb_shape('UpdateSimpleMean',dat,    mu, sett);    
 end
 
-% Restore settings
+% % Restore settings
 sett.do.updt_bf = do_updt_bf;
 sett.gen.samp   = samp;
 sett.nit.appear = nit_appear;
@@ -563,6 +706,15 @@ else
     f1(~msk) = 0;
     w1       = single(all(msk,4));
 end
+end
+%==========================================================================
+
+%==========================================================================
+% SampDens()
+function sd = SampDens(Mmu,Mn)
+vx_mu = sqrt(sum(Mmu(1:3,1:3).^2,1));
+vx_f  = sqrt(sum( Mn(1:3,1:3).^2,1));
+sd    = max(round(2.0*vx_f./vx_mu),1);
 end
 %==========================================================================
 
@@ -1163,6 +1315,8 @@ for n=1:numel(dat)
     u0  = spm_diffeo('vel2mom', v, v_settings); % Initial momentum
     model.ss.trLVV = model.ss.trLVV + sum(u0(:).*v(:));
     model.ss.trLSV = model.ss.trLSV + dat(n).ss.trLSv;
+    % Ensure correct lower bound
+    dat(n).mog.lb.pr_v(end + 1) = -dat(n).E(2);
 end
 end
 %==========================================================================
@@ -1427,7 +1581,9 @@ function [M_avg,d] = ComputeAvgMat(Mat0,dims)
 
 % Rigid-body matrices computed from exp(p(1)*B(:,:,1)+p(2)+B(:,:,2)...)
 %--------------------------------------------------------------------------
-B = spm_mb_param('AffineBases','SE(3)');
+if dims(1,3) == 1, B = AffineBases('SE(2)');
+else,              B = AffineBases('SE(3)');
+end
 
 % Find combination of 90 degree rotations and flips that brings all
 % the matrices closest to axial

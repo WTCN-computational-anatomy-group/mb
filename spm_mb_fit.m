@@ -1,10 +1,21 @@
 function [dat,model,sett] = spm_mb_fit(data,varargin)
-%__________________________________________________________________________
-%
 % Multi-Brain - Groupwise normalisation and segmentation of images
 %
+% FORMAT [dat,model,sett] = spm_mb_fit(data,varargin)
+%
+% INPUT
+% data -
+%
+%
+% OUTPUT
+% dat   -
+% model -
+% sett  -
+%
 %__________________________________________________________________________
-% Copyright (C) 2019 Wellcome Trust Centre for Neuroimaging
+%
+%__________________________________________________________________________
+% Copyright (C) 2020 Wellcome Trust Centre for Neuroimaging
 
 % Parse input
 p              = inputParser;
@@ -19,6 +30,9 @@ sett  = p.Results.sett;
 spm_mb_io('SetBoundCond');
 spm_mb_io('SetPath');
 
+% Repeatable random numbers
+rng('default'); rng(1);
+
 t0 = tic;
 
 %------------------
@@ -29,6 +43,8 @@ N                = numel(data); % Number of subjects
 sett             = spm_mb_param('DefaultSettings',sett);
 [sett,given]     = spm_mb_param('ConditionalSettings',model,sett,N); % Decide what to learn
 % TODO: Adapt ConditionalSettings to subspace (+ residual & latent precision)
+print2screen = sett.show.print2screen;
+write_ws     = sett.write.workspace;
 
 dir_res          = sett.write.dir_res;
 do_gmm           = sett.do.gmm;
@@ -53,6 +69,21 @@ spm_mb_show('Clear',sett); % Clear figures
 dat  = spm_mb_io('InitDat',data,sett); 
 data = [];
 
+if isempty(dir_res) 
+    pth     = fileparts(dat(1).f(1).dat.fname);
+    dir_res = pth; 
+end
+
+% Get number of template classes (if not using GMM)
+if ~do_gmm, [~,K] = spm_mb_io('GetSize',dat(1).f); end
+if template_given
+    [~,K]        = spm_mb_io('GetSize',model.shape.template);
+    sett.model.K = K;
+end
+if isscalar(sett.model.mg_ix)
+    sett.model.mg_ix = repelem(1:K + 1,sett.model.mg_ix);
+end
+
 %------------------
 % Read template dimensions
 %------------------
@@ -66,7 +97,20 @@ elseif given.subspace
 else
     [Mmu,dmu] = spm_mb_shape('SpecifyMean',dat,vx);
 end
-vxmu = sqrt(sum(Mmu(1:3,1:3).^2));
+vxmu     = sqrt(sum(Mmu(1:3,1:3).^2));
+sett.Mmu = Mmu;
+
+%------------------
+% Set affine bases
+%------------------
+
+if dmu(3) == 1 % 2D
+    sett.registr.B      = spm_mb_shape('AffineBases','SE(2)');
+    denom_aff_tol       = N*100^3;               % smaller convergence threshold
+else           % 3D
+    sett.registr.B = spm_mb_shape('AffineBases','SE(3)');
+    denom_aff_tol  = N*100^4;
+end
 
 %------------------
 % Get zoom (multi-scale) settings
@@ -136,6 +180,9 @@ spm_mb_show('All',dat,shape.mu,[],N,sett);
 Objective = [];
 E         = Inf;
 prevt     = Inf;
+add_po_observation = true; % Add one posterior sample to UpdatePrior
+
+if do_updt_template, te = spm_mb_shape('TemplateEnergy',mu,sett); end
 
 if do_updt_aff
     
@@ -145,7 +192,7 @@ if do_updt_aff
         
     sett.gen.samp = min(max(vxmu(1),numel(sz)),5); % coarse-to-fine sampling of observed data
     
-    spm_mb_show('Speak','InitAff',sett.nit.init);
+    spm_mb_show('Speak','InitAff',sett);
     for it_init=1:nit_init
                                
         if do_updt_template
@@ -161,15 +208,16 @@ if do_updt_aff
                 t           = toc;
 
                 % Print stuff
-                fprintf('it=%i mu \t%g\t%g\t%g\n', it_init, E, t, (oE - E)/prevt);
+                if print2screen > 0, fprintf('it=%i mu \t%g\t%g\t%g\n', it_init, E, t, (oE - E)/prevt); end
                 prevt     = t;
                 Objective = [Objective; E];               
             end
-        end                
-        % if it_init > 1 && (oE - E)/(numel(dat)*100^3) < 1e-4
-        %     % Finished rigid alignment
-        %     break; 
-        % end
+        end         
+        
+        if it_init > 1 && (oE - E)/denom_aff_tol < 1e-4
+            % Finished rigid alignment
+            break; 
+        end        
         
         % Update affine
         oE    = E; tic;
@@ -179,15 +227,18 @@ if do_updt_aff
         E     = sum(E_shape(:)) + sum(E_app(:));
         t     = toc;        
         
-        fprintf('it=%i q  \t%g\t%g\t%g\n', it_init, E, t, (oE - E)/prevt);
+        if print2screen > 0, fprintf('it=%i q  \t%g\t%g\t%g\n', it_init, E, t, (oE - E)/prevt); end
         prevt     = t;
-        Objective = [Objective; E];
+        Objective = [Objective; E];        
         
-        if do_updt_template || do_updt_int
-            % Save stuff
-            save(fullfile(dir_res,'fit.mat'),'dat','shape','sett')
-        end                
-    end
+        if write_ws && (do_updt_template || do_updt_int)
+            % Save workspace (except template) 
+            save(fullfile(dir_res,'fit_spm_mb.mat'), '-regexp', '^(?!(mu)$).');
+        end          
+        
+        % Save template
+        spm_mb_io('SaveTemplate',dat,mu,sett);
+    end        
     
     % Show stuff
     spm_mb_show('All',dat,shape.mu,Objective,N,sett);
@@ -197,10 +248,12 @@ end
 % Iteratively decrease the template resolution
 %------------------
 
-spm_mb_show('Speak','Iter',numel(sz)); tic;
+spm_mb_show('Speak','Iter',sett,numel(sz)); 
+if print2screen > 0, tic; end
 for zm=numel(sz):-1:1 % loop over zoom levels
     
-    sett.gen.samp = min(max(vxmu(1),zm),5); % coarse-to-fine sampling of observed data
+    sett.gen.samp = min(max(vxmu(1),zm),5);     % coarse-to-fine sampling of observed data    
+    if zm == 1, add_po_observation = false; end % do not add posterior sample to UpdatePrior when using no template zoom
     
     if given.template && ~do_updt_template
         % Resize template
@@ -220,7 +273,6 @@ for zm=numel(sz):-1:1 % loop over zoom levels
         end
     end    
         
-    Z      = Inf;
     nit_zm = nit_zm0 + (zm - 1);
     for it_zm=1:nit_zm
 
@@ -269,15 +321,20 @@ for zm=numel(sz):-1:1 % loop over zoom levels
         dat = spm_mb_shape('UpdateWarps',dat,sett);  
         
         % Print stuff
-        fprintf('zm=%i it=%i\t%g\n', zm, it_zm, E);        
+        if print2screen > 0, fprintf('zm=%i it=%i\t%g\t%g\t%g\t%g\t%g\n', zm, it_zm, E0, E1, E2, E3, E4); end               
         Objective = [Objective; E];
                 
-        if do_updt_template || do_updt_int
-            % Save stuff
-            save(fullfile(dir_res,'fit.mat'),'dat','mu','sett')
-        end                
-    end    
-    fprintf('%g seconds\n\n', toc); tic;
+        if write_ws && (do_updt_template || do_updt_int)
+            % Save workspace (except template) 
+            save(fullfile(dir_res,'fit_spm_mb.mat'), '-regexp', '^(?!(mu)$).');
+        end          
+        
+        % Save template
+        spm_mb_io('SaveTemplate',dat,mu,sett);             
+    end           
+
+    % Show stuff
+    spm_mb_show('All',dat,mu,Objective,N,sett);
     
     % Show stuff
     spm_mb_show('All',dat,shape.mu,Objective,N,sett);            
@@ -285,6 +342,7 @@ end
 
 % Final mean update
 [shape,dat] = spm_mb_shape('UpdateMean',dat,shape,sett);
+dat      = spm_mb_appearance('UpdatePrior',dat, mu, sett, add_po_observation);  
 
 % Save template
 spm_mb_io('SaveTemplate',shape.mu,sett);
@@ -297,6 +355,6 @@ model = spm_mb_io('MakeModel',dat,model,sett);
 % TODO: save PCA variables in the model (residual and latent precision)
 
 % Print total runtime
-spm_mb_show('Speak','Finished',toc(t0));
+spm_mb_show('Speak','Finished',sett,toc(t0));
 end
 %==========================================================================

@@ -27,6 +27,105 @@ end
 %==========================================================================
 
 %==========================================================================
+% CleanGWC()
+function zn = CleanGWC(zn,ixt,level)
+if nargin < 2 || isempty(ixt)
+    % Default SPM12 template ordering
+    ixt = struct('gm',1,'wm',2,'csf',3);
+end
+if nargin < 3, level = 1; end
+
+b = sum(zn(:,:,:,ixt.wm),4);
+
+% Build a 3x3x3 seperable smoothing kernel
+kx=[0.75 1 0.75];
+ky=[0.75 1 0.75];
+kz=[0.75 1 0.75];
+sm=sum(kron(kron(kz,ky),kx))^(1/3);
+kx=kx/sm; ky=ky/sm; kz=kz/sm;
+
+% Erosions and conditional dilations
+th1 = 0.15;
+if level==2, th1 = 0.2; end
+niter  = 32;
+niter2 = 32;
+for j=1:niter
+    if j>2, th=th1; else th=0.6; end  % Dilate after two its of erosion
+    for i=1:size(b,3)
+        gp       = double(sum(zn(:,:,i,ixt.gm),4));
+        wp       = double(sum(zn(:,:,i,ixt.wm),4));
+        bp       = double(b(:,:,i));
+        bp       = (bp>th).*(wp+gp);
+        b(:,:,i) = bp;
+    end
+    spm_conv_vol(b,b,kx,ky,kz,-[1 1 1]);
+end
+
+% Also clean up the CSF.
+if niter2 > 0
+    c = b;
+    for j=1:niter2
+        for i=1:size(b,3)
+            gp       = double(sum(zn(:,:,i,ixt.gm),4));
+            wp       = double(sum(zn(:,:,i,ixt.wm),4));
+            cp       = double(sum(zn(:,:,i,ixt.csf),4));
+            bp       = double(c(:,:,i));
+            bp       = (bp>th).*(wp+gp+cp);
+            c(:,:,i) = bp;
+        end
+        spm_conv_vol(c,c,kx,ky,kz,-[1 1 1]);
+    end
+end
+
+th = 0.05;
+for i=1:size(b,3)
+    slices = cell(1,size(zn,4));
+    for k1=1:size(zn,4)
+        slices{k1} = double(zn(:,:,i,k1));
+    end
+    bp           = double(b(:,:,i));
+    bp           = ((bp>th).*(sum(cat(3,slices{ixt.gm}),3)+sum(cat(3,slices{ixt.wm}),3)))>th;
+    for i1=1:numel(ixt.gm)
+        slices{ixt.gm(i1)} = slices{ixt.gm(i1)}.*bp;
+    end
+    for i1=1:numel(ixt.wm)
+        slices{ixt.wm(i1)} = slices{ixt.wm(i1)}.*bp;
+    end
+    
+    if niter2>0
+        cp           = double(c(:,:,i));
+        cp           = ((cp>th).*(sum(cat(3,slices{ixt.gm}),3)+sum(cat(3,slices{ixt.wm}),3)+sum(cat(3,slices{ixt.csf}),3)))>th;
+        
+        for i1=1:numel(ixt.csf)
+            slices{ixt.csf(i1)} = slices{ixt.csf(i1)}.*cp;
+        end        
+    end
+    tot       = zeros(size(bp))+eps;
+    for k1=1:size(zn,4)
+        tot   = tot + slices{k1};
+    end
+    for k1=1:size(zn,4)
+        zn(:,:,i,k1) = slices{k1}./tot;
+    end 
+end
+end
+%==========================================================================
+
+%==========================================================================
+% PostProcMRF()
+function zn = PostProcMRF(zn,Mn,strength,nit)
+P   = zeros(size(zn),'uint8');   
+G   = ones([size(zn,4),1],'single')*strength;
+vx  = sqrt(sum(Mn(1:3,1:3).^2));
+vx2 = 1./single(vx);
+for i=1:nit      
+    spm_mrf(P,zn,G,vx2);        
+end       
+zn = single(P)/255; 
+end
+%==========================================================================
+
+%==========================================================================
 % ProcessSubject()
 function resn = ProcessSubject(datn,resn,mun,ix,sett)
 
@@ -38,30 +137,39 @@ dmu        = sett.var.d;
 dir_res    = sett.write.dir_res;
 do_infer   = sett.do.infer;
 fwhm       = sett.bf.fwhm;
+gwc_level  = sett.clean_z.gwc_level;
+gwc_tix    = sett.clean_z.gwc_tix;
+mg_ix      = sett.model.mg_ix;
 Mmu        = sett.var.Mmu;
+mrf        = sett.clean_z.mrf;
+nit_mrf    = sett.clean_z.nit_mrf;
 reg        = sett.bf.reg;
 write_bf   = sett.write.bf; % field
 write_df   = sett.write.df; % forward, inverse
 write_im   = sett.write.im; % image, corrected, warped, warped corrected
 write_tc   = sett.write.tc; % native, warped, warped-mod
 
-if ~(exist(dir_res,'dir') == 7)  
-    mkdir(dir_res);  
-end
-s       = what(dir_res); % Get absolute path
-dir_res = s.path;
-
 % Get parameters
 [df,C] = spm_mb_io('GetSize',datn.f);
 K      = size(mun,4);
 K1     = K + 1;
-if isa(datn.f(1),'nifti'), [~,namn] = fileparts(datn.f(1).dat.fname);                
-else,                         namn  = ['n' num2str(ix)];
+Kmg    = numel(mg_ix);
+if isa(datn.f(1),'nifti') 
+    [pth,namn] = fileparts(datn.f(1).dat.fname);                
+else
+    namn  = ['n' num2str(ix)];
+    pth   = '.';
 end            
 Mr    = spm_dexpm(double(datn.q),B);
 Mn    = datn.Mat;                
 do_bf = datn.do_bf;
 is_ct = datn.is_ct;
+
+% Set output path
+if ~isempty(dir_res) && ~(exist(dir_res,'dir') == 7), mkdir(dir_res); end
+if  isempty(dir_res), dir_res = pth; end
+s       = what(dir_res); % Get absolute path
+dir_res = s.path;
 
 % Integrate K1 and C into write settings
 if size(write_bf,1) == 1 && C  > 1, write_bf = repmat(write_bf,[C  1]); end    
@@ -103,6 +211,11 @@ if isfield(datn,'mog') && (any(write_bf(:) == true) || any(write_im(:) == true) 
     mun    = mun + labels;
     labels = [];
     
+    % Integrate use of multiple Gaussians per tissue
+    mg_w = datn.mog.mg_w;
+    mun  = mun(:,mg_ix);
+    mun  = mun + log(mg_w);   
+        
     % Format for spm_gmm
     [bffn,code_image,msk_chn] = spm_gmm_lib('obs2cell', bf.*fn);
     mun                       = spm_gmm_lib('obs2cell', mun, code_image, false);
@@ -116,20 +229,27 @@ if isfield(datn,'mog') && (any(write_bf(:) == true) || any(write_im(:) == true) 
     % Get responsibilities
     zn  = spm_mb_appearance('Responsibility',m,b,W,n,bffn,mun,msk_chn); 
     zn  = spm_gmm_lib('cell2obs', zn, code_image, msk_chn);        
-    mun = []; msk_chn = [];    
+    mun = []; msk_chn = [];
 
     % Get bias field modulated image data
     fn = bf.*fn;
     if do_infer
         % Infer missing values
+        code        = sum(bsxfun(@times, ~isnan(fn), 2.^(0:size(fn,2)-1)), 2);
         sample_post = do_infer > 1;
-        MU = datn.mog.po.m;    
-        A  = bsxfun(@times, datn.mog.po.W, reshape(datn.mog.po.n, [1 1 K1]));            
-        fn = spm_gmm_lib('InferMissing',fn,zn,{MU,A},msk_chn,sample_post);        
+        MU          = datn.mog.po.m;    
+        A           = bsxfun(@times, datn.mog.po.W, reshape(datn.mog.po.n, [1 1 Kmg]));            
+        fn          = spm_gmm_lib('InferMissing',fn,zn,{MU,A},code,sample_post);  
+        code        = [];
+    end        
+    
+    % If using multiple Gaussians per tissue, collapse so that zn is of
+    % size K1
+    if Kmg > K1
+        for k=1:K1, zn(:,k) = sum(zn(:,mg_ix==k),2); end
+        zn(:,K1 + 1:end)    = [];
     end
-
-    % TODO: Possible post-processing (MRF + clean-up)
-
+    
     % Make 3D    
     if any(do_bf == true)
         bf = reshape(bf,[df(1:3) C]);
@@ -137,7 +257,17 @@ if isfield(datn,'mog') && (any(write_bf(:) == true) || any(write_im(:) == true) 
         bf = reshape(bf,[1 1 1 C]);
     end
     fn = reshape(fn,[df(1:3) C]);
-    zn = reshape(zn,[df(1:3) K1]);
+    zn = reshape(zn,[df(1:3) K1]);    
+    
+    if mrf > 0
+        % Ad-hoc MRF clean-up of segmentation     
+        zn = PostProcMRF(zn,Mn,mrf,nit_mrf);
+    end
+    
+    if ~isempty(gwc_tix) && gwc_level > 0
+        % Use an ad hoc brain cleanup procedure
+        zn = CleanGWC(zn,gwc_tix,gwc_level);
+    end        
 
     if any(write_bf == true) && any(do_bf == true)
         % Write bias field
@@ -205,7 +335,7 @@ if any(write_df == true) || any(reshape(write_tc(:,[2 3]),[],1) == true) ||  any
     %------------------
 
     % For imporved push - subsampling density in each dimension
-    sd = SampDens(Mmu,Mn);
+    sd = spm_mb_shape('SampDens',Mmu,Mn);
 
     % Get forward deformation
     psi = spm_mb_shape('Compose',psi0,spm_mb_shape('Affine',df,Mmu\Mr*Mn));    
@@ -299,14 +429,5 @@ if any(write_df == true) || any(reshape(write_tc(:,[2 3]),[],1) == true) ||  any
 end
 if clean_def && isa(datn.psi,'nifti') && isfile(datn.psi.dat.fname), delete(datn.psi.dat.fname); end
 if clean_vel && isa(datn.v,'nifti') && isfile(datn.v.dat.fname),     delete(datn.v.dat.fname);   end
-end
-%==========================================================================
-
-%==========================================================================
-% SampDens()
-function sd = SampDens(Mmu,Mf)
-vx_mu = sqrt(sum(Mmu(1:3,1:3).^2,1));
-vx_f  = sqrt(sum( Mf(1:3,1:3).^2,1));
-sd    = max(round(2.0*vx_f./vx_mu),1);
 end
 %==========================================================================

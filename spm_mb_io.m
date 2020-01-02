@@ -13,7 +13,7 @@ function varargout = spm_mb_io(varargin)
 % FORMAT dat        = spm_mb_io('InitDat',data,sett)
 % FORMAT model      = spm_mb_io('MakeModel',dat,model,sett)
 % FORMAT [psi,fpth] = spm_mb_io('SavePsiSub',datn,sett) 
-% FORMAT dat        = spm_mb_io('SaveTemplate',dat,mu,sett)
+% FORMAT              spm_mb_io('SaveTemplate',dat,mu,sett)
 % FORMAT              spm_mb_io('SetBoundCond')
 % FORMAT fout       = spm_mb_io('SetData',fin,f) 
 % FORMAT              spm_mb_io('SetPath')
@@ -382,7 +382,7 @@ for n=1:N
     
     % Is CT data
     if isstruct(data(n)) && isfield(data(n),'is_ct') && ~isempty(data(n).is_ct)
-        dat(n).is_ct = true;
+        dat(n).is_ct = data(n).is_ct;
     else
         dat(n).is_ct = false;
     end
@@ -405,9 +405,12 @@ for n=1:N
             
     % Orientation matrix (image voxel-to-world)    
     dat(n).Mat = eye(4);
-%     if ~run2d && (isa(F,'nifti') || (iscell(F) && (isa(F{1},'char') || isa(F{1},'nifti'))))
     if isa(F,'nifti') || (iscell(F) && (isa(F{1},'char') || isa(F{1},'nifti')))
         dat(n).Mat = Nii(1).mat;        
+        if run2d
+            vx         = sqrt(sum(dat(n).Mat(1:3,1:3).^2));
+            dat(n).Mat = [diag(vx) zeros(3,1); 0 0 0 1];
+        end
     end
 end
 end
@@ -422,11 +425,17 @@ do_gmm           = sett.do.gmm;
 do_updt_int      = sett.do.updt_int;
 do_updt_template = sett.do.updt_template;
 dir_res          = sett.write.dir_res;
+mg_ix            = sett.model.mg_ix;
 write_model      = sett.write.model;
+
+if isempty(dir_res) 
+    pth     = fileparts(dat(1).f(1).dat.fname);
+    dir_res = pth; 
+end
 
 if do_updt_template
     % Shape related
-    f                    = fullfile(dir_res ,'mu_log.nii');
+    f                    = fullfile(dir_res ,'mu_log_spm_mb.nii');
     model.shape.template = f;
 end
 
@@ -435,19 +444,22 @@ if do_updt_int && do_gmm
     p_ix = spm_mb_appearance('GetPopulationIdx',dat);
     Npop = numel(p_ix);
 
-    model.appear = containers.Map;
+    model.appear       = struct('pr',[],'mg_ix',[]);
+    model.appear.pr    = containers.Map;    
+    model.appear.mg_ix = mg_ix;
     for p=1:Npop
         n      = p_ix{p}(1);
         datn   = dat(n);
         ix_pop = datn.ix_pop;
         pr     = datn.mog.pr;
-        model.appear(num2str(ix_pop)) = pr;
+        
+        model.appear.pr(num2str(ix_pop)) = pr;
     end
 end
 
 if write_model && (do_updt_template || do_updt_int)
     % Save model
-    save(fullfile(dir_res,'model.mat'),'model')
+    save(fullfile(dir_res,'model_spm_mb.mat'),'model')
 end
 end
 %==========================================================================
@@ -469,9 +481,11 @@ psi  = spm_mb_shape('Compose',psi1,spm_mb_shape('Affine',d,Mmu\spm_dexpm(q,B)*Mn
 psi  = reshape(reshape(psi,[prod(d) 3])*Mmu(1:3,1:3)' + Mmu(1:3,4)',[d 1 3]);
 fpth = '';
 if isa(datn.psi(1),'nifti')
-    to_delete = datn.psi(1).dat.fname;
-    [~,nam,~] = fileparts(datn.f(1).dat.fname);
-    fpth = fullfile(dir_res,['y_' nam '.nii']);
+    to_delete   = datn.psi(1).dat.fname;
+    [pth,nam,~] = fileparts(datn.f(1).dat.fname);
+    if isempty(dir_res), dir_res = pth; end
+    fpth        = fullfile(dir_res,['y_' nam '.nii']);
+    
     datn.psi(1).dat.fname = fpth;
     datn.psi(1).dat.dim = [d 1 3];
     datn.psi(1).mat = datn.f(1).mat0; % For working with "imported" images;
@@ -494,10 +508,15 @@ do_updt_template = sett.do.updt_template;
 Mmu              = sett.var.Mmu;
 write_mu         = sett.write.mu;
 
+if isempty(dir_res) 
+    pth     = fileparts(dat(1).f(1).dat.fname);
+    dir_res = pth; 
+end
+
 if ~isempty(mu) && do_updt_template
     if write_mu(1)
         % Log
-        f        = fullfile(dir_res ,'mu_log.nii');
+        f        = fullfile(dir_res ,'mu_log_spm_mb.nii');
         fa       = file_array(f,size(mu),'float32',0);
         Nmu      = nifti;
         Nmu.dat  = fa;
@@ -513,7 +532,7 @@ if ~isempty(mu) && do_updt_template
         mu = spm_mb_shape('TemplateK1',mu,4);
         mu = exp(mu);    
 
-        f        = fullfile(dir_res ,'mu_softmax.nii');        
+        f        = fullfile(dir_res ,'mu_softmax_spm_mb.nii');        
         fa       = file_array(f,size(mu),'float32',0);
         Nmu      = nifti;
         Nmu.dat  = fa;
@@ -644,3 +663,4 @@ d  = d(1:3);
 fn = reshape(fn, [d(ix ~= direction) 1 + 2*nslices C]);
 end
 %==========================================================================   
+
