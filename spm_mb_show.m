@@ -262,7 +262,7 @@ for n=1:nd
     psi1 = spm_mb_io('GetData',dat(n).psi);
     psi  = spm_mb_shape('Compose',psi1,spm_mb_shape('Affine',df,Mmu\Mr*Mn));
     mun  = spm_mb_shape('Pull1',mu0,psi);            
-    psi1 = [];
+    clear psi1
     
     % Get bias field    
     if isfield(dat(n),'mog') && any(do_bf == true)
@@ -288,7 +288,7 @@ for n=1:nd
         [bffn,code_image,msk_chn] = spm_gmm_lib('obs2cell', bf.*fn);
         mun                       = reshape(mun,[prod(df(1:3)) K + 1]);
         mun1                      = mun + labels;
-        labels                    = [];
+        clear labels
         mun1                      = mun1(:,mg_ix);
         mun1                      = mun1 + log(mg_w);        
         mun1                      = spm_gmm_lib('obs2cell', mun1, code_image, false);
@@ -297,12 +297,12 @@ for n=1:nd
         zn   = spm_mb_appearance('Responsibility',dat(n).mog.po.m,dat(n).mog.po.b, ...
                                     dat(n).mog.po.W,dat(n).mog.po.n,bffn,mun1,msk_chn);           
         zn   = spm_gmm_lib('cell2obs', zn, code_image, msk_chn);                
-        mun1 = [];
+        clear mun1
         
         % Just to insert NaNs..
         mun     = spm_gmm_lib('obs2cell', mun, code_image, false);
         mun     = spm_gmm_lib('cell2obs', mun, code_image, msk_chn);                
-        msk_chn = []; 
+        clear msk_chn
         
         % Reshape back
         zn  = reshape(zn,[df(1:3) Kmg]);
@@ -336,7 +336,7 @@ for n=1:nd
         % and image (if using GMM)     
         ShowIm(bf(:,:,:,c).*fn(:,:,:,c),ax,nr_tiss,nd,n + 2*nd,fig_name_tiss,true,is_ct);        
     end
-    zn = [];
+    clear zn
     
     if show_extras
         % Show bias field fit, velocities, affine parameters, GMM fit,
@@ -431,7 +431,7 @@ for n=1:nd
     % Get forward deformation
     psi0 = spm_mb_io('GetData',dat(n).psi);
     psi  = spm_mb_shape('Compose',psi0,spm_mb_shape('Affine',df,Mmu\Mr*Mn));  
-    psi0 = [];    
+    clear psi0
     if df(3) == 1, psi(:,:,:,3) = 1; end % 2D
     
     % Bias field
@@ -449,7 +449,7 @@ for n=1:nd
     sd = spm_mb_shape('SampDens',Mmu,Mn);
     if isfield(dat(n),'mog')
         fn       = bf.*fn(:,:,:,c);
-        bf       = [];
+        clear bf
         [fn,cnt] = spm_mb_shape('Push1',fn,psi,dmu,sd);
     else
         [fn,cnt] = spm_mb_shape('Push1',fn,psi,dmu,sd);

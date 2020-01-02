@@ -28,7 +28,7 @@ end
     
 % Get input data
 in  = dat2in(dat); 
-dat = [];
+clear dat
 
 % If SPM has been compiled with OpenMP support then the number of threads
 % can here be set to speed up the algorithm.

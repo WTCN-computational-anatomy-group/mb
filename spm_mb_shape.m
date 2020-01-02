@@ -1145,12 +1145,14 @@ for t=2:abs(T)
     u1(:,:,:,1) = Jdp(:,:,:,1,1).*u(:,:,:,1) + Jdp(:,:,:,2,1).*u(:,:,:,2) + Jdp(:,:,:,3,1).*u(:,:,:,3);
     u1(:,:,:,2) = Jdp(:,:,:,1,2).*u(:,:,:,1) + Jdp(:,:,:,2,2).*u(:,:,:,2) + Jdp(:,:,:,3,2).*u(:,:,:,3);
     u1(:,:,:,3) = Jdp(:,:,:,1,3).*u(:,:,:,1) + Jdp(:,:,:,2,3).*u(:,:,:,2) + Jdp(:,:,:,3,3).*u(:,:,:,3);
-    Jdp = [];
-    u           = spm_diffeo('pushc',u1,id+v/T);
+    clear Jdp
+    
+    u = spm_diffeo('pushc',u1,id+v/T);
 
     % v_t \gets L^g u_t
-    v            = spm_shoot_greens(u,kernel.F,kernel.v_settings); % Convolve with Greens function of L
-
+    v = spm_shoot_greens(u,kernel.F,kernel.v_settings); % Convolve with Greens function of L
+    clear u
+    
     if size(v,3)==1, v(:,:,:,3) = 0; end
 
     % $\psi \gets \psi \circ (id - \tfrac{1}{T} v)$
@@ -1217,7 +1219,7 @@ psi0 = Affine(df,Mmu\Mr*Mn);
 J    = spm_diffeo('jacobian',psi1);
 J    = reshape(Pull1(reshape(J,[d 3*3]),psi0),[df 3 3]);
 psi  = Compose(psi1,psi0);
-psi0 = []; psi1 = [];  
+clear psi0  psi1
 
 mu1  = Pull1(mu,psi);
 [f,datn] = spm_mb_io('GetClasses',datn,mu1,sett);
@@ -1233,9 +1235,9 @@ for m=1:M
         tmp(~isfinite(tmp)) = 0;
         G(:,:,:,m,i1) = tmp;
     end
-    Gm = [];
+    clear Gm
 end
-J = []; mu = [];
+clear J mu
 
 msk       = all(isfinite(f),4);
 a         = Mask(f - Softmax(mu1,4),msk);
@@ -1301,8 +1303,8 @@ psi      = Affine(df,Mmu\Mr*Mn);
 mu1      = Pull1(mu,psi);
 [f,datn] = spm_mb_io('GetClasses',datn,mu1,sett);
 
-[a,w]     = Push1(f - Softmax(mu1,4),psi,d);
-mu1 = []; psi = []; f = [];
+[a,w] = Push1(f - Softmax(mu1,4),psi,d);
+clear mu1 psi f
 
 [H,g]     = SimpleAffineHessian(mu,G,H0,a,w);
 g         = double(dM'*g);
@@ -1354,11 +1356,11 @@ psi       = Compose(spm_mb_io('GetData',datn.psi),Affine(df,Mat));
 mu        = Pull1(mu,psi);
 [f,datn]  = spm_mb_io('GetClasses',datn,mu,sett);
 [a,w]     = Push1(f - Softmax(mu,4),psi,d);
-psi = []; f = []; mu = [];
+clear psi f mu
 
 g         = reshape(sum(a.*G,4),[d 3]);
 H         = w.*H0;
-a = []; w = [];
+clear a w
 
 u0        = spm_diffeo('vel2mom', v, v_settings);                          % Initial momentum
 datn.E(2) = 0.5*sum(u0(:).*v(:));                                          % Prior term
