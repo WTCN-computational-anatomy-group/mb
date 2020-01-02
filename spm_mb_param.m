@@ -106,21 +106,10 @@ s = SetDefault(s, 'pca.latent_df',    eps);  % Wishart rior on latent precision 
 % .clean_z (resp clean-up related, spm_mb_output)
 %------------------
 
-if ~isfield(sett,'clean_z')
-    sett.clean_z = struct;
-end
-if ~isfield(sett.clean_z,'mrf')
-    sett.clean_z.mrf = 0; % 1
-end
-if ~isfield(sett.clean_z,'nit_mrf')
-    sett.clean_z.nit_mrf = 10;
-end
-if ~isfield(sett.clean_z,'gwc_tix')
-    sett.clean_z.gwc_tix = [];
-end
-if ~isfield(sett.clean_z,'gwc_level')
-    sett.clean_z.gwc_level = 1; % 1
-end
+s = SetDefault(s, 'clean_z.mrf',       false);  % Markov Random Field cleanup?
+s = SetDefault(s, 'clean_z.nit_mrf',   10);     % Number of MRF iterations
+s = SetDefault(s, 'clean_z.gwc_tix',   []);     % Grey-White cleanup: tissue id
+s = SetDefault(s, 'clean_z.gwc_level', 1);      % ?
 
 %------------------
 % .do (enable/disable functionality)
@@ -171,23 +160,16 @@ s = SetDefault(s, 'labels.w',      0.99);   % Label confidence (0<>1)
 % .model
 %------------------
 
-s = SetDefault(s, 'model.groupwise',  false); % Groupwise vs Independent
-s = SetDefault(s, 'model.init_mu_dm', 8);     % Initial template dimension
-s = SetDefault(s, 'model.K',          5);     % Number of template classes
-s = SetDefault(s, 'model.vx',         1);     % Final template voxel size
+s = SetDefault(s, 'model.groupwise',   false); % Groupwise vs Independent
+s = SetDefault(s, 'model.init_mu_dm',  8);     % Initial template dimension
+s = SetDefault(s, 'model.K',           5);     % Number of template classes
+s = SetDefault(s, 'model.vx',          1);     % Final template voxel size
+s = SetDefault(s, 'model.ix_init_pop', 1);     % Index of population to use for initialising
+s = SetDefault(s, 'model.mg_ix',       1);     % Number of Gaussians per tissue
 % TODO: . Do we really need a 'groupwise' option?
 %         Can't it be inferred from 'do'?
 %         Or should groupwise == false, induce do.<lots> = false?
 %       . I'd prefer 'nclass' or 'ntissue' to 'K'
-if ~isfield(sett.model,'ix_init_pop')
-    % Index of population to use for initialising, then more than one
-    % population
-    sett.model.ix_init_pop = 1;    
-end
-if ~isfield(sett.model,'mg_ix')    
-    % For using multiple Gaussians per tissue (as in spm_preproc8)
-    sett.model.mg_ix = 1;
-end
 
 %------------------
 % .nit (iterations)
@@ -227,26 +209,17 @@ end
 % .show (visualisation)
 %------------------
 
-s = SetDefault(s, 'show.axis_3d',            3); % Axis to select 2d slice from
-s = SetDefault(s, 'show.channel',            1); % Channel for multicontrast data
-s = SetDefault(s, 'show.figname_bf',         '(spm_mb) Bias fields');
-s = SetDefault(s, 'show.figname_int',        '(spm_mb) Intensity model');
-s = SetDefault(s, 'show.figname_model',      '(spm_mb) Template model');
-s = SetDefault(s, 'show.figname_parameters', '(spm_mb) Parameters');
-s = SetDefault(s, 'show.figname_subjects',   '(spm_mb) Segmentations');
-s = SetDefault(s, 'show.mx_subjects',        4);
-if ~isfield(sett.show,'figs')
-    sett.show.figs = {}; % {'model','normalised','segmentations','intensity','parameters'}
-end
-if ~isfield(sett.show,'figname_imtemplatepace')
-    sett.show.figname_imtemplatepace = '(spm_mb) Template space data';
-end
-if ~isfield(sett.show,'print2screen')
-    sett.show.print2screen = true;
-end
-if ~isfield(sett.show,'mx_subjects')
-    sett.show.mx_subjects = 2;
-end
+s = SetDefault(s, 'show.axis_3d',                3); % Axis to select 2d slice from
+s = SetDefault(s, 'show.channel',                1); % Channel for multicontrast data
+s = SetDefault(s, 'show.figs',                   {}); % {'model','normalised','segmentations','intensity','parameters'}
+s = SetDefault(s, 'show.figname_bf',             '(spm_mb) Bias fields');
+s = SetDefault(s, 'show.figname_imtemplatepace', '(spm_mb) Template space data');
+s = SetDefault(s, 'show.figname_int',            '(spm_mb) Intensity model');
+s = SetDefault(s, 'show.figname_model',          '(spm_mb) Template model');
+s = SetDefault(s, 'show.figname_parameters',     '(spm_mb) Parameters');
+s = SetDefault(s, 'show.figname_subjects',       '(spm_mb) Segmentations');
+s = SetDefault(s, 'show.mx_subjects',            2);
+s = SetDefault(s, 'show.print2screen',           true);
 
 
 %------------------
@@ -281,10 +254,8 @@ s = SetDefault(s, 'write.mu',        [true false]);  % Template [log softmax]
 s = SetDefault(s, 'write.dir_res',   '.');           % Results directory
 s = SetDefault(s, 'write.im',        false(1,4));    % Input: [native corrected warped warped&corrected] 
 s = SetDefault(s, 'write.tc',        true(1,3));     % Tissue classes: [native warped warped&modulated]
+s = SetDefault(s, 'write.workspace', false);         % Save workspace variables (.mat)
 
-if ~isfield(sett.write,'workspace')
-    sett.write.workspace = false;
-end
 % Make directories (if does not exist)
 if ~(exist(s.write.dir_res,'dir') == 7) 
     ok = mkdir(s.write.dir_res);
