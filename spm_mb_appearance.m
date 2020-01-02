@@ -374,7 +374,7 @@ if samp > 1
 else
     d    = df;
     mun  = reshape(mun0,[prod(d(1:3)) K]);
-    mun0 = [];
+    clear mun0
 end
 fn = reshape(fn,[prod(d(1:3)) C]);
 
@@ -397,7 +397,7 @@ mun = spm_mb_shape('TemplateK1',mun,2);
 
 % Add labels and template
 mun    = mun + labels;
-labels = [];
+clear labels
 
 % Expand, if using multiple Gaussians per tissue
 mun = mun(:,mg_ix);
@@ -511,7 +511,7 @@ for it_appear=1:nit_appear
                     obffn = bffn{l}(:,ixc);
                     go    = go .* obffn;
                     Ho    = Ho .* (obffn.^2);
-                    obffn = [];
+                    clear obffn
                     
                     % Add terms related to the normalisation (log(b))
                     go = go - 1;
@@ -521,9 +521,9 @@ for it_appear=1:nit_appear
                     ixvx        = (code_image == code_list(l));
                     gr_im(ixvx) = gr_im(ixvx) + go;
                     H_im(ixvx)  = H_im(ixvx)  + Ho;
-                    ixvx        = [];
+                    clear ixvx
                 end
-                zn = [];
+                clear zn
 
                  % Compute gradient and Hessian (transform from image space to parameter space)
                 d3 = numel(chan(c).T); % Number of DCT parameters
@@ -534,11 +534,11 @@ for it_appear=1:nit_appear
                     gr = gr + kron(b3,spm_krutil(double(gr_im(:,:,z)),double(chan(c).B1),double(chan(c).B2),0));
                     H  = H  + kron(b3*b3',spm_krutil(double(H_im(:,:,z)),double(chan(c).B1),double(chan(c).B2),1));
                 end
-                b3 = [];                    
+                clear b3
 
                 % Gauss-Newton update of bias field parameters
                 Update = reshape((H + chan(c).ICO)\(gr + chan(c).ICO*chan(c).T(:)),size(chan(c).T));
-                H      = []; gr = [];
+                clear H gr
 
                 % Line-search
                 armijo = 1;        
@@ -590,7 +590,7 @@ for it_appear=1:nit_appear
                         end
                     end
                 end
-                oT = []; Update = [];
+                clear oT Update
             end
         end   
 
@@ -602,7 +602,7 @@ for it_appear=1:nit_appear
         lb.pr_bf(end + 1) = -datn.E(3);
     end
 end
-fn = []; bf = []; mun = [];
+clear fn bf mun
 
 if samp > 1
     % Compute responsibilities on original data
@@ -616,11 +616,11 @@ if samp > 1
         chan = BiasFieldStruct(datn,C,df,reg,fwhm,[],datn.bf.T);
         bf   = BiasField(chan,df);
         bffn = bf.*fn;
-        bf   = [];
+        clear bf
     else
         bffn = fn;
     end
-    fn                        = [];       
+    clear fn
     [bffn,code_image,msk_chn] = spm_gmm_lib('obs2cell', bffn);    
 
     % Template
@@ -632,12 +632,12 @@ if samp > 1
     mun0   = mun0 + labels;
     mun0   = mun0(:,mg_ix);
     mun0   = mun0 + log(mg_w);
-    labels = [];
+    clear labels
     
     % Compute full-size resps
     mun0 = spm_gmm_lib('obs2cell', mun0, code_image, false);            
     zn   = Responsibility(m,b,W,n,bffn,mun0,msk_chn);
-    mun0 = [];
+    clear mun0
 end       
 zn = spm_gmm_lib('cell2obs', zn, code_image, msk_chn);
 
@@ -1068,7 +1068,7 @@ for n=1:N % Loop over subjects
         if size(L{m,n},2) > 1, L{m,n} = L{m,n}(:,mask); end
     end
 end
-fn = []; mask = []; img = []; labels = [];
+clear fn mask img labels
 
 % Init bias field DC component
 dc = zeros(M,N);
@@ -1218,7 +1218,7 @@ if false
     plot(x,p,'r-','LineWidth',3);
     hold off
 end
-F = []; L = [];
+clear F L
 
 % Make function output
 C   = 1;

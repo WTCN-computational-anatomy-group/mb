@@ -89,7 +89,7 @@ s = SetDefault(s, 'appear.tol', 1e-4); % Tolerance when fitting GMM
 %------------------
 
 s = SetDefault(s, 'bf.fwhm', 60);   % Cutoff on bias field frequency
-s = SetDefault(s, 'bf.reg',  1e4);  % Bending energy regularisation
+s = SetDefault(s, 'bf.reg',  1e5);  % Bending energy regularisation
 
 %------------------
 % .pca (shape modelling)
@@ -236,8 +236,8 @@ s = SetDefault(s, 'shoot.s_settings', 3); % Full multigrid settings
 %------------------
 
 s = SetDefault(s, 'var.mu_settings',  [1e-3 0.2 0]); % Template: regularisation
-if s.do.updt_aff, s = SetDefault(s, 'var.v_settings', [0 0 0.2 0.05 0.2]*8);  % Velocities: regularisation
-else,             s = SetDefault(s, 'var.v_settings', [1e-4 0 0.2 0.05 0.2]*8); end
+if s.do.updt_aff, s = SetDefault(s, 'var.v_settings', [0 0 0.2 0.05 0.2]*2^4);  % Velocities: regularisation
+else,             s = SetDefault(s, 'var.v_settings', [1e-4 0 0.2 0.05 0.2]*2^4); end
 % TODO: . I think this structure should be empty (and v_, mu_ settings 
 %         moved somewhere else) and only filled during initialisation.
 

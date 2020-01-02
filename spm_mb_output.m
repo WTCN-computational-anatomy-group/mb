@@ -187,7 +187,7 @@ if isfield(datn,'mog') && (any(write_bf(:) == true) || any(write_im(:) == true) 
     % Get subject-space template (softmaxed K + 1)
     psi = spm_mb_shape('Compose',psi0,spm_mb_shape('Affine',df,Mmu\Mr*Mn));    
     mun = spm_mb_shape('Pull1',mun,psi);
-    psi = [];
+    clear psi
     
     % Make K + 1 template    
     mun = reshape(mun,[prod(df(1:3)) K]);
@@ -209,7 +209,7 @@ if isfield(datn,'mog') && (any(write_bf(:) == true) || any(write_im(:) == true) 
     % Get labels
     labels = spm_mb_appearance('GetLabels',datn,sett);
     mun    = mun + labels;
-    labels = [];
+    clear labels
     
     % Integrate use of multiple Gaussians per tissue
     mg_w = datn.mog.mg_w;
@@ -229,7 +229,7 @@ if isfield(datn,'mog') && (any(write_bf(:) == true) || any(write_im(:) == true) 
     % Get responsibilities
     zn  = spm_mb_appearance('Responsibility',m,b,W,n,bffn,mun,msk_chn); 
     zn  = spm_gmm_lib('cell2obs', zn, code_image, msk_chn);        
-    mun = []; msk_chn = [];
+    clear mun msk_chn
 
     % Get bias field modulated image data
     fn = bf.*fn;
@@ -240,7 +240,7 @@ if isfield(datn,'mog') && (any(write_bf(:) == true) || any(write_im(:) == true) 
         MU          = datn.mog.po.m;    
         A           = bsxfun(@times, datn.mog.po.W, reshape(datn.mog.po.n, [1 1 Kmg]));            
         fn          = spm_gmm_lib('InferMissing',fn,zn,{MU,A},code,sample_post);  
-        code        = [];
+        clear code
     end        
     
     % If using multiple Gaussians per tissue, collapse so that zn is of

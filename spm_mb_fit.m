@@ -67,7 +67,7 @@ spm_mb_show('Clear',sett); % Clear figures
 %------------------
 
 dat  = spm_mb_io('InitDat',data,sett); 
-data = [];
+clear data
 
 if isempty(dir_res) 
     pth     = fileparts(dat(1).f(1).dat.fname);
