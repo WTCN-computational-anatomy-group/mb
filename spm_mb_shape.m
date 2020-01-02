@@ -1848,8 +1848,7 @@ for t=2:abs(T)
     u = spm_diffeo('pushc',u1,id+v/T);
 
     % v_t \gets L^g u_t
-    v = spm_shoot_greens(u,kernel.F,kernel.v_settings); % Convolve with Greens function of L
-    clear u
+    v = spm_shoot_greens(u,kernel.F,kernel.v_settings); % Convolve with Greens function of L    
     
     if size(v,3)==1, v(:,:,:,3) = 0; end
 
