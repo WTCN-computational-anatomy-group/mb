@@ -3,7 +3,6 @@ function varargout = spm_mb_param(varargin)
 %
 % Functions for settings and parameters related.
 %
-% FORMAT B            = spm_mb_param('AffineBases',code)
 % FORMAT [sett,given] = spm_mb_param('ConditionalSettings',model,sett,ndat)
 % FORMAT sett         = spm_mb_param('DefaultSettings')
 % FORMAT sz           = spm_mb_param('ZoomSettings',d, Mmu, v_settings, mu_settings, n)
@@ -17,9 +16,7 @@ if nargin == 0
 end
 id = varargin{1};
 varargin = varargin(2:end);
-switch id
-    case 'AffineBases'
-        [varargout{1:nargout}] = AffineBases(varargin{:});                      
+switch id                   
     case 'ConditionalSettings'
         [varargout{1:nargout}] = ConditionalSettings(varargin{:});        
     case 'DefaultSettings'
@@ -82,7 +79,7 @@ if nargin < 1, s = struct; end
 % .appear (appearance model)
 %------------------
 
-s = SetDefault(s, 'appear.tol', 1e-4); % Tolerance when fitting GMM
+s = SetDefault(s, 'appear.tol_gmm', 1e-4); % Tolerance when fitting GMM
 
 %------------------
 % .bf (bias field)
@@ -175,15 +172,15 @@ s = SetDefault(s, 'model.mg_ix',       1);     % Number of Gaussians per tissue
 % .nit (iterations)
 %------------------
 
-s = SetDefault(s, 'nit.appear',  2);   % ?
-s = SetDefault(s, 'nit.bf',      1);   % Bias field: gauss-newton iterations
-s = SetDefault(s, 'nit.gmm',     32);  % GMM: EM (gauss+resp) iterations
-s = SetDefault(s, 'nit.init',    6);   % Initial: EM (template+rigid) iterations
-s = SetDefault(s, 'nit.init_mu', 2);   % Template: gauss-newton iterations
-s = SetDefault(s, 'nit.miss',    32);  % GMM: sub EM (missing data) iterations
-s = SetDefault(s, 'nit.zm',      3);   % Number of iterations at each zoom level
-                                       % The final zoom level uses sett.nit.zm iterations, 
-                                       % while, earlier zoom levels use sett.nit.zm + zoom_level.
+s = SetDefault(s, 'nit.appear',   2);   % ?
+s = SetDefault(s, 'nit.bf',       1);   % Bias field: gauss-newton iterations
+s = SetDefault(s, 'nit.gmm',      32);  % GMM: EM (gauss+resp) iterations
+s = SetDefault(s, 'nit.init',     6);   % Initial: EM (template+rigid) iterations
+s = SetDefault(s, 'nit.init_mu',  2);   % Template: gauss-newton iterations
+s = SetDefault(s, 'nit.gmm_miss', 32);  % GMM: sub EM (missing data) iterations
+s = SetDefault(s, 'nit.zm',       3);   % Number of iterations at each zoom level
+                                        % The final zoom level uses sett.nit.zm iterations, 
+                                        % while, earlier zoom levels use sett.nit.zm + zoom_level.
 % TODO: . I like 'iter' better than 'nit'
                                        
 %------------------
@@ -196,22 +193,12 @@ s = SetDefault(s, 'optim.scal_v',  1); % Velocities: scaling of GN updates
 % TODO: . Should nls_bf move to nit?
 
 %------------------
-% .registr (registration)
-%------------------
-
-if s.gen.run2d
-    s = SetDefault(s, 'registr.B',  AffineBases('SE(2)'));
-else
-    s = SetDefault(s, 'registr.B',  AffineBases('SE(3)'));
-end
-
-%------------------
 % .show (visualisation)
 %------------------
 
-s = SetDefault(s, 'show.axis_3d',                3); % Axis to select 2d slice from
-s = SetDefault(s, 'show.channel',                1); % Channel for multicontrast data
-s = SetDefault(s, 'show.figs',                   {}); % {'model','normalised','segmentations','intensity','parameters'}
+s = SetDefault(s, 'show.axis_3d',                3);   % Axis to select 2d slice from
+s = SetDefault(s, 'show.channel',                1);   % Channel for multicontrast data
+s = SetDefault(s, 'show.figs',                   {});  % {'model','normalised','segmentations','intensity','parameters'}
 s = SetDefault(s, 'show.figname_bf',             '(spm_mb) Bias fields');
 s = SetDefault(s, 'show.figname_imtemplatepace', '(spm_mb) Template space data');
 s = SetDefault(s, 'show.figname_int',            '(spm_mb) Intensity model');
@@ -226,8 +213,8 @@ s = SetDefault(s, 'show.print2screen',           true);
 % .shoot (diffeomorphic shooting)
 %------------------
 
-s = SetDefault(s, 'shoot.args',       3); % Timesteps for shooting integration
-s = SetDefault(s, 'shoot.s_settings', 3); % Full multigrid settings
+s = SetDefault(s, 'shoot.args',       3);      % Timesteps for shooting integration
+s = SetDefault(s, 'shoot.s_settings', [3 2]);  % Full multigrid settings
 % TODO: . timestep or nb of Euler steps?
 %       . why are FMG parameters stored here?
 

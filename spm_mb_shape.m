@@ -283,7 +283,7 @@ end
 
 %==========================================================================
 % InitModel()
-function [dat,model] = InitModel(dat,sett)
+function [model,dat] = InitModel(dat,sett)
 % Initialise model structure:
 %   . if sett.pca.do: A, nA, lam, nlam, Z, ZZ, Sz, dat.z
 %   . ss.trLVV, ss.trLSV
@@ -444,11 +444,7 @@ if ~do_gmm, return; end
 % do_updt_bf      = sett.do.updt_bf;
 ix_init         = sett.model.ix_init_pop;
 mg_ix           = sett.model.mg_ix;
-nit_appear      = sett.nit.appear;
 nit_init_mu     = sett.nit.init_mu;
-do_updt_bf      = sett.do.updt_bf;
-samp            = sett.gen.samp;
-nit_gmm         = sett.nit.gmm;
 sett.do.updt_bf = false;
 sett.gen.samp   = 5;
 sett.nit.appear = 1;
@@ -559,12 +555,6 @@ if Npop > 1
     % population to initialise other populations' GMM parameters
     [mu,dat] = spm_mb_shape('UpdateSimpleMean',dat,    mu, sett);    
 end
-
-% % Restore settings
-sett.do.updt_bf = do_updt_bf;
-sett.gen.samp   = samp;
-sett.nit.appear = nit_appear;
-sett.nit.gmm    = nit_gmm;
 end
 %==========================================================================
 
@@ -1158,7 +1148,7 @@ end
 
 %==========================================================================
 % OrthoSubspace()
-function model = OrthoSubspace(dat,model,sett)
+function [dat,model] = OrthoSubspace(dat,model,sett)
 % Posterior update of a Gaussian Matrix distribution.
 
 % n0 == 0:   Maximum-likelihood
@@ -1232,7 +1222,7 @@ function [dat,model] = ZoomVolumes(dat,model,sett,oMmu)
 % Parse function settings
 d       = sett.var.d;
 Mmu     = sett.var.Mmu;
-do_pca  = sett.pca.do;
+do_pca  = sett.do.pca;
 max_mem = sett.gen.max_mem*1E9; % (GB)
 dir_res = sett.write.dir_res;
 
@@ -1316,8 +1306,6 @@ for n=1:numel(dat)
     u0  = spm_diffeo('vel2mom', v, v_settings); % Initial momentum
     model.ss.trLVV = model.ss.trLVV + sum(u0(:).*v(:));
     model.ss.trLSV = model.ss.trLSV + dat(n).ss.trLSv;
-    % Ensure correct lower bound
-    dat(n).mog.lb.pr_v(end + 1) = -dat(n).E(2);
 end
 end
 %==========================================================================
@@ -1414,12 +1402,12 @@ function E = EnergyLatent(model, sett)
 
 if ~sett.do.pca, E = 0; return; end
     
-N  = size(pca.Z,2);  % Number of subjects
-L  = size(pca.U,5);  % Number of principal components
-ZZ = model.ZZ;       % latent 2nd order moment     (sum subj)
-Sz = model.Sz;       % latent posterior covariance (per subj)
-A  = model.A;        % residual precision matrix (mean)
-nA = model.nA;       % residual precision matrix (deg. freedom)
+N  = size(model.Z,2);  % Number of subjects
+L  = size(model.U,5);  % Number of principal components
+ZZ = model.ZZ;         % latent 2nd order moment     (sum subj)
+Sz = model.Sz;         % latent posterior covariance (per subj)
+A  = model.A;          % residual precision matrix (mean)
+nA = model.nA;         % residual precision matrix (deg. freedom)
     
 E =     trace(A*ZZ) ...
   - N * LogDetChol(Sz) ...
@@ -1484,6 +1472,8 @@ function E = EnergyResidualPrecision(model, sett)
 %   alpha = n*D/2, beta = n*D/(2*lam) and D is the number of elements in a
 %   velocity field (D=nvox*3). This parameterisation allows lam to act as 
 %   an expected value and n to act as a degrees of freedom.
+
+if ~sett.do.pca, E = 0; return; end
 
 D = size(model.U,1)*size(model.U,2)*size(model.U,3);
 F = size(model.U,4);
@@ -2044,7 +2034,8 @@ scal       = sett.optim.scal_v;
 v_settings = sett.var.v_settings;
 do_pca     = sett.do.pca;
 
-v = spm_mb_io('GetData',datn.v);
+v  = spm_mb_io('GetData',datn.v);
+v0 = 0;
 if do_pca
     % Compute subject-specific mean velocity from PCA
     du = spm_mb_io('GetSize',model.U);
