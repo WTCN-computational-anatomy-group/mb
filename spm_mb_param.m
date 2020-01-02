@@ -87,7 +87,7 @@ if ~isfield(sett.bf,'fwhm')
     sett.bf.fwhm = 60;
 end
 if ~isfield(sett.bf,'reg')
-    sett.bf.reg = 1e4;
+    sett.bf.reg = 1e5;
 end
 
 %------------------
