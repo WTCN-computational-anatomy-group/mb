@@ -655,6 +655,7 @@ for n=1:numel(dat)
     g              = g + gn;
     H              = H + Hn;
 end
+clear H0 gn Hn
 mu = mu - spm_field(H, g, [mu_settings s_settings]);  
 end
 %==========================================================================
