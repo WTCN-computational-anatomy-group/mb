@@ -817,9 +817,9 @@ end
 function dat = UpdateAffines(dat,model,sett)
 
 % Parse function settings
-B           = sett.registr.B;
-do_updt_aff = sett.do.updt_aff;
-groupwise   = sett.model.groupwise;
+B                = sett.registr.B;
+do_updt_aff      = sett.do.updt_aff;
+do_updt_template = sett.do.updt_template;
 
 if ~do_updt_aff, return; end
 
@@ -829,7 +829,7 @@ if ~isempty(B)
         dat(n) = UpdateAffinesSub(dat(n),model.mu,sett);
     end
 
-    if groupwise
+    if do_updt_template
         % Zero-mean the affine parameters
         mq = sum(cat(2,dat(:).q),2)/numel(dat);
         for n=1:numel(dat)
@@ -871,10 +871,10 @@ end
 function dat = UpdateSimpleAffines(dat,mu,sett)
 
 % Parse function settings
-accel       = sett.gen.accel;
-B           = sett.registr.B;
-do_updt_aff = sett.do.updt_aff;
-groupwise   = sett.model.groupwise;
+accel            = sett.gen.accel;
+B                = sett.registr.B;
+do_updt_aff      = sett.do.updt_aff;
+do_updt_template = sett.do.updt_template;
 
 if ~do_updt_aff, return; end
 
@@ -887,7 +887,7 @@ if ~isempty(B)
         dat(n) = UpdateSimpleAffinesSub(dat(n),mu,G,H0,sett);
     end
 
-    if groupwise
+    if do_updt_template
         % Zero-mean the affine parameters
         mq = sum(cat(2,dat(:).q),2)/numel(dat);
         for n=1:numel(dat)
@@ -1126,10 +1126,10 @@ end
 function dat = UpdateWarps(dat,sett)
 
 % Parse function settings
-groupwise  = sett.model.groupwise;
-v_settings = sett.var.v_settings;
+do_updt_template = sett.do.updt_template;
+v_settings       = sett.var.v_settings;
 
-if groupwise
+if do_updt_template
     % Total initial velocity should be zero (Khan & Beg)
     avg_v = single(0);
     for n=1:numel(dat)

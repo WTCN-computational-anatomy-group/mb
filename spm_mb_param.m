@@ -40,31 +40,25 @@ function [sett,given] = ConditionalSettings(model,sett,ndat)
 %       Instead, we could use SetDefault here, so that if the user 
 %       explicitely asked to update something, it is indeed updated.
 
-given          = struct;
-given.template = (isfield(model,'shape') && isfield(model.shape,'template'));
-given.subspace = (isfield(model,'shape') && isfield(model.shape,'subspace'));
-given.appear   = isfield(model,'appear');
+given              = struct;
+given.template     = (isfield(model,'shape') && isfield(model.shape,'template'));
+given.subspace     = (isfield(model,'shape') && isfield(model.shape,'subspace'));
+given.latent_prior = (isfield(model,'shape') && isfield(model.shape,'latent_prior'));
+given.res_prior    = (isfield(model,'shape') && isfield(model.shape,'res_prior'));
+given.appear       = isfield(model,'appear');
 
-if ndat == 1 || given.template && given.appear
-    % Fit learned shape and appearance model
-    sett.model.groupwise  = false;
-    sett.do.updt_int      = false;
-    sett.do.updt_template = false;
-elseif given.template
-    % Fit learned shape model, learn appearance model
-    sett.model.groupwise  = false;
-    sett.do.updt_int      = true;
-    sett.do.updt_template = false;
-elseif given.appear
-    % Fit learned appearance model, learn shape model
-    sett.model.groupwise  = true;
-    sett.do.updt_int      = false;
-    sett.do.updt_template = true;
+if ndat == 1
+    sett.do.updt_int          = false;
+    sett.do.updt_template     = false;
+    sett.do.updt_subspace     = false;
+    sett.do.updt_latent_prior = false;
+    sett.do.updt_res_prior    = false;
 else
-    % Learn both shape and appearance model
-    sett.model.groupwise  = true;
-    sett.do.updt_int      = true;
-    sett.do.updt_template = true;
+    if given.template,     sett.do.updt_template     = false; end
+    if given.subspace,     sett.do.updt_subspace     = false; end
+    if given.latent_prior, sett.do.updt_latent_prior = false; end
+    if given.res_prior,    sett.do.updt_res_prior    = false; end
+    if given.appear,       sett.do.updt_int          = false; end
 end
 end
 %==========================================================================
@@ -157,16 +151,12 @@ s = SetDefault(s, 'labels.w',      0.99);   % Label confidence (0<>1)
 % .model
 %------------------
 
-s = SetDefault(s, 'model.groupwise',   false); % Groupwise vs Independent
 s = SetDefault(s, 'model.init_mu_dm',  8);     % Initial template dimension
 s = SetDefault(s, 'model.K',           5);     % Number of template classes
 s = SetDefault(s, 'model.vx',          1);     % Final template voxel size
 s = SetDefault(s, 'model.ix_init_pop', 1);     % Index of population to use for initialising
 s = SetDefault(s, 'model.mg_ix',       1);     % Number of Gaussians per tissue
-% TODO: . Do we really need a 'groupwise' option?
-%         Can't it be inferred from 'do'?
-%         Or should groupwise == false, induce do.<lots> = false?
-%       . I'd prefer 'nclass' or 'ntissue' to 'K'
+% TODO: . I'd prefer 'nclass' or 'ntissue' to 'K'
 
 %------------------
 % .nit (iterations)
