@@ -2141,8 +2141,8 @@ function [T, iT] = JointDiag(ZZ, ULU)
 Dz         = diag(sqrt(diag(Dz2) + eps));
 Dw         = diag(sqrt(diag(Dw2) + eps));
 [U, D, V]  = svd(Dw * Vw' * Vz * Dz');
-% Dz         = loaddiag(Dz);
-% Dw         = loaddiag(Dw);
+% Dz         = LoadDiag(Dz);
+% Dw         = LoadDiag(Dw);
 T          = D * V' * (Dz \ Vz');
 iT         = Vw * (Dw \ U);
 end
@@ -2150,6 +2150,9 @@ end
     
 %==========================================================================
 function [Q, iQ, q] = ScaleSubspace(ULU, ZZ, A0, n0, ndat, nvox, q0)
+% Gauss-Newton optimisation of the scaling factor between the subspace (U)
+% and the latent variables (Z)
+%
 % FORMAT [Q, iQ] = ScaleSubspace(ULU, ZZ, A0, n0, ndat, nvox, q0)
 % ULU  - E[U'LU] (subspace suff stat)
 %        > Must have been orthogonalised before.
@@ -2158,14 +2161,12 @@ function [Q, iQ, q] = ScaleSubspace(ULU, ZZ, A0, n0, ndat, nvox, q0)
 % A0   - Expected value of Wishart prior (n0*V0)
 % n0   - Degrees of freedom of Wishart prior
 % ndat - Number of subjects
-% nvox - Number of voxels
+% nvox - Number of voxels * 3
 % q0   - Initial parameters [defaut: -0.5*log(nvox)]
-%
-% Gauss-Newton optimisation of the scaling factor between U and Z
 
 M = size(ZZ, 1);
 
-if nargin < 9 || isempty(q0)
+if nargin < 7 || isempty(q0)
     q0    = zeros(M,1)-0.5*log(nvox);
 end
 
@@ -2357,6 +2358,13 @@ end
 
 % === UpdateWishart =======================================================
 function [A,n] = UpdateWishart(ZZ, ndat, A0, n0)
+% Posterior parameters of a Wishart distribution
+%
+% FORMAT [A,n] = UpdateWishart(ZZ, ndat, A0, n0)
+% ZZ   - 2nd order moment of observed data (assumes zero mean)
+% ndat - 0-th order moment of observed data
+% A0   - Expected value of the prior
+% n0   - Degrees of freedom of the prior
 n = n0 + ndat;
 if n0 > 0,  A = (n*A0)/(A0*ZZ +  n0*eye(size(ZZ)));
 else,       A = n*inv(ZZ + 1E-3*eye(size(ZZ))); % slight regularisation
