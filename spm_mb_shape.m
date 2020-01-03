@@ -1042,11 +1042,12 @@ function model = UpdateResidualPrecision(model,sett)
 % n0 == Inf: Fixed value
 
 if ~sett.do.pca, return; end
+if ~sett.do.updt_res_prior, return; end
 if ~isfinite(sett.pca.res_df), return; end % Fixed value
 
-ndat = size(model.Z,2);          % Numbe of subjects (ss0)
-lam0 = sett.pca.res_prior;  % Prior expected value
-n0   = sett.pca.res_df;     % Prior deg. freedom
+ndat  = size(model.Z,2);         % Numbe of subjects (ss0)
+lam0  = sett.pca.res_prior;      % Prior expected value
+n0    = sett.pca.res_df;         % Prior deg. freedom
 trLVV = model.ss.trLVV;          % suff stat: tr(L*(V-WZ)*(V-WZ)')
 trLSV = model.ss.trLSV;          % suff stat: tr(L*Cov[V])
 Su    = model.Su;                % subspace posterior covariance (one vox)
