@@ -354,7 +354,9 @@ end
 if Npop > 1
     % If more than one population, use template learned on sett.model.ix_init_pop
     % population to initialise other populations' GMM parameters
-    [mu,dat] = spm_mb_shape('UpdateSimpleMean',dat,    mu, sett);    
+    for it=1:nit_init_mu
+        [mu,dat] = spm_mb_shape('UpdateSimpleMean',dat, mu, sett);    
+    end
 end
 
 % % Restore settings
