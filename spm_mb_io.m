@@ -13,7 +13,8 @@ function varargout = spm_mb_io(varargin)
 % FORMAT dat        = spm_mb_io('InitDat',data,sett)
 % FORMAT model      = spm_mb_io('MakeModel',dat,model,sett)
 % FORMAT [psi,fpth] = spm_mb_io('SavePsiSub',datn,sett) 
-% FORMAT              spm_mb_io('SaveTemplate',dat,mu,sett)
+% FORMAT              spm_mb_io('SaveSubspace',U,sett)
+% FORMAT              spm_mb_io('SaveTemplate',mu,sett)
 % FORMAT              spm_mb_io('SetBoundCond')
 % FORMAT fout       = spm_mb_io('SetData',fin,f) 
 % FORMAT              spm_mb_io('SetPath')
@@ -49,6 +50,8 @@ switch id
         [varargout{1:nargout}] = MakeModel(varargin{:});        
     case 'SavePsiSub' 
         [varargout{1:nargout}] = SavePsiSub(varargin{:});
+    case 'SaveSubspace'
+        [varargout{1:nargout}] = SaveSubspace(varargin{:});
     case 'SaveTemplate'
         [varargout{1:nargout}] = SaveTemplate(varargin{:});
     case 'SetBoundCond'
@@ -418,25 +421,49 @@ end
 
 %==========================================================================
 % MakeModel()
-function model = MakeModel(dat,model,sett)
+function model = MakeModel(dat,shape,model,sett)
 
 % Parse function settings
-do_gmm           = sett.do.gmm;
-do_updt_int      = sett.do.updt_int;
-do_updt_template = sett.do.updt_template;
-dir_res          = sett.write.dir_res;
-mg_ix            = sett.model.mg_ix;
-write_model      = sett.write.model;
+do_gmm               = sett.do.gmm;
+do_pca               = sett.do.pca;
+do_updt_int          = sett.do.updt_int;
+do_updt_template     = sett.do.updt_template;
+do_updt_subspace     = sett.do.updt_subspace;
+do_updt_latent_prior = sett.do.updt_latent_prior;
+do_updt_res_prior    = sett.do.updt_res_prior;
+dir_res              = sett.write.dir_res;
+mg_ix                = sett.model.mg_ix;
+write_model          = sett.write.model;
 
 if isempty(dir_res) 
     pth     = fileparts(dat(1).f(1).dat.fname);
     dir_res = pth; 
 end
 
+% -----------
+% Shape model
+
+% TODO: Maybe better to save relative path (i.e., filename) rather than
+% absolute path, so that people can copy/paste their model files without
+% breaking anything. the only requirement would be for the model nifti
+% files (template, subspace) to be located next to the model mat file.
+
 if do_updt_template
-    % Shape related
-    f                    = fullfile(dir_res ,'mu_log_spm_mb.nii');
-    model.shape.template = f;
+    model.shape.template = fullfile(dir_res ,'mu_log_spm_mb.nii');
+end
+if do_pca
+    if do_updt_subspace
+        model.shape.subspace = fullfile(dir_res ,'subspace_spm_mb.nii');
+        model.shape.subspace_cov = shape.Su;
+    end
+    if do_updt_latent_prior
+        model.shape.latent_prior = shape.A;
+        model.shape.latent_df    = shape.nA;
+    end
+    if do_updt_res_prior
+        model.shape.res_prior = shape.lam;
+        model.shape.res_df    = shape.nlam;
+    end
 end
 
 if do_updt_int && do_gmm
@@ -541,6 +568,48 @@ if ~isempty(mu) && do_updt_template
         Nmu.descrip = 'Mean parameters (softmax)';
         create(Nmu);
         Nmu.dat(:,:,:,:) = mu;
+    end
+end
+end
+%==========================================================================
+
+%==========================================================================
+% SaveSubspace()
+function SaveSubspace(U,sett)
+
+% Parse function settings
+dir_res          = sett.write.dir_res;
+do_pca           = sett.do.pca;
+do_updt_subspace = sett.do.updt_subspace;
+Mmu              = sett.var.Mmu;
+write_subspace   = sett.write.subspace;
+
+if ~do_pca, return; end
+
+if isempty(dir_res) 
+    pth     = fileparts(dat(1).f(1).dat.fname);
+    dir_res = pth; 
+end
+
+if ~isempty(U) && do_updt_subspace
+    if write_subspace
+        fname       = fullfile(dir_res ,'subspace_spm_mb.nii');
+        fa          = file_array(fname,size(U),'float32');
+        Nii         = nifti;
+        Nii.dat     = fa;
+        Nii.mat     = Mmu;
+        Nii.mat0    = Mmu;
+        Nii.descrip = 'Principal subspace';
+        create(Nii);
+        for l=1:size(U,5)
+            Nii.dat(:,:,:,:,l) = single(U(:,:,:,:,l));
+        end
+        
+        % 4-th dimension reserved for time
+        dim = size(U);
+        dim = [dim(1:3) 1 dim(4:end)];
+        Nii.dat.dim = dim;
+        create(Nii);
     end
 end
 end

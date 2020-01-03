@@ -321,12 +321,14 @@ for zm=numel(sz):-1:1 % loop over zoom levels
         Objective = [Objective; E];
                 
         if write_ws && (do_updt_template || do_updt_int)
+            % TODO: not optiml anymore with stuff saved in 'shape'
             % Save workspace (except template) 
             save(fullfile(dir_res,'fit_spm_mb.mat'), '-regexp', '^(?!(mu)$).');
         end          
         
-        % Save template
-        spm_mb_io('SaveTemplate',shape.mu,sett);             
+        % Save template+subspace
+        spm_mb_io('SaveTemplate',shape.mu,sett);   
+        spm_mb_io('SaveSubspace',shape.U,sett);
     end           
     
     % Show stuff
@@ -337,15 +339,12 @@ end
 [shape,dat] = spm_mb_shape('UpdateMean',dat,shape,sett);
 dat         = spm_mb_appearance('UpdatePrior',dat, shape.mu, sett, add_po_observation);  
 
-% Save template
+% Save template+subspace
 spm_mb_io('SaveTemplate',shape.mu,sett);
-
-% TODO: SaveSubspace
+spm_mb_io('SaveSubspace',shape.U,sett);
 
 % Make model
-model = spm_mb_io('MakeModel',dat,model,sett);
-
-% TODO: save PCA variables in the model (residual and latent precision)
+model = spm_mb_io('MakeModel',dat,shape,model,sett);
 
 % Print total runtime
 spm_mb_show('Speak','Finished',sett,toc(t0));

@@ -238,6 +238,7 @@ s = SetDefault(s, 'write.clean_vel', false);         % Clean velocity files
 s = SetDefault(s, 'write.df',        false(1,2));    % Warps [forward inverse]
 s = SetDefault(s, 'write.model',     true);          % Model parts (template/intensity/pca)
 s = SetDefault(s, 'write.mu',        [true false]);  % Template [log softmax]
+s = SetDefault(s, 'write.subspace',  true);          % Subspace
 s = SetDefault(s, 'write.dir_res',   '.');           % Results directory
 s = SetDefault(s, 'write.im',        false(1,4));    % Input: [native corrected warped warped&corrected] 
 s = SetDefault(s, 'write.tc',        true(1,3));     % Tissue classes: [native warped warped&modulated]
