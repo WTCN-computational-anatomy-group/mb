@@ -2099,28 +2099,50 @@ end
 function H = VelocityHessian(mu,G,accel)
 d  = [size(mu,1),size(mu,2),size(mu,3)];
 M  = size(mu,4);
-if accel>0, s  = spm_mb_shape('Softmax',mu,4); end
+if accel>0, s  = Softmax(mu,4); end
 Ab = 0.5*(eye(M)-1/(M+1)); % See Bohning's paper
-H  = zeros([d 6],'single');
+H1 = zeros(d,'single');
+H2 = H1;
+H3 = H1;
+H4 = H1;
+H5 = H1;
+H6 = H1;
 for m1=1:M
-    for m2=1:M
+    Gm11 = G(:,:,:,m1,1);
+    Gm12 = G(:,:,:,m1,2);
+    Gm13 = G(:,:,:,m1,3);
+    if accel==0
+        tmp = Ab(m1,m1);
+    else
+        sm1 = s(:,:,:,m1);
+        tmp = (max(sm1.*(1-sm1),0))*accel + (1-accel)*Ab(m1,m1);
+    end
+    H1 = H1 + tmp.*Gm11.*Gm11;
+    H2 = H2 + tmp.*Gm12.*Gm12;
+    H3 = H3 + tmp.*Gm13.*Gm13;
+    H4 = H4 + tmp.*Gm11.*Gm12;
+    H5 = H5 + tmp.*Gm11.*Gm13;
+    H6 = H6 + tmp.*Gm12.*Gm13;
+    for m2=(m1+1):M
         if accel==0
             tmp = Ab(m1,m2);
         else
-            if m2~=m1
-                tmp = (-s(:,:,:,m1).*s(:,:,:,m2))*accel           + (1-accel)*Ab(m1,m2);
-            else
-                tmp = (max(s(:,:,:,m1).*(1-s(:,:,:,m1)),0))*accel + (1-accel)*Ab(m1,m2);
-            end
+            sm2 = s(:,:,:,m2);
+            tmp = (-sm1.*sm2)*accel + (1-accel)*Ab(m1,m2);
         end
-        H(:,:,:,1) = H(:,:,:,1) + tmp.*G(:,:,:,m1,1).*G(:,:,:,m2,1);
-        H(:,:,:,2) = H(:,:,:,2) + tmp.*G(:,:,:,m1,2).*G(:,:,:,m2,2);
-        H(:,:,:,3) = H(:,:,:,3) + tmp.*G(:,:,:,m1,3).*G(:,:,:,m2,3);
-        H(:,:,:,4) = H(:,:,:,4) + tmp.*G(:,:,:,m1,1).*G(:,:,:,m2,2);
-        H(:,:,:,5) = H(:,:,:,5) + tmp.*G(:,:,:,m1,1).*G(:,:,:,m2,3);
-        H(:,:,:,6) = H(:,:,:,6) + tmp.*G(:,:,:,m1,2).*G(:,:,:,m2,3);
+        Gm21 = G(:,:,:,m2,1);
+        Gm22 = G(:,:,:,m2,2);
+        Gm23 = G(:,:,:,m2,3);
+        H1 = H1 + 2*tmp.*Gm11.*Gm21;
+        H2 = H2 + 2*tmp.*Gm12.*Gm22;
+        H3 = H3 + 2*tmp.*Gm13.*Gm23;
+        H4 = H4 + tmp.*(Gm11.*Gm22 + Gm21.*Gm12);
+        H5 = H5 + tmp.*(Gm11.*Gm23 + Gm21.*Gm13);
+        H6 = H6 + tmp.*(Gm12.*Gm23 + Gm22.*Gm13);
     end
 end
+clear Gm11 Gm12 Gm13 Gm21 Gm22 Gm23 sm1 sm2 tmp
+H = cat(4, H1, H2, H3, H4, H5, H6);
 end
 %==========================================================================
 
