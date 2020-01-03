@@ -234,6 +234,8 @@ s = SetDefault(s, 'write.im',        false(1,4));    % Input: [native corrected 
 s = SetDefault(s, 'write.tc',        true(1,3));     % Tissue classes: [native warped warped&modulated]
 s = SetDefault(s, 'write.workspace', false);         % Save workspace variables (.mat)
 
+% TODO . df -> warps
+
 % Make directories (if does not exist)
 if ~(exist(s.write.dir_res,'dir') == 7) 
     ok = mkdir(s.write.dir_res);
