@@ -132,7 +132,9 @@ if ~s.do.pca, s.do.updt_subspace     = false;
 % .gen (general)
 %------------------
 
-s = SetDefault(s, 'gen.accel',    0.8); % 0 <= accel <= 1: 0 -> slow & stable; 1 -> fast & unstable
+s = SetDefault(s, 'gen.accel',    0.8); % 0 <= accel <= 1: 0 -> slow & stable; 1 -> fast & unstable                                       
+                                        % If accel > 0, the Hessian is based on a mixture of 
+                                        % the Bohning bound (stable) and the Taylor expansion (unstable)
 s = SetDefault(s, 'gen.run2d',    0);   % 0, 1, 2, 3 ?
 s = SetDefault(s, 'gen.samp',     3);   % Sampling distance (mm)
 s = SetDefault(s, 'gen.max_mem',  1);   % Size (GB) above which the template/subspace is stored on disk
