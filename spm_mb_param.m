@@ -365,6 +365,10 @@ end
 if ~isfield(sett.write,'df')
     sett.write.df = false(1,2); % forward, inverse
 end
+if ~isfield(sett.write,'labels')
+    % Writes labels in normalised space
+    sett.write.labels = false;
+end
 if ~isfield(sett.write,'model')
     sett.write.model = true;
 end
