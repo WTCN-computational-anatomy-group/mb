@@ -86,7 +86,7 @@ s = SetDefault(s, 'appear.tol_gmm', 1e-4); % Tolerance when fitting GMM
 %------------------
 
 s = SetDefault(s, 'bf.fwhm', 60);   % Cutoff on bias field frequency
-s = SetDefault(s, 'bf.reg',  1e5);  % Bending energy regularisation
+s = SetDefault(s, 'bf.reg',  1e6);  % Bending energy regularisation
 
 %------------------
 % .pca (shape modelling)
