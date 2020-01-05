@@ -977,7 +977,7 @@ for i=1:size(Mat0,3)
 end
 mx    = ceil(mx);
 mn    = floor(mn);
-prct  = 0.05;            % percentage to remove (in each direction)
+prct  = 0.1;            % percentage to remove (in each direction)
 o     = -prct*(mx - mn); % offset -> make template a bit smaller (for using less memory!)
 % o     = ones(3,1);
 if dims(1,3) == 1, o(3) = 0; end
