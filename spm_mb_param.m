@@ -339,9 +339,9 @@ if ~isfield(sett.var,'mu_settings')
 end
 if ~isfield(sett.var,'v_settings')
     if sett.do.updt_aff
-        sett.var.v_settings = [0 0 0.2 0.05 0.2]*2^4;
+        sett.var.v_settings = [0 0 0.2 0.05 0.2]*2^3;
     else
-        sett.var.v_settings = [1e-4 0 0.2 0.05 0.2]*2^4;
+        sett.var.v_settings = [1e-4 0 0.2 0.05 0.2]*2^3;
     end
 end
 %------------------
