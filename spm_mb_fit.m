@@ -106,10 +106,11 @@ sett.Mmu = Mmu;
 %------------------
 
 if dmu(3) == 1 % 2D
-    sett.registr.B      = spm_mb_shape('AffineBases','SE(2)');
-    denom_aff_tol       = N*100^3;               % smaller convergence threshold
+    sett.registr.B      = spm_mb_shape('AffineBases','SE(2)'); % three parameter rigid transform
+    denom_aff_tol       = N*100^3;                             % smaller convergence threshold
+    sett.var.v_settings = 3/2*sett.var.v_settings;             % more v regularisation
 else           % 3D
-    sett.registr.B = spm_mb_shape('AffineBases','SE(3)');
+    sett.registr.B = spm_mb_shape('AffineBases','SE(3)');      % six parameter rigid transform
     denom_aff_tol  = N*100^4;
 end
 
