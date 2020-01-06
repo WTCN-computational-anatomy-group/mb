@@ -980,7 +980,7 @@ mn    = floor(mn);
 prct  = 0.1;            % percentage to remove (in each direction)
 o     = -prct*(mx - mn); % offset -> make template a bit smaller (for using less memory!)
 % o     = ones(3,1);
-if dims(1,3) == 1, o(3) = 0; end
+if dims(1,3) == 1, o(1:3) = 0; end % not if 2D
 d     = (mx-mn+(2*o+1))';
 M_avg = M_avg * [eye(3) mn-(o+1); 0 0 0 1];
 end
