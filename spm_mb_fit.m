@@ -4,13 +4,12 @@ function [dat,model,sett] = spm_mb_fit(data,varargin)
 % FORMAT [dat,model,sett] = spm_mb_fit(data,varargin)
 %
 % INPUT
-% data -
-%
+% data - input subjects data (see spm_mb_io('InitDat',data,sett))
 %
 % OUTPUT
-% dat   -
-% model -
-% sett  -
+% dat                 - struct of length N storing each subject's information (see spm_mb_io('InitDat',data,sett))
+% model (inputParser) - struct storing shape and appearance model (see spm_mb_io('MakeModel',dat,model,sett))
+% sett  (inputParser) - struct storing final algorithm settings (see spm_mb_param('Settings'))
 %
 %__________________________________________________________________________
 %
