@@ -289,7 +289,7 @@ for zm=numel(sz):-1:1 % loop over zoom levels
         % Update template,bias field and intensity model
         % (Might be an idea to run this multiple times)                
         [shape,dat] = spm_mb_shape('UpdateMean',dat,shape,sett);
-        dat         = spm_mb_appearance('UpdatePrior',dat,shape,sett,add_po_observation);
+        dat         = spm_mb_appearance('UpdatePrior',dat,sett,add_po_observation);
         [shape,dat] = spm_mb_shape('UpdateMean',dat,shape,sett);
         dat         = spm_mb_appearance('UpdatePrior',dat,sett,add_po_observation);
             
