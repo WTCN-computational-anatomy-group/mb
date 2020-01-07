@@ -175,7 +175,7 @@ else
     [dat,shape.mu] = spm_mb_shape('InitTemplate',dat,K,sett);
 end
 
-spm_mb_show('All',dat,shape.mu,[],N,sett);
+spm_mb_show('All',dat,shape,[],N,sett);
 
 %------------------
 % Start algorithm
@@ -241,7 +241,7 @@ if do_updt_aff
         spm_mb_io('SaveTemplate',shape.mu,sett);
     end        
     
-    spm_mb_show('All',dat,shape.mu,Objective,N,sett);
+    spm_mb_show('All',dat,shape,Objective,N,sett);
 end
 
 %------------------
@@ -335,10 +335,11 @@ for zm=numel(sz):-1:1 % loop over zoom levels
         % Save template+subspace
         spm_mb_io('SaveTemplate',shape.mu,sett);   
         spm_mb_io('SaveSubspace',shape.U,sett);
-    end           
+        
+        % Show stuff
+        spm_mb_show('All',dat,shape,Objective,N,sett);
+    end
     
-    % Show stuff
-    spm_mb_show('All',dat,shape.mu,Objective,N,sett);            
 end
 
 % Final mean update

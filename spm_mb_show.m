@@ -4,7 +4,7 @@ function varargout = spm_mb_show(varargin)
 % Functions for visualisation related.
 %
 % FORMAT spm_mb_show('Clear',sett)
-% FORMAT spm_mb_show('All',dat,mu,Objective,N,sett)
+% FORMAT spm_mb_show('All',dat,shape,Objective,N,sett)
 % FORMAT spm_mb_show('IntensityPrior',dat,sett,p)
 % FORMAT spm_mb_show('Model',mu,Objective,N,sett)
 % FORMAT spm_mb_show('Subjects',dat,mu,sett,p,show_extras)
@@ -44,7 +44,7 @@ end
 
 %==========================================================================
 % All()
-function All(dat,mu,Objective,N,sett)
+function All(dat,shape,Objective,N,sett)
 
 % Parse function settings
 figs = sett.show.figs;
@@ -52,15 +52,15 @@ figs = sett.show.figs;
 if ~isempty(figs)  
     if any(strcmp(figs,'model'))
         % Template and negative loglikelihood
-        Model(mu,Objective,N,sett);
+        Model(shape,Objective,N,sett);
     end
     if any(strcmp(figs,'normalised'))
         % Template space images
-        Subjects(dat,mu,sett,false,false); 
+        Subjects(dat,shape.mu,sett,false,false); 
     end
     if any(strcmp(figs,'segmentations')) && ~any(strcmp(figs,'parameters'))
         % Segmentations and warped template
-        Subjects(dat,mu,sett,false);    
+        Subjects(dat,shape.mu,sett,false);    
     end
     if any(strcmp(figs,'intensity'))
         % Intensity prior fit   
@@ -68,7 +68,7 @@ if ~isempty(figs)
     end
     if any(strcmp(figs,'parameters'))
         % Subject parameters
-        Subjects(dat,mu,sett,true);        
+        Subjects(dat,shape.mu,sett,true);        
     end      
 end
 end
@@ -114,29 +114,63 @@ end
 
 %==========================================================================
 % Model()
-function Model(mu,Objective,N,sett)
+function Model(shape,Objective,N,sett)
 
 % Parse function settings
-fig_name = sett.show.figname_model;
+SetFigure(sett.show.figname_model);
 
+is3D = size(shape.mu,3) > 1;
+if is3D
+    if sett.do.pca, nr = 4;
+    else,           nr = 2; end
+    nc = 3;
+else
+    if sett.do.pca, nr = 2;
+    else,           nr = 1; end
+    nc = 2;
+end
+
+% --------
+% Template
+mu  = shape.mu;
 mu  = spm_mb_shape('TemplateK1',mu,4);
 mu  = exp(mu);   
 nam = ['K1=' num2str(size(mu,4)) ', N=' num2str(N) ' (softmaxed)'];
-if size(mu,3) > 1
+if is3D
     % 3D
-    ShowCat(mu,1,2,3,1,fig_name);
-    ShowCat(mu,2,2,3,2,fig_name);
-    title(nam);
-    ShowCat(mu,3,2,3,3,fig_name,true); % true -> show colorbar    
-    subplot(2,1,2);     
+    subplot(nr,nc,sub2ind([nc nr],1,1)); ShowCat(mu,1);
+    subplot(nr,nc,sub2ind([nc nr],2,1)); ShowCat(mu,2); title(nam);
+    subplot(nr,nc,sub2ind([nc nr],3,1)); ShowCat(mu,3,true); % true -> show colorbar    
+    subplot(nr,1,sub2ind([1 nr],1,2));
 else
     % 2D
-    ShowCat(mu,3,1,2,1,fig_name,true); % true -> show colorbar
-    title(nam);
-    subplot(1,2,2); 
+    subplot(nr,nc,sub2ind([nc nr],1,1)); ShowCat(mu,3,true); title(nam); % true -> show colorbar
+    subplot(nr,nc,sub2ind([nc nr],2,1));
 end
-plot(Objective,'.-');        
-title('Negative log-likelihood')
+plot(Objective,'.-'); title('Free Energy')
+
+if ~sett.do.pca, drawnow; return; end
+    
+% --------
+% Subspace
+U = shape.U;
+nam = ['M=' num2str(size(U,5)) ', N=' num2str(N) ];
+U = single(U(:,:,:,:,1)); % First component
+if is3D
+    % 3D
+    subplot(nr,nc,sub2ind([nc nr],1,3)); ShowVel(U,NaN,1);
+    subplot(nr,nc,sub2ind([nc nr],2,3)); ShowVel(U,NaN,2); title(nam);
+    subplot(nr,nc,sub2ind([nc nr],3,3)); ShowVel(U,NaN,3); 
+    subplot(nr,1,sub2ind([1 nr],1,4));
+else
+    % 2D
+    subplot(nr,nc,sub2ind([nc nr],1,2)); ShowVel(U,NaN,3); title(nam);
+    subplot(nr,nc,sub2ind([nc nr],2,2));
+end
+var = diag(shape.ZZ)/size(shape.Z,2);
+plot(var,'.-'); title('Projected variance');
+xlim([1 numel(var)]);
+
 drawnow
 end
 %==========================================================================
@@ -330,11 +364,12 @@ for n=1:nd
     end  
     
     % Show template, segmentation
-    ShowCat(mun,ax,nr_tiss,nd,n,fig_name_tiss);
-    ShowCat(zn,ax,nr_tiss,nd,n + nd,fig_name_tiss);        
+    SetFigure(fig_name_tiss);
+    subplot(nr_tiss,nd,n);    ShowCat(mun,ax);
+    subplot(nr_tiss,nd,n+nd); ShowCat(zn,ax);        
     if isfield(dat,'mog')
         % and image (if using GMM)     
-        ShowIm(bf(:,:,:,c).*fn(:,:,:,c),ax,nr_tiss,nd,n + 2*nd,fig_name_tiss,true,is_ct);        
+        subplot(nr_tiss,nd,n+nd*2); ShowIm(bf(:,:,:,c).*fn(:,:,:,c),ax,true,is_ct);        
     end
     clear zn
     
@@ -343,15 +378,14 @@ for n=1:nd
         % lower bound
         if isfield(dat,'mog') && any(do_bf == true)
             % Show bias field
-            ShowIm(fn(:,:,:,c),ax,nr_bf,nd,n,fig_name_bf,false,is_ct);
-            ShowIm(bf(:,:,:,c),ax,nr_bf,nd,n + nd,fig_name_bf,false,is_ct);            
-            ShowIm(bf(:,:,:,c).*fn(:,:,:,c),ax,nr_bf,nd,n + 2*nd,fig_name_bf,false,is_ct);
+            SetFigure(fig_name_bf);
+            subplot(nr_bf,nd,n);      ShowIm(fn(:,:,:,c),ax,false,is_ct);
+            subplot(nr_bf,nd,n+nd);   ShowIm(bf(:,:,:,c),ax,false,is_ct);            
+            subplot(nr_bf,nd,n+nd*2); ShowIm(bf(:,:,:,c).*fn(:,:,:,c),ax,false,is_ct);
         end
 
         % Now show some other stuff
-        fg = findobj('Type', 'Figure', 'Name', fig_name_par);
-        if isempty(fg), fg = figure('Name', fig_name_par, 'NumberTitle', 'off'); end
-        set(0, 'CurrentFigure', fg);   
+        SetFigure(fig_name_par);
 
         % Affine parameters    
         q    = spm_imatrix(Mr);            
@@ -370,7 +404,7 @@ for n=1:nd
 
         % Velocities (x)
         v = spm_mb_io('GetData',dat(n).v);
-        ShowIm(v(:,:,:,1),ax,nr_par,nd,n + 1*nd,fig_name_par)
+        subplot(nr_par,nd,n+nd); ShowVel(v,NaN,ax);
 
         % Intensity histogram w GMM fit
         if isfield(dat,'mog')                
@@ -384,10 +418,10 @@ for n=1:nd
             mun       = mun(mg_ix).*mg_w;
             
             % Plot GMM fit        
-            ShowGMMFit(bf(:,:,:,c).*fn(:,:,:,c),mun,dat(n).mog,nr_par,nd,n + 2*nd,c,mg_ix);
+            subplot(nr_par,nd,n+nd*2); ShowGMMFit(bf(:,:,:,c).*fn(:,:,:,c),mun,dat(n).mog,c,mg_ix);
 
             % Lower bound
-            subplot(nr_par,nd,n + 3*nd) 
+            subplot(nr_par,nd,n+nd*3) 
             plot(dat(n).mog.lb.sum,'-');
             axis off
         end    
@@ -412,6 +446,7 @@ mx_subj  = sett.show.mx_subjects;
 reg      = sett.bf.reg;
 
 if ~isempty(p), fig_name   = [fig_name ' (p=' num2str(p) ')']; end
+SetFigure(fig_name);
 
 if size(mu,3) > 1, nr = 3;
 else,              nr = 1;
@@ -460,15 +495,15 @@ for n=1:nd
     if isfield(dat(n),'mog')
         ShowIm(fn,3,nr,nd,n,fig_name,true,is_ct);         
         if size(mu,3) > 1
-            ShowIm(fn,2,nr,nd,n + nd,fig_name,true,is_ct);   
-            ShowIm(fn,1,nr,nd,n + 2*nd,fig_name,true,is_ct);        
+            subplot(nr,nd,n+nd);   ShowIm(fn,2,true,is_ct);   
+            subplot(nr,nd,n+2*nd); ShowIm(fn,1,true,is_ct);        
         end
     else
         fn = cat(4,fn,1 - sum(fn,4));
         ShowCat(fn,3,nr,nd,n,fig_name);         
         if size(mu,3) > 1
-            ShowCat(fn,2,nr,nd,n + nd,fig_name);   
-            ShowCat(fn,1,nr,nd,n + 2*nd,fig_name);        
+            subplot(nr,nd,n+nd);   ShowCat(fn,2); 
+            subplot(nr,nd,n+2*nd); ShowCat(fn,1); 
         end
     end
 end
@@ -506,11 +541,7 @@ if nargin < 2, do_softmax  = true; end
 if nargin < 3, num_montage = 20; end
 if nargin < 4, fig_nam     = '(spm_mb) Tissues'; end
 
-f  = findobj('Type', 'Figure', 'Name', fig_nam);
-if isempty(f)
-    f = figure('Name', fig_nam, 'NumberTitle', 'off');
-end
-set(0, 'CurrentFigure', f); 
+SetFigure(fig_nam);
 
 if ischar(im),      im = nifti(im); end
 if isa(im,'nifti'), im = im.dat();  end
@@ -546,16 +577,8 @@ end
 
 %==========================================================================
 % ShowCat()
-function ShowCat(in,ax,nr,nc,np,fn,show_colorbar)
-if nargin < 7, show_colorbar = false; end
-
-f = findobj('Type', 'Figure', 'Name', fn);
-if isempty(f)
-    f = figure('Name', fn, 'NumberTitle', 'off');
-end
-set(0, 'CurrentFigure', f); 
-
-subplot(nr,nc,np);
+function ShowCat(in,ax,show_colorbar)
+if nargin < 3, show_colorbar = false; end
 
 dm = size(in);
 if numel(dm) ~= 4
@@ -615,14 +638,97 @@ end
 %==========================================================================
 
 %==========================================================================
+% ShowVel()
+function ShowVel(vel, z, slice, nrm)
+
+dim = size(vel);
+if numel(dim) > 4
+    dim = [dim(1:3) dim(end)];
+    vel   = reshape(vel, dim);
+end
+
+if nargin < 4
+    nrm = nan;
+    if nargin < 3
+        slice = 3;
+    end
+end
+
+dim = [size(vel) 1 1 1];
+if numel(size(vel)) == 5
+    vel = reshape(vel, [dim(1:3) dim(5)]);
+end
+dim = [size(vel) 1 1];
+if numel(size(vel)) == 3
+    vel = reshape(ensure_numeric(vel),  [dim(1) dim(2) 1 dim(3)]);
+    vel(:,:,:,3) = 0;
+    dim = [size(vel) 1 1];
+end
+if nargin < 3 || ~isfinite(z)
+    z = ceil(dim(slice)/2);
+end
+switch slice
+    case 1
+        vel = reshape(DefToColour(vel(z,:,:,:), nrm), [dim(2) dim(3) dim(4)]);
+    case 2
+        vel = reshape(DefToColour(vel(:,z,:,:), nrm), [dim(1) dim(3) dim(4)]);
+    case 3
+        vel = reshape(DefToColour(vel(:,:,z,:), nrm), [dim(1) dim(2) dim(4)]);
+    otherwise
+        error('not handled')
+end
+image(vel);
+axis off
+
+end
+%==========================================================================
+
+%==========================================================================
+% DefToColour()
+function out = DefToColour(d, nrm)
+% FORMAT c = defToColour(d)
+%
+% Generate an RGB volume from a displacement (e.g. initial velocity)
+% volume.
+
+d = d();
+if nargin < 2 || ~isfinite(nrm)
+    nrm = max(max(max(sum(d.^2, 4)))); % normalising constant
+end
+
+% Create HSV
+dim = [size(d) 1 1];
+h = zeros(dim(1:3));
+s = sum(d.^2, 4) / nrm;
+for k=1:size(d, 4)
+    dk = d(:,:,:,k);
+    neg = dk;
+    neg(dk > 0) = 0;
+    pos = dk;
+    pos(dk < 0) = 0;
+    h = h + (k-1)*180/3 * abs(pos) + ((k-1)*180/3+180) * abs(neg);
+end
+clear dk neg pos
+sumd = sum(abs(d), 4);
+h(sumd~=0) = h(sumd~=0)./sumd(sumd~=0);
+clear dumd d
+h = mod(h, 360);
+
+out = ones([dim(1:3) 3]);
+out(:,:,:,1) = h/360;
+out(:,:,:,2) = s;
+out = reshape(out, [], dim(3), 3);
+out = hsv2rgb(out);
+out = reshape(out, [dim(1:3) 3]);
+                   
+end
+%==========================================================================
+
+%==========================================================================
 % ShowGMMFit()
-function ShowGMMFit(f,PI,mog,nr,nd,n,c,mg_ix)
+function ShowGMMFit(f,PI,mog,c,mg_ix)
 K      = size(mog.po.m,2);
 colors = hsv(max(mg_ix));
-
-sp = subplot(nr,nd,n);
-cla(sp); % clear subplot
-hold on
 
 % ---------
 % Histogram
@@ -631,6 +737,7 @@ hold on
 [H, edges] = histcounts(f(f > 0 & isfinite(f)), 64, 'Normalization', 'pdf');
 centres = (edges(1:end-1) + edges(2:end))/2;
 bar(centres, H, 'EdgeColor', 'none', 'FaceColor', [0.7 0.7 0.7]);
+hold on
 
 % -----------
 % GMM Density
@@ -662,17 +769,9 @@ end
         
 %==========================================================================
 % ShowIm()
-function ShowIm(in,ax,nr,nc,np,fn,use_gray,is_ct)
-if nargin < 7, use_gray = true; end
-if nargin < 8, is_ct    = false; end
-
-f  = findobj('Type', 'Figure', 'Name', fn);
-if isempty(f)
-    f = figure('Name', fn, 'NumberTitle', 'off');
-end
-set(0, 'CurrentFigure', f);   
-
-subplot(nr,nc,np);
+function ShowIm(in,ax,use_gray,is_ct)
+if nargin < 3, use_gray = true; end
+if nargin < 4, is_ct    = false; end
 
 dm  = size(in);
 dm  = [dm 1];
@@ -698,4 +797,16 @@ if use_gray
     colormap(gray(128));
 end
 end 
+%==========================================================================
+
+
+%==========================================================================
+% SetFigure()
+function SetFigure(fname)
+f  = findobj('Type', 'Figure', 'Name', fname);
+if isempty(f)
+    f = figure('Name', fn, 'NumberTitle', 'off');
+end
+set(0, 'CurrentFigure', f);   
+end
 %==========================================================================
