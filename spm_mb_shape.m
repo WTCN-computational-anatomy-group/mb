@@ -238,7 +238,6 @@ mu = zeros([sett.var.d K],'single');
 if ~do_gmm, return; end
 
 % % Change some settings
-% do_updt_bf      = sett.do.updt_bf;
 ix_init         = sett.model.ix_init_pop;
 mg_ix           = sett.model.mg_ix;
 nit_appear      = sett.nit.appear;
@@ -258,21 +257,13 @@ Kmg = numel(mg_ix);
 % Get population indices
 p_ix       = spm_mb_appearance('GetPopulationIdx',dat);
 Npop       = numel(p_ix);
-first_subj = true; % For when not using InitGMM, make posterior means of all subjects uninformative, except first subject in population sett.model.ix_init_pop
 pop_rng    = 1:Npop;
 
-% Was InitGMM run on initialising population?
-[~,C]       = spm_mb_io('GetSize',dat(p_ix{ix_init}(1)).f);
-has_ct      = any(dat(p_ix{ix_init}(1)).is_ct == true);
-use_initgmm = C == 1 && ~has_ct;
-
-for p=[ix_init pop_rng(pop_rng ~= ix_init)] % loop over populations (starting index defined by sett.model.ix_init_pop)
+for p=pop_rng(pop_rng ~= ix_init) % loop over populations (starting index defined by sett.model.ix_init_pop)
     % To make the algorithm more robust when using multiple populations,
     % set posterior and prior means (m) of GMMs of all but the first population to
     % uniform  
-    
-    if use_initgmm && p == ix_init, continue; end
-    
+        
     C = size(dat(p_ix{p}(1)).mog.po.m,1);
    
     avg_m_po  = 0;
@@ -328,10 +319,6 @@ for p=[ix_init pop_rng(pop_rng ~= ix_init)] % loop over populations (starting in
     % Assign
     for n=p_ix{p}
         dat(n).mog.pr.m = mpr; % prior
-        if ~use_initgmm && first_subj            
-            first_subj = false;
-            continue
-        end        
         dat(n).mog.po.m = mpo; % posterior
     end
     
@@ -341,12 +328,6 @@ for p=[ix_init pop_rng(pop_rng ~= ix_init)] % loop over populations (starting in
     end
 end
 
-if ~use_initgmm
-    % Update template based on only first subject of population sett.model.ix_init_pop
-    for it=1:nit_init_mu
-        [mu,dat(p_ix{ix_init}(1))] = spm_mb_shape('UpdateSimpleMean',dat(p_ix{ix_init}(1)), mu, sett);
-    end
-end
 % Update template using all subjects from population sett.model.ix_init_pop
 for it=1:nit_init_mu
     [mu,dat(p_ix{ix_init})] = spm_mb_shape('UpdateSimpleMean',dat(p_ix{ix_init}), mu, sett);
