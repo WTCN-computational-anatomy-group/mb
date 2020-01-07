@@ -561,7 +561,9 @@ end
 if Npop > 1
     % If more than one population, use template learned on sett.model.ix_init_pop
     % population to initialise other populations' GMM parameters
-    [mu,dat] = spm_mb_shape('UpdateSimpleMean',dat,    mu, sett);    
+    for it=1:nit_init_mu
+        [mu,dat] = spm_mb_shape('UpdateSimpleMean',dat, mu, sett);    
+    end
 end
 end
 %==========================================================================
@@ -1669,10 +1671,10 @@ for i=1:size(Mat0,3)
 end
 mx    = ceil(mx);
 mn    = floor(mn);
-prct  = 0.05;            % percentage to remove (in each direction)
+prct  = 0.1;            % percentage to remove (in each direction)
 o     = -prct*(mx - mn); % offset -> make template a bit smaller (for using less memory!)
 % o     = ones(3,1);
-if dims(1,3) == 1, o(3) = 0; end
+if dims(1,3) == 1, o(1:3) = 0; end % not if 2D
 d     = (mx-mn+(2*o+1))';
 M_avg = M_avg * [eye(3) mn-(o+1); 0 0 0 1];
 end

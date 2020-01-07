@@ -423,7 +423,7 @@ for n=1:N
     end
     
     % Labels in a cell array as {nifti,cm_map}
-    if isstruct(data(n)) && isfield(data(n),'labels') && (~isempty(data(n).labels{1}) && ~isempty(data(n).labels{2}))
+    if isstruct(data(n)) && isfield(data(n),'labels') && (~isempty(data(n).labels{1})
         dat(n).labels    = data(n).labels;
         dat(n).labels{1} = MemMapData(dat(n).labels{1});
         if run2d, dat(n).labels{1} = GetSlice(dat(n).labels{1},run2d); end

@@ -9,7 +9,7 @@ function res = spm_mb_output(dat,model,sett)
 % struct for saving paths of data written to disk
 N   = numel(dat);
 cl  = cell(N,1);
-res = struct('bf',cl,'im',cl,'imc',cl,'c',cl,'y',cl,'iy',cl,'wim',cl,'wimc',cl,'wc',cl,'mwc',cl);
+res = struct('bf',cl,'im',cl,'imc',cl,'c',cl,'y',cl,'iy',cl,'wim',cl,'wimc',cl,'wc',cl,'mwc',cl,'lab',cl);
 
 % Get template
 mu = spm_mb_io('MemMapData', model.shape.template);
@@ -147,6 +147,7 @@ nit_mrf    = sett.clean_z.nit_mrf;
 reg        = sett.bf.reg;
 write_bf   = sett.write.bf; % field
 write_df   = sett.write.df; % forward, inverse
+write_lab  = sett.write.labels;
 write_im   = sett.write.im; % image, corrected, warped, warped corrected
 write_tc   = sett.write.tc; % native, warped, warped-mod
 
@@ -178,7 +179,7 @@ if size(write_bf,1) == 1 && C  > 1, write_bf = repmat(write_bf,[C  1]); end
 if size(write_im,1) == 1 && C  > 1, write_im = repmat(write_im,[C  1]); end   
 if size(write_tc,1) == 1 && K1 > 1, write_tc = repmat(write_tc,[K1 1]); end
 
-if ~(all(write_bf(:) == false) && all(write_im(:) == false) && all(write_tc(:) == false))   
+if ~(all(write_bf(:) == false) && all(write_im(:) == false) && all(write_tc(:) == false) && write_lab == false)
     psi0 = single(datn.psi());
 end
 
@@ -332,7 +333,7 @@ else
     zn = cat(4,zn,1 - sum(zn,4));
 end
 
-if any(write_df == true) || any(reshape(write_tc(:,[2 3]),[],1) == true) ||  any(reshape(write_im(:,[3 4]),[],1) == true)
+if any(write_df == true) || any(reshape(write_tc(:,[2 3]),[],1) == true) ||  any(reshape(write_im(:,[3 4]),[],1) == true) || write_lab
     % Write forward deformation and/or normalised images
     %------------------
 
@@ -413,6 +414,23 @@ if any(write_df == true) || any(reshape(write_tc(:,[2 3]),[],1) == true) ||  any
         end    
         resn.mwc = pths;
     end  
+    
+    if write_lab && ~isempty(datn.labels) && ~isempty(datn.labels{1})
+        % Write normalised manual labels (if present)        
+        descrip = 'Normalised manual labels ('; 
+        pths    = {};        
+        labels  = spm_mb_io('GetData',datn.labels{1});
+        val_lab = unique(labels);
+        for k=2:numel(val_lab) % loop over label classes
+            nam       = ['wlab' num2str(val_lab(k)) '_' namn '.nii'];
+            fpth      = fullfile(dir_res,nam);         
+            [img,cnt] = spm_mb_shape('Push1',single(labels == val_lab(k)),psi,dmu,sd);
+            spm_mb_io('WriteNii',fpth,round(img./(cnt + eps('single'))),Mmu,[descrip 'k=' num2str(val_lab(k)) ')']);            
+            pths{end + 1} = fpth;
+        end
+        resn.lab  = pths;
+        clear labels
+    end    
 
     if write_df(2)
         % Get inverse deformation (correct?)

@@ -215,8 +215,8 @@ s = SetDefault(s, 'shoot.s_settings', [3 2]);  % Full multigrid settings
 %------------------
 
 s = SetDefault(s, 'var.mu_settings',  [1e-3 0.2 0]); % Template: regularisation
-if s.do.updt_aff, s = SetDefault(s, 'var.v_settings', [0 0 0.2 0.05 0.2]*2^4);  % Velocities: regularisation
-else,             s = SetDefault(s, 'var.v_settings', [1e-4 0 0.2 0.05 0.2]*2^4); end
+if s.do.updt_aff, s = SetDefault(s, 'var.v_settings', [0 0 0.2 0.05 0.2]*2^1);  % Velocities: regularisation
+else,             s = SetDefault(s, 'var.v_settings', [1e-4 0 0.2 0.05 0.2]*2^1); end
 % TODO: . I think this structure should be empty (and v_, mu_ settings 
 %         moved somewhere else) and only filled during initialisation.
 
@@ -225,9 +225,10 @@ else,             s = SetDefault(s, 'var.v_settings', [1e-4 0 0.2 0.05 0.2]*2^4)
 %------------------
 
 s = SetDefault(s, 'write.bf',        false);         % Bias field
-s = SetDefault(s, 'write.clean_def', false);         % Clean warp files
-s = SetDefault(s, 'write.clean_vel', false);         % Clean velocity files
+s = SetDefault(s, 'write.clean_def', true);          % Clean warp files
+s = SetDefault(s, 'write.clean_vel', true);          % Clean velocity files
 s = SetDefault(s, 'write.df',        false(1,2));    % Warps [forward inverse]
+s = SetDefault(s, 'write.labels',    false);         % Manual labels in template space
 s = SetDefault(s, 'write.model',     true);          % Model parts (template/intensity/pca)
 s = SetDefault(s, 'write.mu',        [true false]);  % Template [log softmax]
 s = SetDefault(s, 'write.subspace',  true);          % Subspace
