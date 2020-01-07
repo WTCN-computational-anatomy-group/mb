@@ -971,9 +971,13 @@ if K1 < Kmg && numel(pr.n) ~= Kmg
     % Modify posteriors and priors for when using multiple Gaussians per
     % tissue
     for n=1:N        
+        
+        is_ct = dat(n).is_ct;
+        
         % Posterior
         po            = dat(n).mog.po;
         gmm           = spm_gmm_lib('extras', 'more_gmms', {po.m,po.b,po.W,po.n}, mg_ix);        
+        if ~is_ct, gmm{1} = abs(gmm{1}); end % make sure non-negative
         po.m          = gmm{1};
         po.b          = gmm{2};
         po.W          = gmm{3};
@@ -983,6 +987,7 @@ if K1 < Kmg && numel(pr.n) ~= Kmg
         % Prior
         pr            = dat(n).mog.pr;
         gmm           = spm_gmm_lib('extras', 'more_gmms', {pr.m,pr.b,pr.W,pr.n}, mg_ix);        
+        if ~is_ct, gmm{1} = abs(gmm{1}); end % make sure non-negative
         pr.m          = gmm{1};
         pr.b          = gmm{2};
         pr.W          = gmm{3};
