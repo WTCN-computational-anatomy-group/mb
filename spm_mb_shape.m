@@ -1260,6 +1260,7 @@ if do_pca
         if ~ok, error('Failed to copy the subspace file'); end
         nii = nifti(tmpname);
         nii.dat.fname = model.U.fname;
+        model.U.fname = tmpname;
         nii.dat.dim(1:3) = d;
         nii.mat = Mmu;
         create(nii);
@@ -1719,7 +1720,7 @@ end
 %==========================================================================
 
 %==========================================================================
-% ResizeFile()
+% ResizeArray()
 function fin0 = ResizeArray(fin,d,Mat)
 fin0 = [];
 if isnumeric(fin)
