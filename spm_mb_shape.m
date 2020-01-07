@@ -15,7 +15,7 @@ function varargout = spm_mb_shape(varargin)
 % FORMAT sd            = spm_mb_shape('SampDens',Mmu,Mn)
 % FORMAT mu1           = spm_mb_shape('ShrinkTemplate',mu,oMmu,sett)
 % FORMAT P             = spm_mb_shape('Softmax',mu,dr)
-% FORMAT [Mmu,d]       = spm_mb_shape('SpecifyMean',dat,vx)
+% FORMAT [Mmu,d]       = spm_mb_shape('SpecifyMean',dat,vx,sett)
 % FORMAT E             = spm_mb_shape('TemplateEnergy',mu,sett)
 % FORMAT mun           = spm_mb_shape('TemplateK1',mun,ax)
 % FORMAT dat           = spm_mb_shape('UpdateAffines',dat,mu,sett)
@@ -548,7 +548,11 @@ end
 
 %==========================================================================
 % SpecifyMean()
-function [Mmu,d] = SpecifyMean(dat,vx)
+function [Mmu,d] = SpecifyMean(dat,vx,sett)
+
+% Parse function settings
+do_gmm = sett.do.gmm;
+
 dims = zeros(numel(dat),3);
 Mat0 = zeros(4,4,numel(dat));
 for n=1:numel(dat)
@@ -556,7 +560,7 @@ for n=1:numel(dat)
     Mat0(:,:,n) = dat(n).Mat;
 end
 
-[Mmu,d] = ComputeAvgMat(Mat0,dims);
+[Mmu,d] = ComputeAvgMat(Mat0,dims,do_gmm);
 
 % Adjust voxel size
 if numel(vx) == 1
@@ -803,8 +807,10 @@ for n=1:numel(dat)
     u0          = spm_diffeo('vel2mom', v, v_settings); % Initial momentum
     dat(n).E(2) = 0.5*sum(u0(:).*v(:));                 % Prior term
     
-    % Ensure correct lower bound
-    dat(n).mog.lb.pr_v(end + 1) = -dat(n).E(2);
+    if isfield(dat(n),'mog')
+        % Ensure correct lower bound
+        dat(n).mog.lb.pr_v(end + 1) = -dat(n).E(2);
+    end
 end
 end
 %==========================================================================
@@ -869,7 +875,7 @@ end
 
 %==========================================================================
 % ComputeAvgMat()
-function [M_avg,d] = ComputeAvgMat(Mat0,dims)
+function [M_avg,d] = ComputeAvgMat(Mat0,dims,do_gmm)
 % Compute an average voxel-to-world mapping and suitable dimensions
 % FORMAT [M_avg,d] = spm_compute_avg_mat(Mat0,dims)
 % Mat0  - array of matrices (4x4xN)
@@ -980,9 +986,9 @@ mn    = floor(mn);
 prct  = 0.1;            % percentage to remove (in each direction)
 o     = -prct*(mx - mn); % offset -> make template a bit smaller (for using less memory!)
 % o     = ones(3,1);
-if dims(1,3) == 1, o(1:3) = 0; end % not if 2D
-d     = (mx-mn+(2*o+1))';
-M_avg = M_avg * [eye(3) mn-(o+1); 0 0 0 1];
+if dims(1,3) == 1 || ~do_gmm, o(1:3) = 0; end % not if 2D
+d     = (mx - mn + (2*o + 1))';
+M_avg = M_avg * [eye(3) mn - (o + 1); 0 0 0 1];
 end
 %==========================================================================
 

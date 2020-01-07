@@ -95,7 +95,7 @@ if template_given
     dmu       = spm_mb_io('GetSize',model.shape.template);
     [mu0,Mmu] = spm_mb_io('GetData',model.shape.template);       
 else
-    [Mmu,dmu] = spm_mb_shape('SpecifyMean',dat,vx);
+    [Mmu,dmu] = spm_mb_shape('SpecifyMean',dat,vx,sett);
 end
 vxmu     = sqrt(sum(Mmu(1:3,1:3).^2));
 sett.Mmu = Mmu;
