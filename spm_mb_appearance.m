@@ -173,7 +173,7 @@ for l=1:numel(cm_map) - 1
 end
 
 % Load labels
-labels = spm_mb_io('GetData',datn.labels{1});
+labels = single(datn.labels{1}());
 if do_samp && samp > 1
     % Subsample labels
     Mn     = datn.M;
@@ -234,7 +234,7 @@ end
 
 % Get template
 if template_given
-    mu = spm_mb_io('GetData',model.shape.template);                    
+    mu = single(model.shape.template());
     
     % Build a weigthed mean (w_mu) that can be used to initi bias field DC scaling
     w_mu = spm_mb_shape('TemplateK1',mu,4);
@@ -340,7 +340,7 @@ is_ct      = datn.is_ct;
 mg_w         = datn.mog.mg_w;
 
 % Get image data
-fn = spm_mb_io('GetData',datn.f);
+fn = single(datn.f());
 
 % Get amount to jitter by
 jitter = spm_mb_io('GetScale',datn.f,sett);
@@ -606,7 +606,7 @@ clear fn bf mun
 
 if samp > 1
     % Compute responsibilities on original data
-    fn = spm_mb_io('GetData',datn.f);
+    fn = single(datn.f());
     fn = reshape(fn,[prod(df(1:3)) C]);
     fn = Mask(fn,is_ct);
     
@@ -878,7 +878,7 @@ for n=1:N
     
     if ~use_initgmm                
         % Load image data
-        fn = spm_mb_io('GetData',dat(n).f);
+        fn = single(dat(n).f());
         fn = reshape(fn,[prod(df(1:3)) C]);
         fn = spm_mb_appearance('Mask',fn,dat(n).is_ct);
         
@@ -1048,7 +1048,7 @@ for n=1:N % Loop over subjects
     for m=1:M % Loop over populations
         
         % Read images and labels
-        img    = spm_mb_io('GetData',dat(n).f);
+        img    = single(dat(n).f());
         labels = spm_mb_appearance('GetLabels',dat(n),sett);
         
         % Sample data

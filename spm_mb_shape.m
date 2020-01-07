@@ -252,8 +252,12 @@ for n=1:numel(dat)
         dat(n).v   = v;
         dat(n).psi = psi1;
     else
-        if isa(dat(n).f,'nifti')
-            [pth,nam,~] = fileparts(dat(n).f(1).dat.fname);
+        nii = dat(n).f;
+        if isa(nii, 'file_array')
+            nii = nifti({nii.fname});
+        end
+        if isa(nii,'nifti')
+            [pth,nam,~] = fileparts(nii(1).dat.fname);
             if isempty(dir_res), dir_res = pth; end
             vname       = fullfile(dir_res,['v_' nam '.nii']);
             pname       = fullfile(dir_res,['psi_' nam '.nii']);
@@ -266,13 +270,15 @@ for n=1:numel(dat)
             nii.descrip = 'Velocity';
             create(nii);
             nii.dat(:,:,:,:) = v;
-            dat(n).v    = nii;
+            dat(n).v = nii.dat;
+            dat(n).v.dim(4) = [];
 
             nii.dat.fname = pname;
-            nii.descrip = 'Deformation (WIP)';
+            nii.descrip = 'Deformation (WIP)'; % TODO: still WIP?
             create(nii);
             nii.dat(:,:,:,:) = psi1;
-            dat(n).psi  = nii;
+            dat(n).psi = nii.dat;
+            dat(n).psi.dim(4) = [];
         end
     end
     dat(n).ss.trLSv = 0;
@@ -985,7 +991,7 @@ L   = size(model.U,5);    % Number of principal components
 A   = model.A;            % Precision matrix (posterior expected value)
 lam = model.lam;          % Residual precision (posterior expected value)
 
-m = spm_mb_io('GetData',datn.v);
+m = single(datn.v());
 m = spm_diffeo('vel2mom',m,v_settings); % Compute momentum: L * v
 m = m(:);
 
@@ -1097,7 +1103,7 @@ ZS = lam * Z' * model.Su;
 for l=1:L
     U1 = 0;
     for n=1:numel(dat)
-        v  = spm_mb_io('GetData',dat(n).v);
+        v  = single(dat(n).v());
         U1 = U1 + v * ZS(n,l);
     end
     model.U(:,:,:,:,l) = U1;
@@ -1134,7 +1140,7 @@ if do_updt_template
     % Total initial velocity should be zero (Khan & Beg)
     avg_v = single(0);
     for n=1:numel(dat)
-        avg_v = avg_v + spm_mb_io('GetData',dat(n).v); % For mean correcting initial velocities
+        avg_v = avg_v + single(dat(n).v()); % For mean correcting initial velocities
     end
     avg_v = avg_v/numel(dat);
     d     = [size(avg_v,1) size(avg_v,2) size(avg_v,3)];
@@ -1274,11 +1280,11 @@ if do_pca
 end
 % --- Subject data --------------------------------------------------------
 for n=1:numel(dat)
-    v          = spm_mb_io('GetData',dat(n).v);
-    v          = spm_diffeo('pullc',v,y).*z;
-    dat(n).v   = ResizeFile(dat(n).v  ,d,Mmu);
-    dat(n).psi = ResizeFile(dat(n).psi,d,Mmu);
-    dat(n).v   = spm_mb_io('SetData',dat(n).v,v);
+    v           = single(dat(n).v());
+    v           = spm_diffeo('pullc',v,y).*z;
+    dat(n).v    = ResizeArray(dat(n).v  ,d,Mmu);
+    dat(n).psi  = ResizeArray(dat(n).psi,d,Mmu);
+    dat(n).v(:) = v(:);
 end
 end
 %==========================================================================
@@ -1297,13 +1303,11 @@ do_pca     = sett.do.pca;
 model.ss.trLVV = 0;
 model.ss.trLSV = 0;
 for n=1:numel(dat)
-    v = spm_mb_io('GetData',dat(n).v);
+    v = single(dat(n).v());
     if do_pca
-        v0 = 0;
         for l=1:size(model.U,5)
-            v0 = v0 + spm_mb_io('GetData',model.U,5,l) * dat(n).z(l);
+            v = v - single(model.U(:,:,:,:,l)) * dat(n).z(l);
         end
-        v = v - v0;
     end
     u0  = spm_diffeo('vel2mom', v, v_settings); % Initial momentum
     model.ss.trLVV = model.ss.trLVV + sum(u0(:).*v(:), 'double');
@@ -1706,8 +1710,21 @@ end
 
 %==========================================================================
 % ResizeFile()
-function fin = ResizeFile(fin,d,Mat)
+function fin0 = ResizeArray(fin,d,Mat)
+fin0 = [];
+if isnumeric(fin)
+    dim = [size(fin) 1];
+    dim(1:3) = d(1:3);
+    fin0 = zeros(dim, 'like', fin);
+    return
+end
+if isa(fin, 'file_array')
+    fin.dim(1:3) = d(1:3);
+    fin0 = fin;
+    fin = fin.fname;
+end
 if isa(fin,'char')
+    if isempty(fin0), fin0 = fin; end
     fin = nifti(fin);
 end
 if isa(fin,'nifti')
@@ -1717,6 +1734,7 @@ if isa(fin,'nifti')
         fin(m).mat0 = Mat;
         create(fin(m));
     end
+    if isempty(fin0), fin0 = fin; end
 end
 end
 %==========================================================================
@@ -1903,7 +1921,7 @@ for m=1:size(B,3)
     dM(:,m) = reshape(tmp(1:3,:),12,1);
 end
 
-psi1 = spm_mb_io('GetData',datn.psi);
+psi1 = single(datn.psi());
 psi0 = Affine(df,Mmu\Mr*Mn);
 J    = spm_diffeo('jacobian',psi1);
 J    = reshape(Pull1(reshape(J,[d 3*3]),psi0),[df 3 3]);
@@ -1952,7 +1970,7 @@ Mmu   = sett.var.Mmu;
 df  = spm_mb_io('GetSize',datn.f);
 q   = double(datn.q);
 Mn  = datn.Mat;
-psi = Compose(spm_mb_io('GetData',datn.psi),Affine(df, Mmu\spm_dexpm(q,B)*Mn));
+psi = Compose(single(datn.psi()),Affine(df, Mmu\spm_dexpm(q,B)*Mn));
 mu  = Pull1(mu,psi);
 [f,datn] = spm_mb_io('GetClasses',datn,mu,sett);
 % if isempty(H0)
@@ -2016,7 +2034,7 @@ Mmu = sett.var.Mmu;
 df    = spm_mb_io('GetSize',datn.f);
 q     = double(datn.q);
 Mn    = datn.Mat;
-psi   = Compose(spm_mb_io('GetData',datn.psi),Affine(df,Mmu\spm_dexpm(q,B)*Mn));
+psi   = Compose(single(datn.psi()),Affine(df,Mmu\spm_dexpm(q,B)*Mn));
 mu    = Pull1(mu,psi);
 [f,datn] = spm_mb_io('GetClasses',datn,mu,sett);
 [g,w] = Push1(f,psi,d);
@@ -2036,12 +2054,12 @@ scal       = sett.optim.scal_v;
 v_settings = sett.var.v_settings;
 do_pca     = sett.do.pca;
 
-v  = spm_mb_io('GetData',datn.v);
+v  = single(datn.v());
 v0 = 0;
 if do_pca
     % Compute subject-specific mean velocity from PCA
     for l=1:size(model.U,5)
-        v0 = v0 + spm_mb_io('GetData',model.U,5,l) * datn.z(l);
+        v0 = v0 + single(model.U(:,:,:,:,l)) * datn.z(l);
     end
     % Modulate precision
     v_settings(4:end) = v_settings(4:end) * model.lam;
@@ -2052,7 +2070,7 @@ Mn        = datn.Mat;
 Mr        = spm_dexpm(q,B);
 Mat       = Mmu\Mr*Mn;
 df        = spm_mb_io('GetSize',datn.f);
-psi       = Compose(spm_mb_io('GetData',datn.psi),Affine(df,Mat));
+psi       = Compose(single(datn.psi()),Affine(df,Mat));
 mu        = Pull1(model.mu,psi);
 [f,datn]  = spm_mb_io('GetClasses',datn,mu,sett);
 [a,w]     = Push1(f - Softmax(mu,4),psi,d);
@@ -2077,20 +2095,20 @@ if v_settings(4)==0             % Mean displacement should be 0
     avg = mean(mean(mean(v,1),2),3);
     v   = v - avg;
 end
-datn.v   = spm_mb_io('SetData',datn.v,v);
+datn.v(:) = v(:);
 end
 %==========================================================================
 
 %==========================================================================
 % UpdateWarpsSub()
 function datn = UpdateWarpsSub(datn,avg_v,sett,kernel)
-v        = spm_mb_io('GetData',datn.v);
+v        = single(datn.v());
 if ~isempty(avg_v)
     v    = v - avg_v;
 end
-datn.v   = spm_mb_io('SetData',datn.v,v);
-psi1     = Shoot(v, kernel, sett.shoot.args); % Geodesic shooting
-datn.psi = spm_mb_io('SetData',datn.psi,psi1);
+datn.v(:)   = v(:);
+psi1        = Shoot(v, kernel, sett.shoot.args); % Geodesic shooting
+datn.psi(:) = psi1(:);
 end
 %==========================================================================
 

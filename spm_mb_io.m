@@ -72,6 +72,7 @@ end
 %==========================================================================
 % CopyFields()
 function to = CopyFields(from,to)
+% Copy fields from one structure to another
 fn = fieldnames(from);
 for i=1:numel(fn)
     to.(fn{i}) = from.(fn{i});
@@ -82,6 +83,18 @@ end
 %==========================================================================
 % GetClasses()
 function [P,datn] = GetClasses(datn,mu,sett)
+% Update GMM parameters of an image and return responsibilities.
+% If the image contains pre-computed responsibilities, just return it.
+%
+% FORMAT [P,datn] = GetClasses(datn,mu,sett)
+% datn - Data structure of one subject
+% mu   - Log-template
+% sett - Option structure
+% P    - Responsibilities [dx dy dz K]
+%
+% TODO (YB): I find it strange that this is in io even though it implies an
+% update of the GMM parameters. Having it if appearance would make more
+% sense. (I understand 'io' as a rather static operation)
 
 if ~isfield(datn,'mog')
     P = GetData(datn.f);
@@ -124,39 +137,40 @@ end
 %==========================================================================
 function out = GetScale(in,sett)
 % Return a scale for adding random numbers
+%
+% FORMAT out = GetScale(in,sett)
+% in   - array or file_array
+% sett - settings
+% out  - scale for each channel
 
 % Parse function settings
 run2d = sett.gen.run2d;
 
 if isnumeric(in)
     if isa(in,'integer') || run2d
-        out = ones([1,1,1,size(in,4)]);
+        out = ones([1 1 1 size(in,4)]);
     else
-        out = zeros([1,1,1,size(in,4)]);
+        out = zeros([1 1 1 size(in,4)]);
     end
     return;
 end
-if isa(in,'char')
-    in = nifti(in);
-end
-if isa(in,'nifti')
-    C   = numel(in);
-    d   = size(in(1).dat,[1 2 3 4 5]);
-    if d(4)>1 && C>1, error('Don''t know what to do with this image data.'); end
-    d(4) = max(d(4),C);
-    out  = zeros([1,1,1,d(4)]);
-    if C>1
-        for c=1:C
-            dt1 = in(c).dat.dtype(1);
-            if dt1=='I' || dt1=='U'
-                out(c) = in(c).dat.scl_slope(1);
-            end
+if isa(in,'file_array')
+    d = size(in);
+    d((end+1):4) = 1;
+    out = zeros([1 1 1 d(4)]);
+    dtypes = {in.dtype};
+    slopes = {in.scl_slope};
+    dims   = {in.dim};
+    j = 1;
+    for i=1:numel(dtypes)
+        dt = dtypes{i}(1);
+        C  = dims{i};
+        C((end+1):4) = 1;
+        C = C(4);
+        if dt(1)=='I' || dt(1)=='U'
+            out(j:(j+C-1)) = slopes{i};
         end
-    else
-        dt1 = in(1).dat.dtype(1);
-        if dt1=='I' || dt1=='U'
-            out(:) = in(1).dat.scl_slope(1);
-        end
+        j = j + C;
     end
     return
 end
@@ -230,44 +244,67 @@ error('Unknown datatype.');
 end
 %==========================================================================
 
-
 %==========================================================================
-% GetData()
-function [out,Mn] = MemMapData(in)
-% FORMAT [out,Mn] = MemMapData(in)
-% in  - nifti or filename
-% out - file_array
+% MemMapData()
+function [out,Mn] = MemMapData(in,dimcat)
+% Memory map a nifti file (or a series of nifti files).
+%
+%   . This function outputs a file_array (eventually a virtual 
+%     concatenation of file_array objects, built using `cat`).
+%   . If `in` contains a series of files, they must all have the same
+%     dimensions. If the concatenation dimension is not specified, it is  
+%     the 4-th by default.
+%   . If `in` contains a series of files, they are assumed to all share th
+%     same orientation matrix.
+%   . The Nifti standard reserves the 4-th dimension for time (which does
+%     not exist in our model). This time dimension is removed from the
+%     mapped data (so the 4-th mapped dimension may correspond to the 5-th 
+%     file dimension).
+%
+% FORMAT [out,Mn] = MemMapData(in,dimcat)
+% in     - [cell of] nifti, filename, array or file_array
+% dimcat - dimension along which to concatenate [4]
+% out    - file_array
+% Mn     - Orientation matrix (of the first volume)
 
-if isa(in,'char')
-    in = nifti(in);
+if nargin < 2
+    dimcat = 4;
 end
+if ~iscell(in), in = {in}; end
+if isnumeric(in{1}),         out = in{1}; return; end
+if isa(in{1}, 'file_array'), out = cat(dimcat, in{:}); return; end
+if isa(in{1},'char'),        in  = {nifti(in{:})}; end
+if isa(in{1}, 'nifti'),      in  = cat(2,in{:}); end
 if isa(in,'nifti')
     C    = numel(in);
     Mn   = in(1).mat;
     dats = cell(1,C);
     for c=1:C
         dats{c} = in(c).dat;
-        if C ==1 && numel(size(in(c).dat)) > 4 && size(in(c).dat,4) == 1
+        if numel(size(in(c).dat)) > 4 && size(in(c).dat,4) == 1
             dats{c}.dat(4) = [];
         end
     end
-    out = cat(4, dats{:});
+    out = cat(dimcat, dats{:});
     return
 end
 error('Unknown datatype.');
 end
 %==========================================================================
 
-
 %==========================================================================
 % GetMat()
 function Mat = GetMat(fin)
+% Returns the orientation matrix of an array, file_array or [series of]
+% nifti files.
 if isnumeric(fin)
     Mat = eye(4);
     return;
 end
 if isa(fin,'char')
     fin = nifti(fin);
+elseif isa(fin, 'file_array')
+    fin = nifti({fin.fname});
 end
 if isa(fin,'nifti')
     Mat  = fin(1).mat;
@@ -280,6 +317,10 @@ end
 %==========================================================================
 % GetSize()
 function [d,M,N] = GetSize(fin)
+% Returns the size of the 3D lattice of a volume, and its 4-th and 5-th
+% dimensions (usually, the 4-th dimension maps to tissue classes or
+% deformation direction; the 5-th dimension maps to repeats of these
+% features, e.g., principal components).
 d = [GetDimensions(fin) 1 1 1];
 M = d(4);
 N = d(5);
@@ -290,76 +331,64 @@ end
 %==========================================================================
 % InitDat()
 function dat = InitDat(data,sett)
+% Convert the input data structure (that usually contains filenames) into a
+% conveniant structure that cen be used during processing.
+%
+% The input data structure must be a:
+% . a cell array (of arrays, filenames, nifti objects or file_array objects)
+% . a char array (of filenames)
+% . a string array (of filenames)
+% . a struct array with field 'F'
+%
+% Furthermore, if it is a struct array, it can have the fields:
+% . do_bf:  do/don't update the bias field for this subject
+% . is_ct:  is/isn't a CT image
+% . ix_pop: index of the population it belongs to
+% . labels: an image of ground truth labels
+% . Mat:    orientation matrix
+%
+% FORMAT odat = InitDat(idat,sett)
+% idat - Input data strucutre
+% odat - Output data structure
+% sett - Option structure
 
 % Parse function settings
 do_gmm = sett.do.gmm;
 do_pca = sett.do.pca;
-run2d  = sett.gen.run2d;
+run2d  = sett.gen.run2d;  % Extract 2D slices from 3D volumes
 
 % Initialise for each subject
-N  = numel(data);
-M0 = eye(4);
+N   = numel(data);
+dat = struct;
+dat(N).f = [];
 for n=1:N
 
+    % Init datn.f
     if isstruct(data(n)) && isfield(data(n),'F'), F = data(n).F;
     else,                                         F = data(n);
     end
-
-    % Init datn.f
-    if iscell(F) && isnumeric(F{1})
-        % Input F is numeric -> store as numeric
-        
-        if run2d            
-            % Get 2D slice from 3D data
-            dat(n).f = GetSlice(F{1},run2d);
-        else
-            dat(n).f = single(F{1});
-        end
-    elseif isa(F,'nifti') || (iscell(F) && (isa(F{1},'char') || isa(F{1},'nifti')))
-        % Input F is nifti (path or object) -> store as nifti
-                       
-        if isa(F,'nifti')
-            Nii      = F;
-            dat(n).f = Nii;        
-        elseif iscell(F) 
-            if isa(F{1},'char')
-                Nii      = nifti(F{1});
-                dat(n).f = Nii;        
-            elseif isa(F{1},'nifti')                
-                Nii      = F{1};
-                C        = numel(Nii);
-                dat(n).f = nifti;
-                for c=1:C
-                    dat(n).f(c) = Nii(c);
-                end
-            end
-        end
-        
-        if run2d
-            % Get 2D slice from 3D data
-            fn       = spm_mb_io('GetData',dat(n).f);
-            dat(n).f = GetSlice(fn,run2d);
-        end
-    end
+    if ~iscell(F), F = {F}; end
+    dat(n).f = MemMapData(F);
+    if run2d, dat(n).f = GetSlice(dat(n).f,run2d); end
     
     % Get number of channels
     [~,C] = spm_mb_io('GetSize',dat(n).f);
     
     % Parameters
-    dat(n).M     = M0;              % Orientation matrix
-    dat(n).q     = zeros(6,1);      % Affine parameters
-    dat(n).v     = [];              % Velocity field
-    dat(n).psi   = [];              % Warp
-    dat(n).E     = [0 0 0];         % Energy: (gmm) (velocity) (bias field) 
-    dat(n).ss    = struct;          % Sufficent statistics for energy
+    dat(n).M     = GetMat(dat(n).f);  % Orientation matrix
+    dat(n).q     = zeros(6,1);        % Affine parameters
+    dat(n).v     = [];                % Velocity field
+    dat(n).psi   = [];                % Warp
+    dat(n).E     = [0 0 0];           % Energy: (gmm) (velocity) (bias field) 
+    dat(n).ss    = struct;            % Sufficent statistics for energy
     
     if do_pca
-        dat(n).z   = [];            % PCA latent variable
+        dat(n).z   = [];              % PCA latent variable
     end
         
     if do_gmm
-        dat(n).mog = [];            % GMM parameters
-        dat(n).bf  = [];            % Bias field  
+        dat(n).mog = [];              % GMM parameters
+        dat(n).bf  = [];              % Bias field  
     end
     
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -395,25 +424,18 @@ for n=1:N
     
     % Labels in a cell array as {nifti,cm_map}
     if isstruct(data(n)) && isfield(data(n),'labels') && (~isempty(data(n).labels{1}) && ~isempty(data(n).labels{2}))
-        dat(n).labels = data(n).labels;
-        
-        if run2d
-            % Get 2D slice from 3D data
-            labels           = spm_mb_io('GetData',dat(n).labels{1});
-            dat(n).labels{1} = GetSlice(labels,run2d);
-        end
+        dat(n).labels    = data(n).labels;
+        dat(n).labels{1} = MemMapData(dat(n).labels{1});
+        if run2d, dat(n).labels{1} = GetSlice(dat(n).labels{1},run2d); end
     else
         dat(n).labels = [];        
     end
             
-    % Orientation matrix (image voxel-to-world)    
-    dat(n).Mat = eye(4);
-    if isa(F,'nifti') || (iscell(F) && (isa(F{1},'char') || isa(F{1},'nifti')))
-        dat(n).Mat = Nii(1).mat;        
-        if run2d
-            vx         = sqrt(sum(dat(n).Mat(1:3,1:3).^2));
-            dat(n).Mat = [diag(vx) zeros(3,1); 0 0 0 1];
-        end
+    % Orientation matrix (image voxel-to-world)
+    dat(n).Mat = GetMat(dat(n).f);    
+    if run2d
+        vx         = sqrt(sum(dat(n).Mat(1:3,1:3).^2));
+        dat(n).Mat = [diag(vx) zeros(3,1); 0 0 0 1];
     end
 end
 end
@@ -682,6 +704,9 @@ end
 %==========================================================================
 % GetDimensions()
 function d = GetDimensions(fin)
+% Returns the dimensions of an array, file_array or [series of] nifti
+% files. The function ensures that the output has at least 5 elements by
+% one-padding.
 if isnumeric(fin) || isa(fin, 'file_array')
     d = size(fin);
     d(end+1:5) = 1;
@@ -709,6 +734,7 @@ end
 %==========================================================================
 % GetSlice()
 function fn = GetSlice(fn,direction)
+% Exract the central slice from a 3D Volume in a given direction.
 d  = size(fn);
 d  = [d 1];
 ix = round(d(1:3)*0.5);

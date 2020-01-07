@@ -12,7 +12,8 @@ cl  = cell(N,1);
 res = struct('bf',cl,'im',cl,'imc',cl,'c',cl,'y',cl,'iy',cl,'wim',cl,'wimc',cl,'wc',cl,'mwc',cl);
 
 % Get template
-mu = spm_mb_io('GetData',model.shape.template);
+mu = spm_mb_io('MemMapData', model.shape.template);
+mu = single(mu());
 
 for n=1:N % Loop over subjects
     res(n) = ProcessSubject(dat(n),res(n),mu,n,sett);
@@ -154,8 +155,9 @@ write_tc   = sett.write.tc; % native, warped, warped-mod
 K      = size(mun,4);
 K1     = K + 1;
 Kmg    = numel(mg_ix);
-if isa(datn.f(1),'nifti') 
-    [pth,namn] = fileparts(datn.f(1).dat.fname);                
+if isa(datn.f,'file_array') 
+    fnames = {datn.f.fname};
+    [pth,namn] = fileparts(fnames{1});
 else
     namn  = ['n' num2str(ix)];
     pth   = '.';
@@ -177,7 +179,7 @@ if size(write_im,1) == 1 && C  > 1, write_im = repmat(write_im,[C  1]); end
 if size(write_tc,1) == 1 && K1 > 1, write_tc = repmat(write_tc,[K1 1]); end
 
 if ~(all(write_bf(:) == false) && all(write_im(:) == false) && all(write_tc(:) == false))   
-    psi0 = spm_mb_io('GetData',datn.psi);
+    psi0 = single(datn.psi());
 end
 
 if isfield(datn,'mog') && (any(write_bf(:) == true) || any(write_im(:) == true) || any(write_tc(:) == true))    
@@ -202,19 +204,19 @@ if isfield(datn,'mog') && (any(write_bf(:) == true) || any(write_im(:) == true) 
     end
     
     % Get image(s)
-    fn      = spm_mb_io('GetData',datn.f);
+    fn      = single(datn.f());
     fn      = reshape(fn,[prod(df(1:3)) C]);
     fn      = spm_mb_appearance('Mask',fn,is_ct);
     
     % Get labels
     labels = spm_mb_appearance('GetLabels',datn,sett);
-    mun    = mun + labels;
+    mun    = bsxfun(@plus, mun, labels);
     clear labels
     
     % Integrate use of multiple Gaussians per tissue
     mg_w = datn.mog.mg_w;
     mun  = mun(:,mg_ix);
-    mun  = mun + log(mg_w);   
+    mun  = bsxfun(@plus, mun, log(mg_w));
         
     % Format for spm_gmm
     [bffn,code_image,msk_chn] = spm_gmm_lib('obs2cell', bf.*fn);
@@ -326,7 +328,7 @@ else
     % Input data were segmentations
     %------------------
 
-    zn = spm_mb_io('GetData',datn.f);
+    zn = single(datn.f());
     zn = cat(4,zn,1 - sum(zn,4));
 end
 
