@@ -91,7 +91,7 @@ elseif given.subspace
     dmu       = spm_mb_io('GetSize',model.shape.subspace);
     Mmu       = spm_mb_io('GetMat',model.shape.subspace);
 else
-    [Mmu,dmu] = spm_mb_shape('SpecifyMean',dat,vx);
+    [Mmu,dmu] = spm_mb_shape('SpecifyMean',dat,vx,sett);
 end
 vxmu     = sqrt(sum(Mmu(1:3,1:3).^2));
 sett.Mmu = Mmu;
@@ -184,7 +184,6 @@ spm_mb_show('All',dat,shape,[],N,sett);
 Objective = [];
 E         = Inf;
 prevt     = Inf;
-add_po_observation = true; % Add one posterior sample to UpdatePrior
 
 if do_updt_aff
     
@@ -202,7 +201,7 @@ if do_updt_aff
                 % Update template and intensity prior
                 oE          = E; tic;                        
                 [shape,dat] = spm_mb_shape('UpdateMean',dat,shape,sett);
-                dat         = spm_mb_appearance('UpdatePrior',dat,sett,add_po_observation);
+                dat         = spm_mb_appearance('UpdatePrior',dat,sett);
                 shape       = spm_mb_shape('SuffStatTemplate',shape,sett);
                 E_shape     = spm_mb_shape('ShapeEnergy',shape,sett);
                 E_app       = cat(2,dat.E);
@@ -224,7 +223,7 @@ if do_updt_aff
         % Update affine
         oE    = E; tic;
         dat   = spm_mb_shape('UpdateSimpleAffines',dat,shape.mu,sett);
-        dat   = spm_mb_appearance('UpdatePrior',dat,sett,add_po_observation);
+        dat   = spm_mb_appearance('UpdatePrior',dat,sett);
         E_app = cat(2,dat.E);
         E     = sum(E_shape(:)) + sum(E_app(:));
         t     = toc;        
@@ -252,8 +251,8 @@ spm_mb_show('Speak','Iter',sett,numel(sz));
 if print2screen > 0,tic; end
 for zm=numel(sz):-1:1 % loop over zoom levels
     
-    sett.gen.samp = min(max(vxmu(1),zm),5);     % coarse-to-fine sampling of observed data    
-    if zm == 1,add_po_observation = false; end % do not add posterior sample to UpdatePrior when using no template zoom
+    % coarse-to-fine sampling of observed data    
+    sett.gen.samp = min(max(vxmu(1),zm),5);     
     
     if given.template && ~do_updt_template
         % Resize template
@@ -269,7 +268,7 @@ for zm=numel(sz):-1:1 % loop over zoom levels
         for i=1:nit_init_mu
             % Update template,bias field and intensity model                        
             [shape,dat] = spm_mb_shape('UpdateMean',dat,shape,sett);
-            dat         = spm_mb_appearance('UpdatePrior',dat,sett,add_po_observation);
+            dat         = spm_mb_appearance('UpdatePrior',dat,sett);
         end
     end    
         
@@ -279,23 +278,23 @@ for zm=numel(sz):-1:1 % loop over zoom levels
         % Update template,bias field and intensity model
         % Might be an idea to run this multiple times                
         [shape,dat] = spm_mb_shape('UpdateMean',dat,shape,sett);
-        dat         = spm_mb_appearance('UpdatePrior',dat,sett,add_po_observation);     
+        dat         = spm_mb_appearance('UpdatePrior',dat,sett);     
                            
         % Update affine
         % (Might be an idea to run this less often - currently slow)
         dat         = spm_mb_shape('UpdateAffines',dat,shape,sett);
-        dat         = spm_mb_appearance('UpdatePrior',dat,sett,add_po_observation);
+        dat         = spm_mb_appearance('UpdatePrior',dat,sett);
 
         % Update template,bias field and intensity model
         % (Might be an idea to run this multiple times)                
         [shape,dat] = spm_mb_shape('UpdateMean',dat,shape,sett);
-        dat         = spm_mb_appearance('UpdatePrior',dat,sett,add_po_observation);
+        dat         = spm_mb_appearance('UpdatePrior',dat,sett);
         [shape,dat] = spm_mb_shape('UpdateMean',dat,shape,sett);
-        dat         = spm_mb_appearance('UpdatePrior',dat,sett,add_po_observation);
+        dat         = spm_mb_appearance('UpdatePrior',dat,sett);
             
         % Update velocities
         dat         = spm_mb_shape('UpdateVelocities',dat,shape,sett);
-        dat         = spm_mb_appearance('UpdatePrior',dat,sett,add_po_observation);      
+        dat         = spm_mb_appearance('UpdatePrior',dat,sett);      
 
         % Update pca
         if zm < numel(sz) || it_zm > 1
@@ -344,7 +343,7 @@ end
 
 % Final mean update
 [shape,dat] = spm_mb_shape('UpdateMean',dat,shape,sett);
-dat         = spm_mb_appearance('UpdatePrior',dat,sett,add_po_observation);  
+dat         = spm_mb_appearance('UpdatePrior',dat,sett);  
 
 % Save template+subspace
 spm_mb_io('SaveTemplate',shape.mu,sett);

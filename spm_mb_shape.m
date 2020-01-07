@@ -48,8 +48,8 @@ function varargout = spm_mb_shape(varargin)
 % FORMAT P             = spm_mb_shape('Softmax',mu,dr)
 % FORMAT mun           = spm_mb_shape('TemplateK1',mun,ax)
 % FORMAT mu1           = spm_mb_shape('Shrink',mu,oMmu,sett)
-% FORMAT [Mmu,d]       = spm_mb_shape('SpecifyMean',dat,vx)
 % FORMAT [dat,model]   = spm_mb_shape('ZoomVolumes',dat,model,sett,oMmu)
+% FORMAT [Mmu,d]       = spm_mb_shape('SpecifyMean',dat,vx,sett)
 %
 %__________________________________________________________________________
 % Copyright (C) 2019 Wellcome Trust Centre for Neuroimaging
@@ -773,9 +773,13 @@ end
 
 %==========================================================================
 % SpecifyMean()
-function [Mmu,d] = SpecifyMean(dat,vx)
+function [Mmu,d] = SpecifyMean(dat,vx,sett)
 % Compute orientation and dimensions of the mean/template space from the
 % individual observed volumes.
+
+% Parse function settings
+do_gmm = sett.do.gmm;
+
 dims = zeros(numel(dat),3);
 Mat0 = zeros(4,4,numel(dat));
 for n=1:numel(dat)
@@ -783,7 +787,7 @@ for n=1:numel(dat)
     Mat0(:,:,n) = dat(n).Mat;
 end
 
-[Mmu,d] = ComputeAvgMat(Mat0,dims);
+[Mmu,d] = ComputeAvgMat(Mat0,dims,do_gmm);
 
 % Adjust voxel size
 if numel(vx) == 1
@@ -1572,7 +1576,7 @@ end
 
 %==========================================================================
 % ComputeAvgMat()
-function [M_avg,d] = ComputeAvgMat(Mat0,dims)
+function [M_avg,d] = ComputeAvgMat(Mat0,dims,do_gmm)
 % Compute an average voxel-to-world mapping and suitable dimensions
 % FORMAT [M_avg,d] = spm_compute_avg_mat(Mat0,dims)
 % Mat0  - array of matrices (4x4xN)
@@ -1683,9 +1687,9 @@ mn    = floor(mn);
 prct  = 0.1;            % percentage to remove (in each direction)
 o     = -prct*(mx - mn); % offset -> make template a bit smaller (for using less memory!)
 % o     = ones(3,1);
-if dims(1,3) == 1, o(1:3) = 0; end % not if 2D
-d     = (mx-mn+(2*o+1))';
-M_avg = M_avg * [eye(3) mn-(o+1); 0 0 0 1];
+if dims(1,3) == 1 || ~do_gmm, o(1:3) = 0; end % not if 2D
+d     = (mx - mn + (2*o + 1))';
+M_avg = M_avg * [eye(3) mn - (o + 1); 0 0 0 1];
 end
 %==========================================================================
 
