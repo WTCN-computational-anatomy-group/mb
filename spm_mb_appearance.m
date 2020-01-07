@@ -241,7 +241,9 @@ appear_given   = isfield(model,'appear');
 template_given = (isfield(model,'shape') && isfield(model.shape,'template'));
 if appear_given
     % Set mg_ix to mg_ix that was used when learning intensity model
-    mg_ix            = model.appear.mg_ix;
+    if isfield(model.appear,'mg_ix'), mg_ix = model.appear.mg_ix;
+    else,                             mg_ix = 1:K + 1;
+    end
     sett.model.mg_ix = mg_ix;
 end
 
