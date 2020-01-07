@@ -146,7 +146,7 @@ end
 function Speak(nam,sett,varargin)
 
 % Parse function settings
-do_updt_int      = sett.do.updt_int;
+do_updt_int      = sett.do.updt_int && sett.do.gmm;
 do_updt_template = sett.do.updt_template;
 mg_ix            = sett.model.mg_ix;
 nit              = sett.nit.init;
