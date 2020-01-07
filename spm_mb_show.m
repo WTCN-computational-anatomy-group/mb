@@ -325,7 +325,7 @@ for n=1:nd
         clear bg_mun msk_zn
         
         % Reshape back
-        zn  = reshape(zn,[df(1:3) Kmg]);
+        zn  = reshape(zn,[df(1:3) K1]);
         fn  = reshape(fn,[df(1:3) C]);
         mun = reshape(mun,[df(1:3) K + 1]);
     else
