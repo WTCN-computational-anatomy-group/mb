@@ -175,7 +175,7 @@ if do_updt_aff
                 oE       = E; tic;                        
                 [mu,dat] = spm_mb_shape('UpdateMean',dat, mu, sett);
                 te       = spm_mb_shape('TemplateEnergy',mu,sett);
-                dat      = spm_mb_appearance('UpdatePrior',dat, mu, sett, add_po_observation);
+                dat      = spm_mb_appearance('UpdatePrior',dat, sett, add_po_observation);
                 E        = sum(sum(cat(2,dat.E),2),1) + te;
                 t        = toc;
 
@@ -194,7 +194,7 @@ if do_updt_aff
         % Update affine
         oE  = E; tic;
         dat = spm_mb_shape('UpdateSimpleAffines',dat,mu,sett);
-        dat = spm_mb_appearance('UpdatePrior',dat, mu, sett, add_po_observation);
+        dat = spm_mb_appearance('UpdatePrior',dat, sett, add_po_observation);
         E   = sum(sum(cat(2,dat.E),2),1) + te;
         t   = toc;                        
         
@@ -234,7 +234,7 @@ for zm=numel(sz):-1:1 % loop over zoom levels
     if do_updt_template && (zm ~= numel(sz) || zm == 1)
         for i=1:nit_init_mu                    
             [mu,dat] = spm_mb_shape('UpdateMean',dat, mu, sett);
-            dat      = spm_mb_appearance('UpdatePrior',dat, mu, sett, add_po_observation);
+            dat      = spm_mb_appearance('UpdatePrior',dat, sett, add_po_observation);
         end
         te = spm_mb_shape('TemplateEnergy',mu,sett);
         E0 = sum(sum(cat(2,dat.E),2),1) + te;
@@ -246,28 +246,28 @@ for zm=numel(sz):-1:1 % loop over zoom levels
         % Update template                  
         [mu,dat] = spm_mb_shape('UpdateMean',dat, mu, sett);
         if do_updt_template, te = spm_mb_shape('TemplateEnergy',mu,sett); end
-        dat      = spm_mb_appearance('UpdatePrior',dat, mu, sett, add_po_observation);
+        dat      = spm_mb_appearance('UpdatePrior',dat, sett, add_po_observation);
         E1       = sum(sum(cat(2,dat.E),2),1) + te;        
                            
         % Update affine
         dat      = spm_mb_shape('UpdateAffines',dat,mu,sett);
-        dat      = spm_mb_appearance('UpdatePrior',dat, mu, sett, add_po_observation);
+        dat      = spm_mb_appearance('UpdatePrior',dat, sett, add_po_observation);
         E2       = sum(sum(cat(2,dat.E),2),1) + te;
 
         % Update template           
         [mu,dat] = spm_mb_shape('UpdateMean',dat, mu, sett);        
-        dat      = spm_mb_appearance('UpdatePrior',dat, mu, sett, add_po_observation);
+        dat      = spm_mb_appearance('UpdatePrior',dat, sett, add_po_observation);
                 
         [mu,dat] = spm_mb_shape('UpdateMean',dat, mu, sett);
         if do_updt_template, te = spm_mb_shape('TemplateEnergy',mu,sett); end
-        dat      = spm_mb_appearance('UpdatePrior',dat, mu, sett, add_po_observation);
+        dat      = spm_mb_appearance('UpdatePrior',dat, sett, add_po_observation);
         E3       = sum(sum(cat(2,dat.E),2),1) + te;
             
         % Update velocities
         dat      = spm_mb_shape('VelocityEnergy',dat,sett);
         dat      = spm_mb_shape('UpdateVelocities',dat,mu,sett);
         dat      = spm_mb_shape('VelocityEnergy',dat,sett);
-        dat      = spm_mb_appearance('UpdatePrior',dat, mu, sett, add_po_observation);        
+        dat      = spm_mb_appearance('UpdatePrior',dat, sett, add_po_observation);        
         E4       = sum(sum(cat(2,dat.E),2),1) + te;       
 
         Objective = [Objective; E4];
@@ -301,7 +301,7 @@ end
 
 % Final mean and intensity prior update
 [mu,dat] = spm_mb_shape('UpdateMean',dat, mu, sett);
-dat      = spm_mb_appearance('UpdatePrior',dat, mu, sett, add_po_observation);  
+dat      = spm_mb_appearance('UpdatePrior',dat, sett, add_po_observation);  
 
 % Save template
 spm_mb_io('SaveTemplate',dat,mu,sett);
