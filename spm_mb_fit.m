@@ -4,13 +4,12 @@ function [dat,model,sett] = spm_mb_fit(data,varargin)
 % FORMAT [dat,model,sett] = spm_mb_fit(data,varargin)
 %
 % INPUT
-% data -
-%
+% data - input subjects data (see spm_mb_io('InitDat',data,sett))
 %
 % OUTPUT
-% dat   -
-% model -
-% sett  -
+% dat                 - struct of length N storing each subject's information (see spm_mb_io('InitDat',data,sett))
+% model (inputParser) - struct storing shape and appearance model (see spm_mb_io('MakeModel',dat,model,sett))
+% sett  (inputParser) - struct storing final algorithm settings (see spm_mb_param('Settings'))
 %
 %__________________________________________________________________________
 %
@@ -203,7 +202,7 @@ if do_updt_aff
                 % Update template and intensity prior
                 oE          = E; tic;                        
                 [shape,dat] = spm_mb_shape('UpdateMean',dat,shape,sett);
-                dat         = spm_mb_appearance('UpdatePrior',dat,shape.mu,sett);
+                dat         = spm_mb_appearance('UpdatePrior',dat,sett,add_po_observation);
                 shape       = spm_mb_shape('SuffStatTemplate',shape,sett);
                 E_shape     = spm_mb_shape('ShapeEnergy',shape,sett);
                 E_app       = cat(2,dat.E);
@@ -225,7 +224,7 @@ if do_updt_aff
         % Update affine
         oE    = E; tic;
         dat   = spm_mb_shape('UpdateSimpleAffines',dat,shape.mu,sett);
-        dat   = spm_mb_appearance('UpdatePrior',dat,shape.mu,sett);
+        dat   = spm_mb_appearance('UpdatePrior',dat,sett,add_po_observation);
         E_app = cat(2,dat.E);
         E     = sum(E_shape(:)) + sum(E_app(:));
         t     = toc;        
@@ -270,7 +269,7 @@ for zm=numel(sz):-1:1 % loop over zoom levels
         for i=1:nit_init_mu
             % Update template,bias field and intensity model                        
             [shape,dat] = spm_mb_shape('UpdateMean',dat,shape,sett);
-            dat         = spm_mb_appearance('UpdatePrior',dat,shape.mu,sett);
+            dat         = spm_mb_appearance('UpdatePrior',dat,sett,add_po_observation);
         end
     end    
         
@@ -280,23 +279,23 @@ for zm=numel(sz):-1:1 % loop over zoom levels
         % Update template,bias field and intensity model
         % Might be an idea to run this multiple times                
         [shape,dat] = spm_mb_shape('UpdateMean',dat,shape,sett);
-        dat         = spm_mb_appearance('UpdatePrior',dat,shape.mu,sett);     
+        dat         = spm_mb_appearance('UpdatePrior',dat,sett,add_po_observation);     
                            
         % Update affine
         % (Might be an idea to run this less often - currently slow)
         dat         = spm_mb_shape('UpdateAffines',dat,shape,sett);
-        dat         = spm_mb_appearance('UpdatePrior',dat,shape.mu,sett);
+        dat         = spm_mb_appearance('UpdatePrior',dat,sett,add_po_observation);
 
         % Update template,bias field and intensity model
         % (Might be an idea to run this multiple times)                
         [shape,dat] = spm_mb_shape('UpdateMean',dat,shape,sett);
-        dat         = spm_mb_appearance('UpdatePrior',dat,shape,sett);
+        dat         = spm_mb_appearance('UpdatePrior',dat,shape,sett,add_po_observation);
         [shape,dat] = spm_mb_shape('UpdateMean',dat,shape,sett);
-        dat         = spm_mb_appearance('UpdatePrior',dat,shape.mu,sett);
+        dat         = spm_mb_appearance('UpdatePrior',dat,sett,add_po_observation);
             
         % Update velocities
         dat         = spm_mb_shape('UpdateVelocities',dat,shape,sett);
-        dat         = spm_mb_appearance('UpdatePrior',dat,shape.mu,sett);      
+        dat         = spm_mb_appearance('UpdatePrior',dat,sett,add_po_observation);      
 
         % Update pca
         if zm < numel(sz) || it_zm > 1
@@ -344,7 +343,7 @@ end
 
 % Final mean update
 [shape,dat] = spm_mb_shape('UpdateMean',dat,shape,sett);
-dat         = spm_mb_appearance('UpdatePrior',dat,shape.mu,sett,add_po_observation);  
+dat         = spm_mb_appearance('UpdatePrior',dat,sett,add_po_observation);  
 
 % Save template+subspace
 spm_mb_io('SaveTemplate',shape.mu,sett);

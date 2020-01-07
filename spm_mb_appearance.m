@@ -11,7 +11,7 @@ function varargout = spm_mb_appearance(varargin)
 % FORMAT fn         = spm_mb_appearance('Mask',fn,is_ct)
 % FORMAT zn         = spm_mb_appearance('Responsibility',m,b,W,n,fn,mu,msk_chn)
 % FORMAT [zn,datn]  = spm_mb_appearance('Update',datn,mun0,sett)
-% FORMAT dat        = spm_mb_appearance('UpdatePrior',dat,mu,sett,add_po_observation)
+% FORMAT dat        = spm_mb_appearance('UpdatePrior',dat,sett,add_po_observation)
 %__________________________________________________________________________
 % Copyright (C) 2019 Wellcome Trust Centre for Neuroimaging
 
@@ -664,8 +664,8 @@ end
 
 %==========================================================================
 % UpdatePrior()
-function dat = UpdatePrior(dat, mu, sett, add_po_observation)
-if nargin < 4, add_po_observation = true; end
+function dat = UpdatePrior(dat, sett, add_po_observation)
+if nargin < 3, add_po_observation = true; end
 
 if ~sett.do.updt_int,      return; end
 if ~isfield(dat(1),'mog'), return; end
@@ -686,7 +686,7 @@ for p=1:numel(p_ix) % Loop over populations
     C  = size(pr{1},1);
 
     % Get all posteriors
-    K     = size(mu,4);
+    K     = size(pr{1},2);
     K1    = numel(mg_ix);
     po    = cell(1,N);
     for n=1:N

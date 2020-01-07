@@ -695,7 +695,7 @@ else
 end
 axis off image xy;
 if use_gray
-    colormap(gray);
+    colormap(gray(128));
 end
 end 
 %==========================================================================
