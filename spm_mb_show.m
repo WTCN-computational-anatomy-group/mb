@@ -131,9 +131,9 @@ if size(mu,3) > 1
     subplot(2,1,2);     
 else
     % 2D
-    ShowCat(mu,3,1,2,1,fig_name,true); % true -> show colorbar
+    ShowCat(mu,3,2,1,1,fig_name,true); % true -> show colorbar
     title(nam);
-    subplot(1,2,2); 
+    subplot(2,1,2); 
 end
 plot(Objective,'.-');        
 title('Negative log-likelihood')
