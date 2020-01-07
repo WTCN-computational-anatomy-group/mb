@@ -971,7 +971,7 @@ ULU = model.ULU;          % Subspace 2nd order moment: E[U'LU]
 model.Sz = inv(A + lam * ULU);
 
 % Posterior mean
-model.Z  = zeros(L,N);  % Mean for each subject
+model.Z  = zeros(L,N);  % Posterior mean for each subject
 model.ZZ = zeros(L);    % 2nd order moment: E[Z*Z']
 for n=1:N
     dat(n)       = UpdateLatentSub(dat(n), model, sett);
@@ -979,6 +979,14 @@ for n=1:N
     model.ZZ     = model.ZZ + dat(n).z*dat(n).z';
 end
 model.ZZ = model.ZZ + N*model.Sz;
+
+% Zero-centre
+zmean    = sum(model.Z,2)/N;
+model.Z  = bsxfun(@minus, model.Z,  zmean);
+model.ZZ = bsxfun(@minus, model.ZZ, N*(zmean*zmean'));
+for n=1:N
+    dat(n).z = dat(n).z - zmean;
+end
 
 end
 %==========================================================================
