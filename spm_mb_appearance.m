@@ -684,6 +684,7 @@ end
 for k=1:K, zn(msk_zn,k) = bg_mun(:,k); end
 clear bg_mun msk_zn
 
+% Make 4D
 zn = reshape(zn,[df(1:3) K]);
 
 % Update datn     
