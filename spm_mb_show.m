@@ -271,16 +271,30 @@ for n=1:nd
     else
         bf = ones([1 C]);
     end  
-    
-    % Get template (K + 1)
-    mun = spm_mb_shape('TemplateK1',mun,4);
-    
+            
     % Get segmentation
     if isfield(dat,'mog')
-        fn   = spm_mb_io('GetData',dat(n).f);         
-        fn   = reshape(fn,[prod(df(1:3)) C]);
-        fn   = spm_mb_appearance('Mask',fn,is_ct);
+        fn = spm_mb_io('GetData',dat(n).f);         
+        fn = reshape(fn,[prod(df(1:3)) C]);
+        fn = spm_mb_appearance('Mask',fn,is_ct);
         
+        % Store template voxels for where there are no observations in the image
+        % data. These values will be used at the end of this function to fill in
+        % responsibilities with NaNs.
+        msk_zn = ~isfinite(sum(fn,2));
+        bg_mun = zeros([nnz(msk_zn) K],'single');
+        for k=1:K
+            kbg_mun     = mun(:,:,:,k);
+            kbg_mun     = kbg_mun(msk_zn);
+            bg_mun(:,k) = kbg_mun;
+        end
+        clear kbg_mun
+        bg_mun = spm_mb_shape('TemplateK1',bg_mun,2);
+        bg_mun = exp(bg_mun);
+
+        % Get template (K + 1)
+        mun = spm_mb_shape('TemplateK1',mun,4);
+    
         % Integrate labels and multiple Gaussians per tissue
         labels = spm_mb_appearance('GetLabels',dat(n),sett);
         mg_w   = dat(n).mog.mg_w;
@@ -297,25 +311,28 @@ for n=1:nd
         zn   = spm_mb_appearance('Responsibility',dat(n).mog.po.m,dat(n).mog.po.b, ...
                                     dat(n).mog.po.W,dat(n).mog.po.n,bffn,mun1,msk_chn);           
         zn   = spm_gmm_lib('cell2obs', zn, code_image, msk_chn);                
-        clear mun1
+        clear mun1 msk_chn
+                                     
+        % If using multiple Gaussians per tissue, collapse so that zn is of
+        % size K1
+        if Kmg > K1
+            for k=1:K1, zn(:,k) = sum(zn(:,mg_ix==k),2); end
+            zn(:,K1 + 1:end)    = [];
+        end
         
-        % Just to insert NaNs..
-        mun     = spm_gmm_lib('obs2cell', mun, code_image, false);
-        mun     = spm_gmm_lib('cell2obs', mun, code_image, msk_chn);                
-        clear msk_chn
+        % Fill in resps with no observations using template
+        for k=1:K1, zn(msk_zn,k) = bg_mun(:,k); end
+        clear bg_mun msk_zn
         
         % Reshape back
         zn  = reshape(zn,[df(1:3) Kmg]);
         fn  = reshape(fn,[df(1:3) C]);
         mun = reshape(mun,[df(1:3) K + 1]);
-        
-        % If using multiple Gaussians per tissue, collapse so that zn is of
-        % size K1
-        if Kmg > K1
-            for k=1:K1, zn(:,:,:,k) = sum(zn(:,:,:,mg_ix==k),4); end
-            zn(:,:,:,K1 + 1:end)    = [];
-        end
     else
+        % Get template (K + 1)
+        mun = spm_mb_shape('TemplateK1',mun,4);
+    
+        % Make K1 responsibilities
         zn = spm_mb_io('GetData',dat(n).f); 
         zn = cat(4,zn,1 - sum(zn,4));
     end    

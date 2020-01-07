@@ -6,6 +6,7 @@ function varargout = spm_mb_appearance(varargin)
 % FORMAT [bfn,lln]  = spm_mb_appearance('BiasField',chan,d,varargin)
 % FORMAT chan       = spm_mb_appearance('BiasFieldStruct',datn,C,df,reg,fwhm,dc,T,samp)
 % FORMAT labels     = spm_mb_appearance('GetLabels',datn,sett,do_samp)
+% FORMAT [nvx,msk]  = spm_mb_appearance('GetNumVoxObserved',f,is_ct)
 % FORMAT p_ix       = spm_mb_appearance('GetPopulationIdx',dat)
 % FORMAT [dat,sett] = spm_mb_appearance('Init',dat,model,K,sett)
 % FORMAT fn         = spm_mb_appearance('Mask',fn,is_ct)
@@ -28,6 +29,8 @@ switch id
         [varargout{1:nargout}] = BiasFieldStruct(varargin{:});         
     case 'GetLabels'
         [varargout{1:nargout}] = GetLabels(varargin{:});            
+    case 'GetNumVoxObserved'
+        [varargout{1:nargout}] = GetNumVoxObserved(varargin{:});           
     case 'GetPopulationIdx'
         [varargout{1:nargout}] = GetPopulationIdx(varargin{:});           
     case 'Init'
@@ -197,6 +200,16 @@ end
 %==========================================================================
 
 %==========================================================================
+% GetNumVoxObserved()
+function [nvx,msk] = GetNumVoxObserved(f,is_ct)
+f   = ApplyMask(f,is_ct);
+msk = ~isnan(f);
+msk = sum(msk,4);
+nvx = sum(msk(:) > 0);
+end
+%==========================================================================
+
+%==========================================================================
 % GetPopulationIdx()
 function p_ix = GetPopulationIdx(dat)
 ix_pop = [dat.ix_pop];
@@ -341,6 +354,22 @@ mg_w         = datn.mog.mg_w;
 
 % Get image data
 fn = spm_mb_io('GetData',datn.f);
+
+% Store template voxels for where there are no observations in the image
+% data. These values will be used at the end of this function to fill in
+% responsibilities with NaNs.
+[~,msk_zn] = GetNumVoxObserved(fn,is_ct);
+msk_zn     = ~msk_zn;
+bg_mun     = zeros([nnz(msk_zn) K],'single');
+for k=1:K
+    kbg_mun     = mun0(:,:,:,k);
+    kbg_mun     = kbg_mun(msk_zn);
+    bg_mun(:,k) = kbg_mun;
+end
+clear kbg_mun
+bg_mun = spm_mb_shape('TemplateK1',bg_mun,2);
+bg_mun = exp(bg_mun);
+bg_mun = bg_mun(:,1:end - 1);
 
 % Get amount to jitter by
 jitter = spm_mb_io('GetScale',datn.f,sett);
@@ -630,26 +659,32 @@ if samp > 1
     % Integrate labels and multiple Gaussians per tissue
     labels = GetLabels(datn,sett);    
     mun0   = mun0 + labels;
-    mun0   = mun0(:,mg_ix);
-    mun0   = mun0 + log(mg_w);
     clear labels
+    mun0   = mun0(:,mg_ix);
+    mun0   = mun0 + log(mg_w);    
     
     % Compute full-size resps
     mun0 = spm_gmm_lib('obs2cell', mun0, code_image, false);            
-    zn   = Responsibility(m,b,W,n,bffn,mun0,msk_chn);
+    zn   = Responsibility(m,b,W,n,bffn,mun0,msk_chn); 
     clear mun0
 end       
 zn = spm_gmm_lib('cell2obs', zn, code_image, msk_chn);
 
-% Get 4D versions of K1 - 1 classes
-zn = reshape(zn(:,mg_ix <= K),[df(1:3) sum(mg_ix <= K)]);
+% Get K1 - 1 classes resp
+zn = zn(:,mg_ix <= K);
 
 % If using multiple Gaussians per tissue, collapse so that zn is of
 % size K
-if size(zn,4) > K
-    for k=1:K, zn(:,:,:,k) = sum(zn(:,:,:,mg_ix==k),4); end
-    zn(:,:,:,K + 1:end)    = [];
+if size(zn,2) > K
+    for k=1:K, zn(:,k) = sum(zn(:,mg_ix==k),2); end
+    zn(:,K + 1:end)    = [];
 end
+
+% Fill in resps with no observations using template
+for k=1:K, zn(msk_zn,k) = bg_mun(:,k); end
+clear bg_mun msk_zn
+
+zn = reshape(zn,[df(1:3) K]);
 
 % Update datn     
 datn.E(1)     = -lb.sum(end);
@@ -825,16 +860,6 @@ for l=1:L % Loop over labels
     cm(l,~ix) = (1 - w)/nnz(~ix);
 end
 cm = bsxfun(@rdivide,cm,sum(cm,2));
-end
-%==========================================================================
-
-%==========================================================================
-% GetMask()
-function nvx = GetNumVoxObserved(f,is_ct)
-f   = ApplyMask(f,is_ct);
-msk = ~isnan(f);
-msk = sum(msk,4);
-nvx = sum(msk(:) > 0);
 end
 %==========================================================================
 
