@@ -150,11 +150,10 @@ spm_mb_show('All',dat,mu,[],N,sett);
 % Start algorithm
 %------------------
 
-Objective          = [];
-E                  = Inf;
-prevt              = Inf;
-te                 = 0;
-
+Objective = [];
+E         = Inf;
+prevt     = Inf;
+te        = 0;
 if do_updt_template, te = spm_mb_shape('TemplateEnergy',mu,sett); end
 
 if do_updt_aff
@@ -175,7 +174,7 @@ if do_updt_aff
                 [mu,dat] = spm_mb_shape('UpdateMean',dat, mu, sett);
                 te       = spm_mb_shape('TemplateEnergy',mu,sett);
                 dat      = spm_mb_appearance('UpdatePrior',dat, sett);
-                E        = sum(sum(cat(2,dat.E),2),1) + te;
+                E        = sum(sum(cat(2,dat.E),2),1) + te; % Cost function after rigid update
                 t        = toc;
 
                 % Print stuff
@@ -193,8 +192,8 @@ if do_updt_aff
         % Update affine
         oE  = E; tic;
         dat = spm_mb_shape('UpdateSimpleAffines',dat,mu,sett);
-        dat = spm_mb_appearance('UpdatePrior',dat, sett);
-        E   = sum(sum(cat(2,dat.E),2),1) + te;
+        dat = spm_mb_appearance('UpdatePrior',dat, sett); 
+        E   = sum(sum(cat(2,dat.E),2),1) + te;  % Cost function after mean update
         t   = toc;                        
         
         if print2screen > 0, fprintf('it=%i q  \t%g\t%g\t%g\n', it_init, E, t, (oE - E)/prevt); end
@@ -222,7 +221,8 @@ spm_mb_show('Speak','Iter',sett,numel(sz));
 if print2screen > 0, tic; end
 for zm=numel(sz):-1:1 % loop over zoom levels
     
-    sett.gen.samp = min(max(vxmu(1),zm),5);     % coarse-to-fine sampling of observed data    
+    % coarse-to-fine sampling of observed data    
+    sett.gen.samp = min(max(vxmu(1),zm),5);     
     
     if template_given && ~do_updt_template
         mu = spm_mb_shape('ShrinkTemplate',mu0,Mmu,sett);
@@ -230,6 +230,7 @@ for zm=numel(sz):-1:1 % loop over zoom levels
     
     E0 = 0;
     if do_updt_template && (zm ~= numel(sz) || zm == 1)
+        % If not largest zoom level
         for i=1:nit_init_mu                    
             [mu,dat] = spm_mb_shape('UpdateMean',dat, mu, sett);
             dat      = spm_mb_appearance('UpdatePrior',dat, sett);
@@ -245,42 +246,44 @@ for zm=numel(sz):-1:1 % loop over zoom levels
         [mu,dat] = spm_mb_shape('UpdateMean',dat, mu, sett);
         if do_updt_template, te = spm_mb_shape('TemplateEnergy',mu,sett); end
         dat      = spm_mb_appearance('UpdatePrior',dat, sett);
-        E1       = sum(sum(cat(2,dat.E),2),1) + te;        
+        E1       = sum(sum(cat(2,dat.E),2),1) + te; % Cost function after diffeo update         
                            
         % Update affine
         dat      = spm_mb_shape('UpdateAffines',dat,mu,sett);
         dat      = spm_mb_appearance('UpdatePrior',dat, sett);
-        E2       = sum(sum(cat(2,dat.E),2),1) + te;
+        E2       = sum(sum(cat(2,dat.E),2),1) + te; % Cost function after mean and int prior update
 
-        % Update template           
-        [mu,dat] = spm_mb_shape('UpdateMean',dat, mu, sett);        
-        dat      = spm_mb_appearance('UpdatePrior',dat, sett);
-                
-        [mu,dat] = spm_mb_shape('UpdateMean',dat, mu, sett);
+        % Update template and intensity prior (twice)
+        [mu,dat] = spm_mb_shape('UpdateMean',dat, mu, sett);  
         if do_updt_template, te = spm_mb_shape('TemplateEnergy',mu,sett); end
+        dat      = spm_mb_appearance('UpdatePrior',dat, sett);        
+        E3       = sum(sum(cat(2,dat.E),2),1) + te; % Cost function after rigid update
+        [mu,dat] = spm_mb_shape('UpdateMean',dat, mu, sett);
         dat      = spm_mb_appearance('UpdatePrior',dat, sett);
-        E3       = sum(sum(cat(2,dat.E),2),1) + te;
-            
+        E4       = sum(sum(cat(2,dat.E),2),1) + te; % Cost function after mean and int prior update
+        if do_updt_template, te = spm_mb_shape('TemplateEnergy',mu,sett); end
+        
         % Update velocities
         dat      = spm_mb_shape('VelocityEnergy',dat,sett);
-        dat      = spm_mb_shape('UpdateVelocities',dat,mu,sett);
-        dat      = spm_mb_shape('VelocityEnergy',dat,sett);
+        dat      = spm_mb_shape('UpdateVelocities',dat,mu,sett);        
         dat      = spm_mb_appearance('UpdatePrior',dat, sett);        
-        E4       = sum(sum(cat(2,dat.E),2),1) + te;       
+        E5       = sum(sum(cat(2,dat.E),2),1) + te; % Cost function after mean and int prior update      
+        dat      = spm_mb_shape('VelocityEnergy',dat,sett);
 
-        Objective = [Objective; E4];
+        Objective = [Objective; E5];
         
         if (it_zm == nit_zm) && zm>1
             oMmu     = sett.var.Mmu;
             sett.var = spm_mb_io('CopyFields',sz(zm-1), sett.var);
             [dat,mu] = spm_mb_shape('ZoomVolumes',dat,mu,sett,oMmu);
+            dat      = spm_mb_shape('VelocityEnergy',dat,sett);
         end
 
         % Update deformations
         dat = spm_mb_shape('UpdateWarps',dat,sett);  
         
         % Print stuff
-        if print2screen > 0, fprintf('zm=%i it=%i\t%g\t%g\t%g\t%g\t%g\n', zm, it_zm, E0, E1, E2, E3, E4); end               
+        if print2screen > 0, fprintf('zm=%i it=%i\t%g\t%g\t%g\t%g\t%g\t%g\n', zm, it_zm, E0, E1, E2, E3, E4, E5); end               
                 
         if write_ws && (do_updt_template || do_updt_int)
             % Save workspace (except template) 
