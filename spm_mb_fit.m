@@ -154,7 +154,6 @@ Objective          = [];
 E                  = Inf;
 prevt              = Inf;
 te                 = 0;
-add_po_observation = true; % Add one posterior sample to UpdatePrior
 
 if do_updt_template, te = spm_mb_shape('TemplateEnergy',mu,sett); end
 
@@ -175,7 +174,7 @@ if do_updt_aff
                 oE       = E; tic;                        
                 [mu,dat] = spm_mb_shape('UpdateMean',dat, mu, sett);
                 te       = spm_mb_shape('TemplateEnergy',mu,sett);
-                dat      = spm_mb_appearance('UpdatePrior',dat, sett, add_po_observation);
+                dat      = spm_mb_appearance('UpdatePrior',dat, sett);
                 E        = sum(sum(cat(2,dat.E),2),1) + te;
                 t        = toc;
 
@@ -194,7 +193,7 @@ if do_updt_aff
         % Update affine
         oE  = E; tic;
         dat = spm_mb_shape('UpdateSimpleAffines',dat,mu,sett);
-        dat = spm_mb_appearance('UpdatePrior',dat, sett, add_po_observation);
+        dat = spm_mb_appearance('UpdatePrior',dat, sett);
         E   = sum(sum(cat(2,dat.E),2),1) + te;
         t   = toc;                        
         
@@ -224,7 +223,6 @@ if print2screen > 0, tic; end
 for zm=numel(sz):-1:1 % loop over zoom levels
     
     sett.gen.samp = min(max(vxmu(1),zm),5);     % coarse-to-fine sampling of observed data    
-    if zm == 1, add_po_observation = false; end % do not add posterior sample to UpdatePrior when using no template zoom
     
     if template_given && ~do_updt_template
         mu = spm_mb_shape('ShrinkTemplate',mu0,Mmu,sett);
@@ -234,7 +232,7 @@ for zm=numel(sz):-1:1 % loop over zoom levels
     if do_updt_template && (zm ~= numel(sz) || zm == 1)
         for i=1:nit_init_mu                    
             [mu,dat] = spm_mb_shape('UpdateMean',dat, mu, sett);
-            dat      = spm_mb_appearance('UpdatePrior',dat, sett, add_po_observation);
+            dat      = spm_mb_appearance('UpdatePrior',dat, sett);
         end
         te = spm_mb_shape('TemplateEnergy',mu,sett);
         E0 = sum(sum(cat(2,dat.E),2),1) + te;
@@ -246,28 +244,28 @@ for zm=numel(sz):-1:1 % loop over zoom levels
         % Update template                  
         [mu,dat] = spm_mb_shape('UpdateMean',dat, mu, sett);
         if do_updt_template, te = spm_mb_shape('TemplateEnergy',mu,sett); end
-        dat      = spm_mb_appearance('UpdatePrior',dat, sett, add_po_observation);
+        dat      = spm_mb_appearance('UpdatePrior',dat, sett);
         E1       = sum(sum(cat(2,dat.E),2),1) + te;        
                            
         % Update affine
         dat      = spm_mb_shape('UpdateAffines',dat,mu,sett);
-        dat      = spm_mb_appearance('UpdatePrior',dat, sett, add_po_observation);
+        dat      = spm_mb_appearance('UpdatePrior',dat, sett);
         E2       = sum(sum(cat(2,dat.E),2),1) + te;
 
         % Update template           
         [mu,dat] = spm_mb_shape('UpdateMean',dat, mu, sett);        
-        dat      = spm_mb_appearance('UpdatePrior',dat, sett, add_po_observation);
+        dat      = spm_mb_appearance('UpdatePrior',dat, sett);
                 
         [mu,dat] = spm_mb_shape('UpdateMean',dat, mu, sett);
         if do_updt_template, te = spm_mb_shape('TemplateEnergy',mu,sett); end
-        dat      = spm_mb_appearance('UpdatePrior',dat, sett, add_po_observation);
+        dat      = spm_mb_appearance('UpdatePrior',dat, sett);
         E3       = sum(sum(cat(2,dat.E),2),1) + te;
             
         % Update velocities
         dat      = spm_mb_shape('VelocityEnergy',dat,sett);
         dat      = spm_mb_shape('UpdateVelocities',dat,mu,sett);
         dat      = spm_mb_shape('VelocityEnergy',dat,sett);
-        dat      = spm_mb_appearance('UpdatePrior',dat, sett, add_po_observation);        
+        dat      = spm_mb_appearance('UpdatePrior',dat, sett);        
         E4       = sum(sum(cat(2,dat.E),2),1) + te;       
 
         Objective = [Objective; E4];
@@ -301,7 +299,7 @@ end
 
 % Final mean and intensity prior update
 [mu,dat] = spm_mb_shape('UpdateMean',dat, mu, sett);
-dat      = spm_mb_appearance('UpdatePrior',dat, sett, add_po_observation);  
+dat      = spm_mb_appearance('UpdatePrior',dat, sett);  
 
 % Save template
 spm_mb_io('SaveTemplate',dat,mu,sett);

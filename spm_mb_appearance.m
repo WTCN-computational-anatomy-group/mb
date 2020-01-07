@@ -665,7 +665,7 @@ end
 %==========================================================================
 % UpdatePrior()
 function dat = UpdatePrior(dat, sett, add_po_observation)
-if nargin < 3, add_po_observation = true; end
+if nargin < 3, add_po_observation = false; end
 
 if ~sett.do.updt_int,      return; end
 if ~isfield(dat(1),'mog'), return; end
