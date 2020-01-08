@@ -276,9 +276,8 @@ for p=1:Np
     % function be used to initialise GMM parameters and bias field scaling?
     % Not used if CT, multi-channel data, or template given.
     if datn(1).ix_pop == ix_init
-        [~,C]       = spm_mb_io('GetSize',datn(1).f);
         has_ct      = any(datn(1).is_ct == true);
-        use_initgmm = C == 1 && ~has_ct && ~template_given && N > 1;
+        use_initgmm = ~has_ct && ~template_given && N > 1;
     else
         use_initgmm = false;
     end
@@ -930,7 +929,7 @@ for n=1:N
             dc = log(dc);
         end
     else
-        dc = dc_all(1,n);
+        dc = dc_all(:,n);
     end
 
     if any(dat(n).do_bf == true)
@@ -1052,7 +1051,7 @@ end
 %==========================================================================
 % InitGMM()
 function [po,pr,dc] = InitGMM(dat,sett)
-% Code for initialising a GMM over lots of images of the same contrast, and 
+% Code for initialising a GMM over lots of images and 
 % which might be scaled differently.
 %
 % FORMAT [po,pr,dc] = InitGMM(dat,sett)
@@ -1067,45 +1066,45 @@ function [po,pr,dc] = InitGMM(dat,sett)
 K  = sett.model.K;
 
 % Parameters
-K1 = K + 1;      % Number of classes
-M  = 1;          % Number of populations
-N  = numel(dat); % Number of subjects
+K1    = K + 1;      % Number of classes
+[~,C] = spm_mb_io('GetSize',dat(1).f); % Number of channels
+N     = numel(dat); % Number of subjects
 
 % Get sample of image data (and labels, if provided)
 F   = cell(1,N);                 % hold imaging data
-L   = cell(M,N);                 % hold label data
+L   = cell(1,N);                 % hold label data
 Nvx = min(round(256^3/N),10000); % number of voxels to sample from each image
 for n=1:N % Loop over subjects
     
-    fn = zeros([M,Nvx],'single');     
-    for m=1:M % Loop over populations
-        
-        % Read images and labels
-        img    = spm_mb_io('GetData',dat(n).f);
-        labels = spm_mb_appearance('GetLabels',dat(n),sett);
-        
+    % Read images and labels
+    df     = spm_mb_io('GetSize',dat(n).f);   
+    img    = spm_mb_io('GetData',dat(n).f);
+    img    = reshape(img,[prod(df(1:3)) C]);
+    labels = spm_mb_appearance('GetLabels',dat(n),sett);    
+    
+    fn = zeros([C,Nvx],'single');     
+    for m=1:C % Loop over populations                        
         % Sample data
-        d       = numel(img);
-        r       = floor(rand(Nvx,1)*d) + 1;
-        fn(m,:) = img(r);        
-        if size(labels,1) > 1, L{m,n} = labels(r,:)';
-        else,                  L{m,n} = labels';
-        end
+        r       = floor(rand(Nvx,1)*prod(df(1:3))) + 1;
+        fn(m,:) = img(r,m);                
     end
     
+    if size(labels,1) > 1, L{n} = labels(r,:)';
+    else,                  L{n} = labels';
+    end
+        
     % Mask
     mask = all(isfinite(fn) & fn~=0,1);   
     fn   = fn(:,mask);
     F{n} = fn;
-    for m=1:M
-        if size(L{m,n},2) > 1, L{m,n} = L{m,n}(:,mask); end
-    end
+    
+    if size(L{n},2) > 1, L{n} = L{n}(:,mask); end    
 end
 clear fn mask img labels
 
 % Init bias field DC component
-dc = zeros(M,N);
-mx = zeros(M,1);
+dc = zeros(C,N);
+mx = zeros(C,1);
 for n=1:N % Loop over subjects
     fn      = F{n};
     mx      = max(mx,max(fn,[],2));
@@ -1117,14 +1116,18 @@ dc = dc - mean(dc,2);
 
 % Init GMM parameters
 gam = ones(K1,1)./K1;
-mu  = rand(M,K1).*mx;
+% mu  = rand(M,K1).*mx;
+mu = zeros(C,K1);
+for m=1:C
+    mu(m,:) = (0:(K1-1))'*mx(m)/(K1+1);
+end
 Sig = diag((mx/10).^2).*ones([1,1,K1]);
 
 % Fit model
 ll = -Inf;
 for it=1:256
     llo = ll;
-
+    
     if false        
         % Visualise
         figure(666)
@@ -1148,8 +1151,8 @@ for it=1:256
 
     % Update GMM parameters
     ss0 = zeros(K1,1);
-    ss1 = zeros(M,K1);
-    ss2 = zeros(M,M,K1);
+    ss1 = zeros(C,K1);
+    ss2 = zeros(C,C,K1);
     ll  = 0;
     for n=1:N % Loop over subjects
         fn = F{n};
@@ -1159,9 +1162,9 @@ for it=1:256
         % Compute responsibilities
         R = zeros(K1,Ns,'single');
         for k=1:K1
-            C      = chol(Sig(:,:,k));
-            res    = C'\(fn - mu(:,k));
-            R(k,:) = L{m,n}(k,:) + log(gam(k)) - sum(log(diag(C))) + sum(dc(:,n)) - 0.5*M*log(2*pi) - 0.5*sum(res.^2,1);
+            Cov    = chol(Sig(:,:,k));
+            res    = Cov'\(fn - mu(:,k));
+            R(k,:) = L{n}(k,:) + log(gam(k)) - sum(log(diag(Cov))) + sum(dc(:,n)) - 0.5*C*log(2*pi) - 0.5*sum(res.^2,1);
         end        
         mxR = max(R,[],1);
         R   = exp(R-mxR);
@@ -1195,9 +1198,9 @@ for it=1:256
         % Compute responsibilities
         R = zeros(K1,Ns,'single');
         for k=1:K1
-            C      = chol(Sig(:,:,k));
-            res    = C'\(fn - mu(:,k));
-            R(k,:) = L{m,n}(k,:) + log(gam(k)) - sum(log(diag(C))) + sum(dc(:,n)) - 0.5*M*log(2*pi) - 0.5*sum(res.^2,1);
+            Cov    = chol(Sig(:,:,k));
+            res    = Cov'\(fn - mu(:,k));
+            R(k,:) = L{n}(k,:) + log(gam(k)) - sum(log(diag(Cov))) + sum(dc(:,n)) - 0.5*C*log(2*pi) - 0.5*sum(res.^2,1);
         end        
         mxR = max(R,[],1);
         R   = exp(R-mxR);
@@ -1213,7 +1216,7 @@ for it=1:256
             H0 = H0 + ((rk.*fn)*fn').*inv(Sig(:,:,k));
         end
         g      = sum(fn.*g0,2) - Ns;
-        H      = H0            + Ns*eye(M);
+        H      = H0            + Ns*eye(C);
         
         % Gauss-Newton update
         dc(:,n) = dc(:,n) - ((N-1)/N)*(H\g);
@@ -1254,7 +1257,7 @@ end
 clear F L
 
 % Make function output
-C   = 1;
+C   = size(Sig,1);
 b   = zeros(1,K1) + 0.01;
 ico = zeros(C,C,K1);
 for k=1:K1
