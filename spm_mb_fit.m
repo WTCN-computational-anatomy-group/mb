@@ -95,6 +95,7 @@ else
 end
 vxmu     = sqrt(sum(Mmu(1:3,1:3).^2));
 sett.Mmu = Mmu;
+sett.vlm = abs(det(Mmu(1:3,1:3))) * prod(dmu);
 
 %------------------
 % Set affine bases
