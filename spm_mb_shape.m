@@ -1066,23 +1066,23 @@ if ~isfinite(sett.pca.res_df), return; end % Fixed value
 
 ndat  = size(model.Z,2);         % Numbe of subjects (ss0)
 lam0  = sett.pca.res_prior;      % Prior expected value
-n0    = sett.pca.res_df;         % Prior deg. freedom
+nlam0 = sett.pca.res_df;         % Prior deg. freedom
 trLVV = model.ss.trLVV;          % suff stat: tr(L*(V-WZ)*(V-WZ)')
 trLSV = model.ss.trLSV;          % suff stat: tr(L*Cov[V])
 Su    = model.Su;                % subspace posterior covariance (one vox)
 Sz    = model.Sz;                % latent posterior covariance (one subj)
-D     = [size(model.U) 1 1 1];
-D     = prod(D(1:4));            % Number of voxels * 3
+F     = size(model.U,4);         % nb dimensions (should be 3)
+vlm   = sett.vlm*F;              % Volume of the field of view (mm^3) * F
 
-n   = n0 + ndat;
-ss2 = trLVV/D + ndat*trace(Su*Sz) + trLSV/D;
-if n0 > 0,  lam = (n*lam0)/(lam0*ss2 +  n0);
-else,       lam = n/(ss2 + eps); % slight regularisation
+nlam = nlam0 + ndat;
+ss2 = trLVV/vlm + ndat*trace(Su*Sz) + trLSV/vlm;
+if nlam0 > 0, lam = (nlam*lam0)/(lam0*ss2 +  nlam0);
+else,         lam = nlam/(ss2 + eps); % slight regularisation
 end
 
 model.lam = lam;
-if n0 > 0, model.nlam = n;
-else,      model.nlam = Inf;
+if nlam0 > 0, model.nlam = nlam;
+else,         model.nlam = Inf;
 end
 
 end
@@ -1103,10 +1103,10 @@ if ~sett.do.updt_subspace, return; end
 v_setting = sett.var.v_settings;
 Z    = model.Z;                  % expected latent   (per subject)
 ZZ   = model.ZZ;                 % 2nd order moment  (ss2)
-D    = [size(model.U) 1 1 1];
-D    = prod(D(1:4));             % Number of voxels * 3
 lam  = model.lam;                % Residual precision
+F    = size(model.U,4);          % nb dimensions (should be 3)
 L    = size(model.U,5);          % nb PCs
+vlm  = sett.vlm;                 % Volume of the field of view (mm^3)
 
 % posterior precision
 model.Su  = inv(eye(size(ZZ)) + lam * ZZ);
@@ -1136,7 +1136,7 @@ for l=1:L
     end
 end
 clear U1 LU1 U2
-model.ULU = ULU + D * model.Su;
+model.ULU = ULU + (F*vlm) * model.Su;
 
 end
 %==========================================================================
@@ -1182,8 +1182,10 @@ if ~sett.do.updt_subspace, return; end    % Need subspace not fixed
 if sett.pca.latent_df == Inf, return; end % Need latent precision not fixed
 
 lat = [size(model.U) 1 1 1];
+F   = lat(4);                  % nb dimensions (should be 3)
+L   = lat(5);                  % nb PCs
 lat = lat(1:4);
-L   = size(model.U,5);         % nb PCs
+vlm = sett.vlm;                % Volume of the field of view in mm^3
 N   = numel(dat);              % Number of subjects
 ULU = model.ULU;               % subspace 2nd order moment 
 ZZ  = model.ZZ;                % latent 2nd order moment
@@ -1201,6 +1203,7 @@ ZZ  = T   * ZZ  * T';  % < now a diagonal matrix
 % -------------------------------------------------------------------------
 % Rescale (= optimise additional diagoal loading)
 [Q, iQ] = ScaleSubspace(ULU, ZZ, A0, n0, N, prod(lat));
+[Q, iQ] = ScaleSubspace(ULU, ZZ, A0, n0, N, vlm*F);
 Q  = Q  * T;
 iQ = iT * iQ;
 
@@ -1398,20 +1401,20 @@ if ~sett.do.pca
 else
     % Variational posterior -> KL
     N      = size(model.Z,2);
-    D      = size(model.U,1)*size(model.U,2)*size(model.U,3);
-    F      = size(model.U,4);
+    vlm    = sett.vlm;        % Volume of the field of view (in mm^3)
+    F      = size(model.U,4); % Number of dimensions (should be 3)
     Su     = model.Su;        % subspace posterior covariance wrt PCs
     Sz     = model.Sz;        % latent posterior covariance (per subj)
     trLVV  = model.ss.trLVV;  % expected velocity prior (sum subj)
     trLSV  = model.ss.trLSV;  % velocity posterior covariance: Tr(L*Var[Z]) (sum subj)
     lam    = model.lam;       % residual noise precision (mean)
     nlam   = model.nlam;      % residual noise precision (deg. freedom)
-    loglam = ELogGamma(lam,nlam);
+    loglam = ELogGamma(lam,nlam,vlm*F);
     
-    E = N*D*F*(loglam - 1) + lam*(trLVV + N*D*F*trace(Su*Sz) + trLSV);
+    E = N*vlm*F*(loglam - 1) + lam*(trLVV + N*vlm*F*trace(Su*Sz) + trLSV);
 
 end
-E = 0.5*E;
+E = E/2;
 
 end
 %==========================================================================
@@ -1444,15 +1447,15 @@ function E = EnergySubspace(model, sett)
 
 if ~sett.do.pca, E = 0; return; end
 
-D   = size(model.U,1)*size(model.U,2)*size(model.U,3); % Number of voxels
+vlm = sett.vlm;          % Volume of the field of view (in mm^3)
 F   = size(model.U,4);   % Should be 3
 L   = size(model.U,5);   % Number of principal components
 ULU = model.ULU;         % subspace 2nd order moment
 Su  = model.Su;          % subspace posterior covariance wrt PCs
 
-E =         trace(ULU) ...
-    - D*F * LogDetChol(Su) ...
-    - D*F * L;
+E =           trace(ULU) ...
+    - vlm*F * LogDetChol(Su) ...
+    - vlm*F * L;
 E = E/2;
 end
 %==========================================================================
@@ -1494,9 +1497,8 @@ function E = EnergyResidualPrecision(model, sett)
 %   an expected value and n to act as a degrees of freedom.
 
 if ~sett.do.pca, E = 0; return; end
-
-D = size(model.U,1)*size(model.U,2)*size(model.U,3);
-F = size(model.U,4);
+F   = size(model.U,4);      % Number of fimensions (shuold be 3)
+vlm = sett.vlm*F;           % Volume of the field fo view (in mm^3) * F
 
 n0   = sett.pca.res_df;
 lam0 = sett.pca.res_prior;
@@ -1506,10 +1508,10 @@ lam  = model.lam;
 if ~isfinite(n0) || n0 == 0  % Fixed value | Maximum likelihood
     E = 0;
 else
-    E =   D*F * n0 * log((lam0/n0)/(lam/n)) ...
-        + D*F * n * ((lam/n)/(lam0/n0) - 1) ...
-        +   2 * (LogGamma(n0*D*F/2) - LogGamma(n*D*F/2)) ...
-        + D*F * (n-n0) * DiGamma(n*D*F/2);
+    E =   vlm * n0 * log((lam0/n0)/(lam/n)) ...
+        + vlm * n * ((lam/n)/(lam0/n0) - 1) ...
+        +   2 * (LogGamma(n0*vlm/2) - LogGamma(n*vlm/2)) ...
+        + vlm * (n-n0) * DiGamma(n*vlm/2);
     E = E/2;
 end
 end
@@ -2203,7 +2205,7 @@ end
 %==========================================================================
     
 %==========================================================================
-function [Q, iQ, q] = ScaleSubspace(ULU, ZZ, A0, n0, ndat, nvox, q0)
+function [Q, iQ, q] = ScaleSubspace(ULU, ZZ, A0, n0, ndat, vol, q0)
 % Gauss-Newton optimisation of the scaling factor between the subspace (U)
 % and the latent variables (Z)
 %
@@ -2215,20 +2217,20 @@ function [Q, iQ, q] = ScaleSubspace(ULU, ZZ, A0, n0, ndat, nvox, q0)
 % A0   - Expected value of Wishart prior (n0*V0)
 % n0   - Degrees of freedom of Wishart prior
 % ndat - Number of subjects
-% nvox - Number of voxels * 3
+% vol  - 'Volume' of a velocity field
 % q0   - Initial parameters [defaut: -0.5*log(nvox)]
 
 M = size(ZZ, 1);
 
 if nargin < 7 || isempty(q0)
-    q0    = zeros(M,1)-0.5*log(nvox);
+    q0    = zeros(M,1)-0.5*log(vol);
 end
 
 q = min(max(q0,-10),10);  % Heuristic to avoid bad starting estimate
 Q = diag(exp(q));
 A = UpdateWishart(Q*ZZ*Q, ndat, A0, n0);
 E = 0.5*(trace(Q*ZZ*Q*A) + trace(ULU/(Q*Q))) ...
-  + (nvox - ndat) * LogDetChol(Q);
+  + (vol - ndat) * LogDetChol(Q);
 % fprintf('[%3d %2d] %15.6g',0,0,E)
 
 all_E0 = E;
@@ -2241,7 +2243,7 @@ for iter=1:100 % EM loop
         R  = A.*ZZ'+A'.*ZZ;
         g1 = Q*R*diag(Q);
         g2 =-2*(Q^2\diag(ULU));
-        g  = g1 + g2 + 2 * (nvox - ndat);
+        g  = g1 + g2 + 2 * (vol - ndat);
 
         H1 = Q*R*Q + diag(g1);
         H2 = 4*(Q^2\ULU);
@@ -2254,7 +2256,7 @@ for iter=1:100 % EM loop
 
         oE = E;
         E  = 0.5*(trace(Q*ZZ*Q*A) + trace(ULU/(Q*Q))) ...
-              + (nvox - ndat) * LogDetChol(Q);
+              + (vol - ndat) * LogDetChol(Q);
         all_E = [all_E E];
 
         % fprintf('\n[%3d %2d] %15.6g (%8.1e)',iter,subit,E, ...
