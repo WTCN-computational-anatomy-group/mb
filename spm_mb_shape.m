@@ -1001,8 +1001,8 @@ function datn = UpdateLatentSub(datn,model,sett)
 v_settings = sett.var.v_settings;
 
 L   = size(model.U,5);    % Number of principal components
-A   = model.A;            % Precision matrix (posterior expected value)
 lam = model.lam;          % Residual precision (posterior expected value)
+Sz  = model.Sz;           % Latent posterior uncertainty
 
 m = single(datn.v());
 m = spm_diffeo('vel2mom',m,v_settings); % Compute momentum: L * v
@@ -1015,7 +1015,7 @@ for j=1:L
 end
 clear U1
 
-datn.z  = model.lam * model.Sz * datn.z;
+datn.z  = lam * Sz * datn.z;
 
 end
 %==========================================================================
