@@ -189,7 +189,7 @@ dir_res = sett.write.dir_res;
 Mmu     = sett.var.Mmu;
 
 v    = zeros([d,3],'single');
-psi1 = spm_mb_shape('Identity',d);
+psi1 = Identity(d);
 for n=1:numel(dat)
     dat(n).q = zeros(size(B,3),1);
     if isnumeric(dat(n).f)
@@ -330,13 +330,13 @@ end
 
 % Update template using all subjects from population sett.model.ix_init_pop
 for it=1:nit_init_mu
-    [mu,dat(p_ix{ix_init})] = spm_mb_shape('UpdateSimpleMean',dat(p_ix{ix_init}), mu, sett);
+    [mu,dat(p_ix{ix_init}),sett] = UpdateSimpleMean(dat(p_ix{ix_init}), mu, sett);
 end
 if Npop > 1
     % If more than one population, use template learned on sett.model.ix_init_pop
     % population to initialise other populations' GMM parameters
     for it=1:nit_init_mu
-        [mu,dat] = spm_mb_shape('UpdateSimpleMean',dat, mu, sett);    
+        [mu,dat,sett] = UpdateSimpleMean(dat, mu, sett);    
     end
 end
 
@@ -833,7 +833,7 @@ end
 function H = AppearanceHessian(mu,accel)
 M  = size(mu,4);
 d  = [size(mu,1) size(mu,2) size(mu,3)];
-if accel>0, s  = spm_mb_shape('Softmax',mu,4); end
+if accel>0, s  = Softmax(mu,4); end
 Ab = 0.5*(eye(M)-1/(M+1)); % See Bohning's paper
 I  = Horder(M);
 H  = zeros([d (M*(M+1))/2],'single');
