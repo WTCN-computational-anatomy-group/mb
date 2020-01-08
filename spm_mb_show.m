@@ -10,6 +10,10 @@ function varargout = spm_mb_show(varargin)
 % FORMAT spm_mb_show('Subjects',dat,mu,sett,p,show_extras)
 % FORMAT spm_mb_show('Tissues',im,do_softmax,num_montage,fig_nam)
 % FORMAT spm_mb_show('Speak',nam,sett,varargin)
+% FORMAT f = spm_mb_show('SetFigure',fname)
+% FORMAT p = spm_mb_show('ShowCat',in,ax,show_colorbar)
+% FORMAT p = spm_mb_show('ShowIm',in,ax,use_gray,is_ct)
+% FORMAT p = spm_mb_show('ShowVel',in,z,ax,nrm)
 %
 %__________________________________________________________________________
 % Copyright (C) 2019 Wellcome Trust Centre for Neuroimaging
@@ -24,17 +28,25 @@ switch id
     case 'All'
         [varargout{1:nargout}] = All(varargin{:});
     case 'Clear'
-        [varargout{1:nargout}] = Clear(varargin{:});        
+        [varargout{1:nargout}] = Clear(varargin{:});
     case 'IntensityPrior'
-        [varargout{1:nargout}] = IntensityPrior(varargin{:});         
+        [varargout{1:nargout}] = IntensityPrior(varargin{:});
     case 'Model'
-        [varargout{1:nargout}] = Model(varargin{:});          
+        [varargout{1:nargout}] = Model(varargin{:});
     case 'Subjects'
-        [varargout{1:nargout}] = Subjects(varargin{:});         
+        [varargout{1:nargout}] = Subjects(varargin{:});
     case 'Tissues'
-        [varargout{1:nargout}] = Tissues(varargin{:});        
+        [varargout{1:nargout}] = Tissues(varargin{:});
+    case 'SetFigure'
+        [varargout{1:nargout}] = SetFigure(varargin{:});
+    case 'ShowCat'
+        [varargout{1:nargout}] = ShowCat(varargin{:});
+    case 'ShowIm'
+        [varargout{1:nargout}] = ShowIm(varargin{:});
+    case 'ShowVel'
+        [varargout{1:nargout}] = ShowVel(varargin{:});
     case 'Speak'
-        [varargout{1:nargout}] = Speak(varargin{:});                
+        [varargout{1:nargout}] = Speak(varargin{:});
     otherwise
         help spm_mb_show
         error('Unknown function %s. Type ''help spm_mb_show'' for help.', id)
@@ -594,8 +606,9 @@ end
 
 %==========================================================================
 % ShowCat()
-function ShowCat(in,ax,show_colorbar)
+function p = ShowCat(in,ax,show_colorbar)
 if nargin < 3, show_colorbar = false; end
+if nargin < 2, ax = 3; end
 
 dm = size(in);
 if numel(dm) ~= 4
@@ -643,7 +656,7 @@ if tri
 end
 
 c = squeeze(c(:,:,:,:));
-imagesc(c); axis off image xy;   
+p = imagesc(c); axis off image xy;   
 colormap(pal);
 
 if show_colorbar    
@@ -656,7 +669,7 @@ end
 
 %==========================================================================
 % ShowVel()
-function ShowVel(vel, z, slice, nrm)
+function p = ShowVel(vel, z, slice, nrm)
 
 dim = size(vel);
 if numel(dim) > 4
@@ -694,7 +707,7 @@ switch slice
     otherwise
         error('not handled')
 end
-image(vel);
+p = image(vel);
 axis off
 
 end
@@ -743,7 +756,7 @@ end
 
 %==========================================================================
 % ShowGMMFit()
-function ShowGMMFit(f,PI,mog,c,mg_ix)
+function p = ShowGMMFit(f,PI,mog,c,mg_ix)
 K      = size(mog.po.m,2);
 colors = hsv(max(mg_ix));
 
@@ -753,7 +766,7 @@ colors = hsv(max(mg_ix));
 % Input is a list of observations
 [H, edges] = histcounts(f(f > 0 & isfinite(f)), 64, 'Normalization', 'pdf');
 centres = (edges(1:end-1) + edges(2:end))/2;
-bar(centres, H, 'EdgeColor', 'none', 'FaceColor', [0.7 0.7 0.7]);
+p = bar(centres, H, 'EdgeColor', 'none', 'FaceColor', [0.7 0.7 0.7]);
 hold on
 
 % -----------
@@ -786,7 +799,7 @@ end
         
 %==========================================================================
 % ShowIm()
-function ShowIm(in,ax,use_gray,is_ct)
+function p = ShowIm(in,ax,use_gray,is_ct)
 if nargin < 3, use_gray = true; end
 if nargin < 4, is_ct    = false; end
 
@@ -805,9 +818,9 @@ end
 in = squeeze(in(:,:,:,:));
 if is_ct
     % Assume CT..
-    imagesc(in,[0 100]);
+    p = imagesc(in,[0 100]);
 else
-    imagesc(in);
+    p = imagesc(in);
 end
 axis off image xy;
 if use_gray
@@ -819,10 +832,10 @@ end
 
 %==========================================================================
 % SetFigure()
-function SetFigure(fname)
+function f = SetFigure(fname)
 f  = findobj('Type', 'Figure', 'Name', fname);
 if isempty(f)
-    f = figure('Name', fn, 'NumberTitle', 'off');
+    f = figure('Name', fname, 'NumberTitle', 'off');
 end
 set(0, 'CurrentFigure', f);   
 end
