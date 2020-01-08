@@ -350,7 +350,7 @@ if sett.do.pca
     end
     [U,S] = svd(model.ZZ);
     Q = S^(-0.5)*U';
-    model.ZZ = Q * (model.ZZ / Q);
+    model.ZZ = Q * model.ZZ * Q';
     model.ZZ = (model.ZZ + model.ZZ')/2;
     model.ZZ = model.ZZ + eye(npc);
     model.Z  = Q * model.Z;
