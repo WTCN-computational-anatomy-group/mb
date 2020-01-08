@@ -41,8 +41,9 @@ function varargout = spm_mb_shape(varargin)
 % FORMAT psi           = spm_mb_shape('Compose',psi1,psi0)
 % FORMAT id            = spm_mb_shape('Identity',d)
 % FORMAT l             = spm_mb_shape('LSE',mu,dr)
-% FORMAT a1            = spm_mb_shape('Pull1',a0,psi,r)
-% FORMAT [f1,w1]       = spm_mb_shape('Push1',f,psi,d,r)
+% FORMAT sett          = spm_mb_shape('MuValOutsideFOV',mu,sett);
+% FORMAT a1            = spm_mb_shape('Pull1',a0,psi,bg,r)
+% FORMAT [f1,w1]       = spm_mb_shape('Push1',f,psi,d,r,bg)
 % FORMAT sd            = spm_mb_shape('SampDens',Mmu,Mn)
 % FORMAT P             = spm_mb_shape('Softmax',mu,dr)
 % FORMAT mun           = spm_mb_shape('TemplateK1',mun,ax)
@@ -94,6 +95,9 @@ switch id
         [varargout{1:nargout}] = LSE(varargin{:});
     case 'OrthoSubspace'
         [varargout{1:nargout}] = OrthoSubspace(varargin{:});  
+        [varargout{1:nargout}] = LSE(varargin{:});      
+    case 'MuValOutsideFOV'
+        [varargout{1:nargout}] = MuValOutsideFOV(varargin{:});          
     case 'Pull1'
         [varargout{1:nargout}] = Pull1(varargin{:});
     case 'Push1'
@@ -244,7 +248,7 @@ dir_res = sett.write.dir_res;
 Mmu     = sett.var.Mmu;
 
 v    = zeros([d,3],'single');
-psi1 = spm_mb_shape('Identity',d);
+psi1 = Identity(d);
 for n=1:numel(dat)
     dat(n).q = zeros(size(B,3),1);
     if isnumeric(dat(n).f)
@@ -440,18 +444,17 @@ function [dat,mu] = InitTemplate(dat,K,sett)
 % scale
 
 % Parse function settings
-do_gmm = sett.do.gmm;
+do_gmm      = sett.do.gmm;
+ix_init     = sett.model.ix_init_pop;
+mg_ix       = sett.model.mg_ix;
+nit_init_mu = sett.nit.init_mu;
 
 % Uniform template
 mu = zeros([sett.var.d K],'single');
 
 if ~do_gmm, return; end
 
-% % Change some settings
-% do_updt_bf      = sett.do.updt_bf;
-ix_init         = sett.model.ix_init_pop;
-mg_ix           = sett.model.mg_ix;
-nit_init_mu     = sett.nit.init_mu;
+% Change some settings
 sett.do.updt_bf = false;
 sett.gen.samp   = 5;
 sett.nit.appear = 1;
@@ -464,21 +467,13 @@ Kmg = numel(mg_ix);
 % Get population indices
 p_ix       = spm_mb_appearance('GetPopulationIdx',dat);
 Npop       = numel(p_ix);
-first_subj = true; % For when not using InitGMM, make posterior means of all subjects uninformative, except first subject in population sett.model.ix_init_pop
 pop_rng    = 1:Npop;
 
-% Was InitGMM run on initialising population?
-[~,C]       = spm_mb_io('GetSize',dat(p_ix{ix_init}(1)).f);
-has_ct      = any(dat(p_ix{ix_init}(1)).is_ct == true);
-use_initgmm = C == 1 && ~has_ct;
-
-for p=[ix_init pop_rng(pop_rng ~= ix_init)] % loop over populations (starting index defined by sett.model.ix_init_pop)
+for p=pop_rng(pop_rng ~= ix_init) % loop over populations (starting index defined by sett.model.ix_init_pop)
     % To make the algorithm more robust when using multiple populations,
     % set posterior and prior means (m) of GMMs of all but the first population to
     % uniform  
-    
-    if use_initgmm && p == ix_init, continue; end
-    
+        
     C = size(dat(p_ix{p}(1)).mog.po.m,1);
    
     avg_m_po  = 0;
@@ -534,10 +529,6 @@ for p=[ix_init pop_rng(pop_rng ~= ix_init)] % loop over populations (starting in
     % Assign
     for n=p_ix{p}
         dat(n).mog.pr.m = mpr; % prior
-        if ~use_initgmm && first_subj            
-            first_subj = false;
-            continue
-        end        
         dat(n).mog.po.m = mpo; % posterior
     end
     
@@ -547,21 +538,17 @@ for p=[ix_init pop_rng(pop_rng ~= ix_init)] % loop over populations (starting in
     end
 end
 
-if ~use_initgmm
-    % Update template based on only first subject of population sett.model.ix_init_pop
-    for it=1:nit_init_mu
-        [mu,dat(p_ix{ix_init}(1))] = spm_mb_shape('UpdateSimpleMean',dat(p_ix{ix_init}(1)), mu, sett);
-    end
-end
 % Update template using all subjects from population sett.model.ix_init_pop
 for it=1:nit_init_mu
-    [mu,dat(p_ix{ix_init})] = spm_mb_shape('UpdateSimpleMean',dat(p_ix{ix_init}), mu, sett);
+    [mu,dat(p_ix{ix_init})] = UpdateSimpleMean(dat(p_ix{ix_init}), mu, sett);
+    dat(p_ix{ix_init})      = spm_mb_appearance('UpdatePrior',dat(p_ix{ix_init}), sett);
 end
 if Npop > 1
     % If more than one population, use template learned on sett.model.ix_init_pop
     % population to initialise other populations' GMM parameters
     for it=1:nit_init_mu
-        [mu,dat] = spm_mb_shape('UpdateSimpleMean',dat, mu, sett);    
+        [mu,dat] = UpdateSimpleMean(dat, mu, sett); 
+        dat      = spm_mb_appearance('UpdatePrior',dat, sett);
     end
 end
 end
@@ -577,13 +564,42 @@ end
 %==========================================================================
 
 %==========================================================================
+% MuValOutsideFOV()
+function sett = MuValOutsideFOV(mu,sett)
+% Get values to use when pulling a template with a smaller FOV than a
+% subject's data (only used when not learning a template, and using 3D
+% data)
+
+% Parse function settings
+do_updt_template = sett.do.updt_template;
+
+if do_updt_template || size(mu,3) == 1
+    % Learning a template, use pushc/pullc and do not mask+replace any
+    % values (also used if 2D data)
+    mu_bg = [];
+else
+    % Fitting a learned template
+    K     = size(mu,4);
+    mu_bg = zeros(2,K);
+    for k=1:K % loop over template classes
+        mu_bg(1,k) = mean(mean(mu(:,:,1,k)));   % values of native FOV voxels not covered by template (except bottom)
+        mu_bg(2,k) = mean(mean(mu(:,:,end,k))); % values of native FOV bottom voxels not covered by template
+    end
+end
+sett.model.mu_bg = mu_bg;
+end
+%==========================================================================
+
+%==========================================================================
 % Pull1()
-function a1 = Pull1(a0,psi,r)
+function a1 = Pull1(a0,psi,bg,r)
 % Resample an image or set of images
 % FORMAT a1 = Pull1(a0,psi,r)
 %
 % a0  - Input image(s)
 % psi - Deformation
+% bg  - Voxel values outside of image FOV (assumed to be a template), if
+%       empty uses pullc.
 % r   - subsampling density in each dimension (default: [1 1 1])
 %
 % a1  - Output image(s)
@@ -596,7 +612,21 @@ function a1 = Pull1(a0,psi,r)
 
 % John Ashburner
 % $Id$
-if nargin<3, r=[1 1 1]; end
+if nargin<3, bg = []; end
+if nargin<4, r  = [1 1 1]; end
+
+if ~isempty(bg) 
+    % For dealing with template FOV being smaller than subject FOV
+    d    = size(a0);
+    K    = d(4);
+    % native FOV not covered by template
+    msk1 =   psi(:,:,:,1)>=1 & psi(:,:,:,1)<=d(1) ...
+           & psi(:,:,:,2)>=1 & psi(:,:,:,2)<=d(2) ...
+           & psi(:,:,:,3)>=1 & psi(:,:,:,3)<=d(3);
+    msk1 = ~msk1;
+    % bottom native FOV not covered by template
+    msk2 = psi(:,:,:,3)<1;
+end     
 
 if isempty(a0)
     a1 = a0;
@@ -604,7 +634,15 @@ elseif isempty(psi)
     a1 = a0;
 else
     if r==1
-        a1 = spm_diffeo('pullc',a0,psi);
+        if isempty(bg) 
+            a1 = spm_diffeo('pullc',a0,psi); 
+        else
+            a1 = spm_diffeo('pull',a0,psi); 
+            
+            % Deal with template FOV being smaller than subject FOV
+            a1(repmat(msk1,[1 1 1 K])) = reshape(bg(1,:).*ones([nnz(msk1) K]),[],1); % native FOV not covered by template
+            a1(repmat(msk2,[1 1 1 K])) = reshape(bg(2,:).*ones([nnz(msk2) K]),[],1); % bottom native FOV not covered by template
+        end        
         return
     end
     d  = [size(a0) 1 1];
@@ -616,7 +654,7 @@ else
     a1 = zeros([size(psi,1),size(psi,2),size(psi,3),size(a0,4)],'single');
     for l=1:d(4)
         tmp = single(0);
-        al  = single(a0(:,:,:,l));
+        al  = a0(:,:,:,l);
         for dz=zrange
             for dy=yrange
                 for dx=xrange
@@ -630,13 +668,17 @@ else
         end
         a1(:,:,:,l) = tmp/(numel(zrange)*numel(yrange)*numel(xrange));
     end
+    
+    % Deal with template FOV being smaller than subject FOV
+    a1(repmat(msk1,[1 1 1 K])) = reshape(bg(1,:).*ones([nnz(msk1) K]),[],1); % native FOV not covered by template
+    a1(repmat(msk2,[1 1 1 K])) = reshape(bg(2,:).*ones([nnz(msk2) K]),[],1); % bottom native FOV not covered by template
 end
 end
 %==========================================================================
 
 %==========================================================================
 % Push1()
-function [f1,w1] = Push1(f,psi,d,r)
+function [f1,w1] = Push1(f,psi,d,r,bg)
 % Push an image (or set of images) accorging to a spatial transform
 % FORMAT [f1,w1] = Push1(f,psi,d,r)
 %
@@ -644,6 +686,7 @@ function [f1,w1] = Push1(f,psi,d,r)
 % psi - Spatial transform
 % d   - dimensions of output (default: size of f)
 % r   - subsampling density in each dimension (default: [1 1 1])
+% bg  - Indicates whether push/pushc should be used 
 %
 % f1  - "Pushed" image
 %
@@ -655,17 +698,22 @@ function [f1,w1] = Push1(f,psi,d,r)
 
 % John Ashburner
 % $Id$
-if nargin<4, r = [1 1 1]; end
-if nargin<3, d = [size(f,1) size(f,2) size(f,3)]; end
+if nargin<3, d  = [size(f,1) size(f,2) size(f,3)]; end
+if nargin<4, r  = [1 1 1]; end
+if nargin<5, bg = []; end
 
 %msk    = isfinite(f);
 %f(msk) = 0;
 if ~isempty(psi)
     if r==1
         if nargout==1
-            f1      = spm_diffeo('pushc',single(f),psi,d);
-        else
-            [f1,w1] = spm_diffeo('pushc',single(f),psi,d);
+            if isempty(bg), f1 = spm_diffeo('pushc',f,psi,d);
+            else,           f1 = spm_diffeo('push',f,psi,d);
+            end
+            else
+            if isempty(bg), [f1,w1] = spm_diffeo('pushc',f,psi,d);
+            else,           [f1,w1] = spm_diffeo('push',f,psi,d);
+            end
         end
         return
     end
@@ -683,7 +731,7 @@ if ~isempty(psi)
             for dx=xrange
                 ids       = id + cat(4,dx,dy,dz);
                 psi1      = spm_diffeo('pull',psi-id,    ids)+ids;
-                fs        = spm_diffeo('pull',single(f), ids);
+                fs        = spm_diffeo('pull',f, ids);
                %fs=single(f);
                 if nargout==1
                     fs        = spm_diffeo('push',fs,        psi1,d);
@@ -703,7 +751,7 @@ else
     msk      = isfinite(f);
     f1       = f;
     f1(~msk) = 0;
-    w1       = single(all(msk,4));
+    w1       = all(msk,4);
 end
 end
 %==========================================================================
@@ -726,6 +774,7 @@ d       = sett.var.d;
 Mmu     = sett.var.Mmu;
 max_mem = sett.gen.max_mem*1E9; % (GB)
 dir_res = sett.write.dir_res;
+mu_bg = sett.model.mu_bg;
 
 d0      = [size(mu,1) size(mu,2) size(mu,3)];
 Mzoom   = Mmu\oMmu;
@@ -742,12 +791,11 @@ else
         mu1.mat = Mmu;
         create(mu1);
         mu1 = mu1.dat;
-        [mu11,c] = Push1(mu(:,:,:,1,1),y,d);
         mu11     = mu11./(c+eps);
         mu1(:,:,:,1,1) = mu11;
         for k=1:size(mu,4)
             for l=1:size(mu,5)
-                mu11 = Push1(mu(:,:,:,1,1),y,d);
+                mu11 = Push1(mu(:,:,:,1,1),y,d,1,mu_bg);
                 mu1(:,:,:,1,1) = mu11./(c+eps);
             end
         end
@@ -755,6 +803,7 @@ else
         [mu1,c] = Push1(mu,y,d);
         mu1     = mu1./(c+eps);
     end
+        [mu11,c] = Push1(mu(:,:,:,1,1),y,d,1,mu_bg);
 end
 end
 %==========================================================================
@@ -1555,7 +1604,7 @@ end
 function H = AppearanceHessian(mu,accel)
 M  = size(mu,4);
 d  = [size(mu,1) size(mu,2) size(mu,3)];
-if accel>0, s  = spm_mb_shape('Softmax',mu,4); end
+if accel>0, s  = Softmax(mu,4); end
 Ab = 0.5*(eye(M)-1/(M+1)); % See Bohning's paper
 I  = Horder(M);
 H  = zeros([d (M*(M+1))/2],'single');
@@ -1926,6 +1975,7 @@ accel = sett.gen.accel;
 B     = sett.registr.B;
 d     = sett.var.d;
 Mmu   = sett.var.Mmu;
+mu_bg = sett.model.mu_bg;
 scal  = sett.optim.scal_q;
 
 df   = spm_mb_io('GetSize',datn.f);
@@ -1945,7 +1995,7 @@ J    = reshape(Pull1(reshape(J,[d 3*3]),psi0),[df 3 3]);
 psi  = Compose(psi1,psi0);
 clear psi0  psi1
 
-mu1  = Pull1(mu,psi);
+mu1  = Pull1(mu,psi,mu_bg);
 [f,datn] = spm_mb_io('GetClasses',datn,mu1,sett);
 M    = size(mu,4);
 G    = zeros([df M 3],'single');
@@ -1983,12 +2033,13 @@ accel = sett.gen.accel;
 B     = sett.registr.B;
 d     = sett.var.d;
 Mmu   = sett.var.Mmu;
+mu_bg = sett.model.mu_bg;
 
 df  = spm_mb_io('GetSize',datn.f);
 q   = double(datn.q);
 Mn  = datn.Mat;
 psi = Compose(single(datn.psi()),Affine(df, Mmu\spm_dexpm(q,B)*Mn));
-mu  = Pull1(mu,psi);
+mu  = Pull1(mu,psi,mu_bg);
 [f,datn] = spm_mb_io('GetClasses',datn,mu,sett);
 % if isempty(H0)
 %     g     = Push1(Softmax(mu,4) - f,psi,d);
@@ -1997,7 +2048,7 @@ mu  = Pull1(mu,psi);
     % Faster approximation - but might be unstable
     % If there are problems, then revert to the slow
     % way.
-    [g,w] = Push1(Softmax(mu,4) - f,psi,d);
+    [g,w] = Push1(Softmax(mu,4) - f,psi,d,1,mu_bg);
     H     = w.*H0;
 % end
 end
@@ -2011,6 +2062,7 @@ function datn = UpdateSimpleAffinesSub(datn,mu,G,H0,sett)
 B    = sett.registr.B;
 d    = sett.var.d;
 Mmu  = sett.var.Mmu;
+mu_bg = sett.model.mu_bg;
 scal = sett.optim.scal_q;
 
 df   = spm_mb_io('GetSize',datn.f);
@@ -2024,10 +2076,10 @@ for m=1:size(B,3)
 end
 
 psi      = Affine(df,Mmu\Mr*Mn);
-mu1      = Pull1(mu,psi);
+mu1      = Pull1(mu,psi,mu_bg);
 [f,datn] = spm_mb_io('GetClasses',datn,mu1,sett);
 
-[a,w] = Push1(f - Softmax(mu1,4),psi,d);
+[a,w] = Push1(f - Softmax(mu1,4),psi,d,1,mu_bg);
 clear mu1 psi f
 
 [H,g]     = SimpleAffineHessian(mu,G,H0,a,w);
@@ -2044,17 +2096,18 @@ end
 function [g,w,datn] = UpdateSimpleMeanSub(datn,mu,sett)
 
 % Parse function settings
-B   = sett.registr.B;
-d   = sett.var.d;
-Mmu = sett.var.Mmu;
+B     = sett.registr.B;
+d     = sett.var.d;
+Mmu   = sett.var.Mmu;
+mu_bg = sett.model.mu_bg;
 
 df    = spm_mb_io('GetSize',datn.f);
 q     = double(datn.q);
 Mn    = datn.Mat;
 psi   = Compose(single(datn.psi()),Affine(df,Mmu\spm_dexpm(q,B)*Mn));
-mu    = Pull1(mu,psi);
+mu    = Pull1(mu,psi,mu_bg);
 [f,datn] = spm_mb_io('GetClasses',datn,mu,sett);
-[g,w] = Push1(f,psi,d);
+[g,w] = Push1(f,psi,d,1,mu_bg);
 end
 %==========================================================================
 
@@ -2066,6 +2119,7 @@ function datn = UpdateVelocitiesSub(datn,model,G,H,sett)
 B          = sett.registr.B;
 d          = sett.var.d;
 Mmu        = sett.var.Mmu;
+mu_bg      = sett.model.mu_bg;
 s_settings = sett.shoot.s_settings;
 scal       = sett.optim.scal_v;
 v_settings = sett.var.v_settings;
@@ -2090,7 +2144,7 @@ df        = spm_mb_io('GetSize',datn.f);
 psi       = Compose(single(datn.psi()),Affine(df,Mat));
 mu        = Pull1(model.mu,psi);
 [f,datn]  = spm_mb_io('GetClasses',datn,mu,sett);
-[a,w]     = Push1(f - Softmax(mu,4),psi,d);
+[a,w]     = Push1(f - Softmax(mu,4),psi,d,1,mu_bg);
 clear psi f mu
 
 g         = reshape(sum(a.*G,4),[d 3]);

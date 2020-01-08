@@ -270,6 +270,7 @@ fig_name_tiss = sett.show.figname_subjects;
 fwhm          = sett.bf.fwhm;
 mg_ix         = sett.model.mg_ix;
 Mmu           = sett.var.Mmu;
+mu_bg         = sett.model.mu_bg;
 mx_subj       = sett.show.mx_subjects;
 reg           = sett.bf.reg;
 
@@ -307,7 +308,7 @@ for n=1:nd
     % Warp template
     psi1 = spm_mb_io('GetData',dat(n).psi);
     psi  = spm_mb_shape('Compose',psi1,spm_mb_shape('Affine',df,Mmu\Mr*Mn));
-    mun  = spm_mb_shape('Pull1',mu0,psi);            
+    mun  = spm_mb_shape('Pull1',mu0,psi,mu_bg);            
     clear psi1
     
     % Get bias field    

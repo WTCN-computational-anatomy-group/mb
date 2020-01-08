@@ -158,6 +158,12 @@ s = SetDefault(s, 'model.K',           5);     % Number of template classes
 s = SetDefault(s, 'model.vx',          1);     % Final template voxel size
 s = SetDefault(s, 'model.ix_init_pop', 1);     % Index of population to use for initialising
 s = SetDefault(s, 'model.mg_ix',       1);     % Number of Gaussians per tissue
+s = SetDefault(s, 'model.mu_bg',       []);
+    % For dealing with template FOV being smaller than subject image's. If
+    % empty pullc/pushc are used when warping template, which is the
+    % scenario for learning a template. If a template is given, then this
+    % parameter is set using spm_mb_shape('MuValOutsideFOV',mu,sett). Its
+    % values are then used to fill in the missing FOV.
 % TODO: . I'd prefer 'nclass' or 'ntissue' to 'K'
 
 %------------------

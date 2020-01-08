@@ -87,6 +87,7 @@ end
 if given.template    
     dmu       = spm_mb_io('GetSize',model.shape.template);
     Mmu       = spm_mb_io('GetMat',model.shape.template);   
+    sett      = spm_mb_shape('MuValOutsideFOV',mu0,sett); % For dealing with voxels outside of template's FOV (adds field sett.model.mu_bg)
 elseif given.subspace
     dmu       = spm_mb_io('GetSize',model.shape.subspace);
     Mmu       = spm_mb_io('GetMat',model.shape.subspace);
@@ -176,6 +177,8 @@ else
     [dat,shape.mu] = spm_mb_shape('InitTemplate',dat,K,sett);
 end
 
+% Save template
+spm_mb_io('SaveTemplate',dat,shape.mu,sett);
 spm_mb_show('All',dat,shape,[],N,sett);
 
 %------------------
@@ -315,6 +318,7 @@ for zm=numel(sz):-1:1 % loop over zoom levels
         
         if (it_zm == nit_zm) && zm>1
             oMmu     = sett.var.Mmu;
+            if do_updt_template, [dat,mu] = spm_mb_shape('ZoomVolumes',dat,mu,sett,oMmu);
             sett.var = spm_mb_io('CopyFields',sz(zm-1),sett.var);
             [dat,shape] = spm_mb_shape('ZoomVolumes',dat,shape,sett,oMmu);
         end
