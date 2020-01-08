@@ -1116,9 +1116,10 @@ ZS = lam * Z' * model.Su;
 for l=1:L
     U1 = 0;
     for n=1:numel(dat)
-        v  = single(dat(n).v());
+        v  = double(dat(n).v());
         U1 = U1 + v * ZS(n,l);
     end
+    U1 = single(U1);
     model.U(:,:,:,:,l) = U1;
 end
 clear v U1
