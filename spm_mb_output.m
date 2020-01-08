@@ -141,6 +141,7 @@ gwc_level  = sett.clean_z.gwc_level;
 gwc_tix    = sett.clean_z.gwc_tix;
 mg_ix      = sett.model.mg_ix;
 Mmu        = sett.var.Mmu;
+mu_bg      = sett.model.mu_bg;
 mrf        = sett.clean_z.mrf;
 nit_mrf    = sett.clean_z.nit_mrf;
 reg        = sett.bf.reg;
@@ -187,7 +188,7 @@ if isfield(datn,'mog') && (any(write_bf(:) == true) || any(write_im(:) == true) 
 
     % Get subject-space template (softmaxed K + 1)
     psi = spm_mb_shape('Compose',psi0,spm_mb_shape('Affine',df,Mmu\Mr*Mn));    
-    mun = spm_mb_shape('Pull1',mun,psi);
+    mun = spm_mb_shape('Pull1',mun,psi,mu_bg);
     clear psi
     
     % Make K + 1 template    

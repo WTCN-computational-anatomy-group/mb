@@ -1391,6 +1391,9 @@ if (isempty(pr) && ~isempty(mu))
 end
    
 if ~isempty(mu)
+    
+    mu_bg = sett.model.mu_bg;
+    
     % Use template as resposibilities to compute values for GMM
     % posterior from suffstats
     df = spm_mb_io('GetSize',datn.f);          
@@ -1399,7 +1402,7 @@ if ~isempty(mu)
     Mn = datn.Mat;    
 
     % Warp template
-    mu = spm_mb_shape('Pull1',mu,spm_mb_shape('Affine',df,Mmu\Mr*Mn));                
+    mu = spm_mb_shape('Pull1',mu,spm_mb_shape('Affine',df,Mmu\Mr*Mn),mu_bg);                
 
     % Add class, then softmax -> can now be used as resps
     mu = spm_mb_shape('TemplateK1',mu,4);
