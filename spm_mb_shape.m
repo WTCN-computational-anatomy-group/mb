@@ -32,7 +32,6 @@ function varargout = spm_mb_shape(varargin)
 % FORMAT model         = spm_mb_shape('SuffStatVelocities',dat,model,sett)
 % FORMAT model         = spm_mb_shape('SuffStatTemplate',dat,model,sett)
 % FORMAT E             = spm_mb_shape('ShapeEnergy',model,sett)
-% FORMAT [dat,model]   = spm_mb_shape('OrthoSubspace',dat,model,sett)
 %
 %--------------------------------------------------------------------------
 % UTILS
