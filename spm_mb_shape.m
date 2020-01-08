@@ -2059,7 +2059,7 @@ end
 
 %==========================================================================
 % UpdateVelocitiesSub()
-function datn = UpdateVelocitiesSub(datn,model,G,H0,sett)
+function datn = UpdateVelocitiesSub(datn,model,G,H,sett)
 
 % Parse function settings
 B          = sett.registr.B;
@@ -2093,14 +2093,23 @@ mu        = Pull1(model.mu,psi);
 clear psi f mu
 
 g         = reshape(sum(a.*G,4),[d 3]);
-H         = w.*H0;
-clear a w
+H         = w.*H;
+clear a % w
 
-g         = g + spm_diffeo('vel2mom', v, v_settings);                             % Prior term
+g         = g + spm_diffeo('vel2mom', v, v_settings);                       % Prior term
 v         = v + v0 - scal*spm_diffeo('fmg', H, g, [v_settings s_settings]); % Gauss-Newton update
 
 if do_pca
     % Uncertainty term for lower bound: tr(L*Sv)
+    
+    % Since the Bohning bound majorises the true Hessian, it
+    % underestimates uncertainty about the mode. A more accurate but slower
+    % solution is to recompute the Hessian with `accel = 1` to
+    % estimate the uncertainty.
+    if true
+        H = w.*VelocityHessian(model.mu,G,1);
+    end
+    
     datn.ss.trLSv = double(spm_diffeo('trapprox', H, v_settings));
     datn.ss.trLSv = datn.ss.trLSv(1) / model.lam;
     % lam is removed from L so it can be updated after.
