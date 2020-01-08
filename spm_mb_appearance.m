@@ -1295,9 +1295,9 @@ ico = zeros(C,C,K1);
 for c=1:C      
     rng    = linspace(mmn(c),mmx(c),K1);
     rng    = -sum(rng<0):sum(rng>=0) - 1;
-    m(c,:) = rng'*mmx(c)/(1.5*K1);
+    m(c,:) = rng'*mmx(c)/(1.0*K1);
     
-    ico(c,c,:) = mmx(c)/(1.5*K1);
+    ico(c,c,:) = (mmx(c)/(1.0*K1))^2;
     ico(c,c,:) = 1/ico(c,c,:); % precision
 end
 
@@ -1362,9 +1362,9 @@ for c=1:C
     
     rng    = linspace(mn(c),mx(c),K1);
     rng    = -sum(rng<0):sum(rng>=0) - 1;
-    m(c,:) = rng'*mx(c)/(1.5*K1);
+    m(c,:) = rng'*mx(c)/(1.0*K1);
     
-    ico(c,c,:) = mx(c)/(1.5*K1);
+    ico(c,c,:) = (mx(c)/(1.0*K1))^2;
     ico(c,c,:) = 1/ico(c,c,:); % precision
 end
 
