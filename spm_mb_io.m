@@ -477,6 +477,10 @@ if do_pca
     if do_updt_subspace
         model.shape.subspace = fullfile(dir_res ,'subspace_spm_mb.nii');
         model.shape.subspace_cov = shape.Su;
+        model.shape.v_settings = sett.var.v_settings;
+        if numel(model.shape.v_settings) == 8
+            model.shape.v_settings = model.shape.v_settings(4:8);
+        end
     end
     if do_updt_latent_prior
         model.shape.latent_prior = shape.A;
