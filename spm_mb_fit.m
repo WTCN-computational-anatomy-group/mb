@@ -93,8 +93,8 @@ end
 
 if template_given    
     dmu       = spm_mb_io('GetSize',model.shape.template);
-    [mu0,Mmu] = spm_mb_io('GetData',model.shape.template);       
-    sett      = spm_mb_shape('MuValOutsideFOV',mu0,sett);
+    [mu0,Mmu] = spm_mb_io('GetData',model.shape.template);
+    sett      = spm_mb_shape('MuValOutsideFOV',mu0,sett); % For dealing with voxels outside of template's FOV (adds field sett.model.mu_bg)
 else
     [Mmu,dmu] = spm_mb_shape('SpecifyMean',dat,vx,sett);
 end
@@ -138,12 +138,15 @@ spm_mb_show('Speak','Start',sett,N,K);
 
 if template_given    
     % Shrink given template
-    [mu,sett] = spm_mb_shape('ShrinkTemplate',mu0,Mmu,sett);    
+    mu = spm_mb_shape('ShrinkTemplate',mu0,Mmu,sett);    
 else
     % Initial template
-    [dat,mu,sett] = spm_mb_shape('InitMu',dat,K,sett);
+    [dat,mu] = spm_mb_shape('InitMu',dat,K,sett);
 end
 
+% Save template
+spm_mb_io('SaveTemplate',dat,mu,sett);
+        
 % Show stuff
 spm_mb_show('All',dat,mu,[],N,sett);
 
@@ -274,10 +277,12 @@ for zm=numel(sz):-1:1 % loop over zoom levels
         Objective = [Objective; E5];
         
         if (it_zm == nit_zm) && zm>1
-            oMmu          = sett.var.Mmu;
-            sett.var      = spm_mb_io('CopyFields',sz(zm-1), sett.var);
-            [dat,mu,sett] = spm_mb_shape('ZoomVolumes',dat,mu,sett,oMmu);
-            dat           = spm_mb_shape('VelocityEnergy',dat,sett);
+            oMmu     = sett.var.Mmu;
+            sett.var = spm_mb_io('CopyFields',sz(zm-1), sett.var);
+            if do_updt_template, [dat,mu] = spm_mb_shape('ZoomVolumes',dat,mu,sett,oMmu);
+            else,                dat      = spm_mb_shape('ZoomVolumes',dat,mu,sett,oMmu);
+            end
+            dat      = spm_mb_shape('VelocityEnergy',dat,sett);
         end
 
         % Update deformations

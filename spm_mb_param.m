@@ -205,6 +205,14 @@ if ~isfield(sett.model,'mg_ix')
     % For using multiple Gaussians per tissue (as in spm_preproc8)
     sett.model.mg_ix = 1;
 end
+if ~isfield(sett.model,'mu_bg')
+    % For dealing with template FOV being smaller than subject image's. If
+    % empty pullc/pushc are used when warping template, which is the
+    % scenario for learning a template. If a template is given, then this
+    % parameter is set using spm_mb_shape('MuValOutsideFOV',mu,sett). Its
+    % values are then used to fill in the missing FOV.
+    sett.model.mu_bg = [];
+end
 if ~isfield(sett.model,'vx')    
     sett.model.vx = 1;    
 end
