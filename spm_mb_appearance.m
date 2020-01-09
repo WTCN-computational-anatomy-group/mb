@@ -1098,7 +1098,7 @@ for n=1:numel(dat)
     end
 end
 
-% Just get element indices of the channels
+% Map from population to channels in GMM parameters
 pop_cnh_ix = cell([1 numel(pop_chn)]);
 for i=1:numel(pop_chn)
     if i == 1, pop_cnh_ix{i} = 1:pop_chn(i);
@@ -1185,7 +1185,7 @@ for n=1:N % Loop over subjects
     mx      = max(mx,max(fn,[],2));
     dc(:,n) = -log(max(eps,mean(fn,2)));
 end
-
+            
 % Make DC component zero mean, across N
 dc = dc - mean(dc,2);
 
@@ -1342,8 +1342,12 @@ end
 lb  = struct('sum', NaN, 'X', [], 'XB', [], 'Z', [], 'P', [], 'MU', [], ...
              'A', [], 'pr_v', [], 'pr_bf',[]);
 
-for n=1:N    
+mn = sum((gam').*mu,2);
+         
+for n=1:max(pop_cnt)
     for c=1:numel(pop_ix)
+        if n>numel(pop_ix{c}), continue; end
+        
         n1      = pop_ix{c}(n);
         [df,C1] = spm_mb_io('GetSize',dat(n1).f);                        
         p       = dat(n1).pop_id;    
@@ -1357,9 +1361,9 @@ for n=1:N
                 ico(c1,c1,k) = inv(Sig(chn(c1),chn(c1),k));
             end
         end
-        W   = ico/C1;
-        nu  = C1*ones(1,K1);
-        po  = struct('m',m,'b',b,'W',W,'n',nu);    
+        W  = ico/C1;
+        nu = C1*ones(1,K1);
+        po = struct('m',m,'b',b,'W',W,'n',nu);    
 
         mog.po     = po;
         mog.pr     = po; % prior same as posterior
@@ -1369,7 +1373,20 @@ for n=1:N
         
         if any(dat(n1).do_bf == true)
             % Get bias field parameterisation struct
-            chan        = spm_mb_appearance('BiasFieldStruct',dat(n1),C1,df,reg,fwhm,dc(chn,n));
+            if n>size(dc,2)
+                dc1 = zeros(C1,1);
+                fn  = spm_mb_io('GetData',dat(n1).f);
+                fn  = reshape(fn,[prod(df(1:3)) C1]);
+                fn  = spm_mb_appearance('Mask',fn,dat(n1).is_ct);                                
+                for c1=1:C1
+                    msk    = isfinite(fn(:,c1));
+                    dc1(c1) = mn(chn(c1))./mean(fn(msk,c1));
+                end
+                dc1 = log(dc1);
+            else
+                dc1 = dc(chn,n);
+            end
+            chan = spm_mb_appearance('BiasFieldStruct',dat(n1),C1,df,reg,fwhm,dc1);
             dat(n1).bf.T = {chan(:).T};
         end
     end
