@@ -359,9 +359,10 @@ function sett = MuValOutsideFOV(mu,sett)
 % data)
 
 % Parse function settings
+do_mu_bg         = sett.do.mu_bg;
 do_updt_template = sett.do.updt_template;
 
-if do_updt_template || size(mu,3) == 1
+if do_updt_template || size(mu,3) == 1 || ~do_mu_bg
     % Learning a template, use pushc/pullc and do not mask+replace any
     % values (also used if 2D data)
     mu_bg = [];

@@ -123,6 +123,11 @@ end
 if ~isfield(sett.do,'infer')    
     sett.do.infer = 1; % 0, 1, 2
 end
+if ~isfield(sett.do,'mu_bg')
+    % Should voxels outside the FOV of the template, when warped to subject
+    % space, be replaced? (only when using an already learned template)
+    sett.do.mu_bg = true;
+end
 if ~isfield(sett.do,'updt_aff')
     sett.do.updt_aff = true;
 end
