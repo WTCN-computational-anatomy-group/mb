@@ -8,7 +8,6 @@ function varargout = spm_mb_shape(varargin)
 % FORMAT psi           = spm_mb_shape('Compose',psi1,psi0)
 % FORMAT id            = spm_mb_shape('Identity',d)
 % FORMAT dat           = spm_mb_shape('InitDef',dat,sett)
-% FORMAT [dat,mu]      = spm_mb_shape('InitMu',dat,K,sett)
 % FORMAT l             = spm_mb_shape('LSE',mu,dr)
 % FORMAT sett          = spm_mb_shape('MuValOutsideFOV',mu,sett);
 % FORMAT a1            = spm_mb_shape('Pull1',a0,psi,bg,r)
@@ -47,9 +46,7 @@ switch id
     case 'Identity'
         [varargout{1:nargout}] = Identity(varargin{:});
     case 'InitDef'
-        [varargout{1:nargout}] = InitDef(varargin{:});                
-    case 'InitMu'
-        [varargout{1:nargout}] = InitMu(varargin{:});         
+        [varargout{1:nargout}] = InitDef(varargin{:});           
     case 'LSE'
         [varargout{1:nargout}] = LSE(varargin{:});      
     case 'MuValOutsideFOV'
@@ -221,48 +218,6 @@ for n=1:numel(dat)
             nii.dat(:,:,:,:) = psi1;
             dat(n).psi  = nii;
         end
-    end
-end
-end
-%==========================================================================
-
-%==========================================================================
-% InitMu()
-function [dat,mu] = InitMu(dat,K,sett)
-% Make 'quick' initial estimates of GMM posteriors and template on very coarse
-% scale
-
-% Parse function settings
-do_gmm      = sett.do.gmm;
-ix_init     = sett.model.ix_init_pop;
-nit_init_mu = sett.nit.init_mu;
-
-% Uniform template
-mu = zeros([sett.var.d K],'single');
-
-if ~do_gmm, return; end
-
-% Change some settings
-sett.do.updt_bf = false;
-sett.gen.samp   = 5;
-sett.nit.appear = 1;
-sett.nit.gmm    = 100;
-
-% Get population indices
-p_ix = spm_mb_appearance('GetPopulationIdx',dat);
-Np   = numel(p_ix);
-
-% Update template using all subjects from population sett.model.ix_init_pop
-for it=1:nit_init_mu
-    [mu,dat(p_ix{ix_init})] = UpdateSimpleMean(dat(p_ix{ix_init}), mu, sett);
-    dat(p_ix{ix_init})      = spm_mb_appearance('UpdatePrior',dat(p_ix{ix_init}), sett);
-end
-if Np > 1
-    % If more than one population, use template learned on sett.model.ix_init_pop
-    % population to initialise other populations' GMM parameters
-    for it=1:nit_init_mu
-        [mu,dat] = UpdateSimpleMean(dat, mu, sett); 
-        dat      = spm_mb_appearance('UpdatePrior',dat, sett);
     end
 end
 end

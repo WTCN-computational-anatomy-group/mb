@@ -338,6 +338,16 @@ for n=1:N
         dat(n).mog = [];
         dat(n).bf  = [];                
     end
+                
+    % Orientation matrix (image voxel-to-world)    
+    dat(n).Mat = eye(4);
+    if isa(F,'nifti') || (iscell(F) && (isa(F{1},'char') || isa(F{1},'nifti')))
+        dat(n).Mat = Nii(1).mat;        
+        if run2d
+            vx         = sqrt(sum(dat(n).Mat(1:3,1:3).^2));
+            dat(n).Mat = [diag(vx) zeros(3,1); 0 0 0 1];
+        end
+    end
     
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Subject-level 'extras'
@@ -358,6 +368,13 @@ for n=1:N
         dat(n).ix_pop = data(n).ix_pop;
     else
         dat(n).ix_pop = 1;
+    end
+    
+    % Population id (used by InitGMM)
+    if isstruct(data(n)) && isfield(data(n),'pop_id') && ~isempty(data(n).pop_id)
+        dat(n).pop_id = data(n).pop_id;
+    else
+        dat(n).pop_id = 1;
     end
     
     % Is CT data
@@ -381,16 +398,6 @@ for n=1:N
         end
     else
         dat(n).labels = [];        
-    end
-            
-    % Orientation matrix (image voxel-to-world)    
-    dat(n).Mat = eye(4);
-    if isa(F,'nifti') || (iscell(F) && (isa(F{1},'char') || isa(F{1},'nifti')))
-        dat(n).Mat = Nii(1).mat;        
-        if run2d
-            vx         = sqrt(sum(dat(n).Mat(1:3,1:3).^2));
-            dat(n).Mat = [diag(vx) zeros(3,1); 0 0 0 1];
-        end
     end
 end
 end

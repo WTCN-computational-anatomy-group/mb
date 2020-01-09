@@ -268,100 +268,27 @@ else
     w_mu = 1;
 end
 
-% Init over populations
-for p=1:Np
-    datn = dat(p_ix{p});
+dat = InitGMM(dat,sett);
     
-    % Load prior if given
-    if appear_given, pr = model.appear.pr(num2str(datn(1).ix_pop));
-    else,            pr = [];
-    end
-    
-    % If init population (given by sett.model.ix_init_pop), should InitGMM
-    % function be used to initialise GMM parameters and bias field scaling?
-    % Not used if CT, multi-channel data, or template given.
-    if datn(1).ix_pop == ix_init, use_initgmm = ~template_given && N > 1;
-    else,                         use_initgmm = false;
-    end
-    
-    % Do init for population(s) defined by p_ix
-    dat(p_ix{p}) = InitPopulation(datn,mu,pr,K,use_initgmm,w_mu,mg_ix,sett);
-end
-
-if ~template_given
-    % If learning a template, and using more than one population, set GMM
-    % priors and posteriors 'm' parameter, except for population
-    % 'ix_init', to uninformative (that is to the same value). A template
-    % learned on only population 'ix_init' is then used to initialise the
-    % other populations GMM parameters (see spm_mb_shape('InitMu')).
-    
-    pop_rng = 1:Np;
-    for p=pop_rng(pop_rng ~= ix_init) % loop over all populations except 'ix_init'
-        
-        C = size(dat(p_ix{p}(1)).mog.po.m,1);
-
-        avg_m_po  = 0;
-        avg_m_pr  = 0;
-        avg_vr_po = 0;
-        avg_vr_pr = 0;
-        for n=p_ix{p}
-            % mean
-            avg_m_po = avg_m_po + dat(n).mog.po.m;
-            avg_m_pr = avg_m_pr + dat(n).mog.pr.m;
-
-            % variance
-            vr_po = reshape(dat(n).mog.po.n,[1 1 Kmg]).*dat(n).mog.po.W;
-            vr_pr = reshape(dat(n).mog.pr.n,[1 1 Kmg]).*dat(n).mog.pr.W;
-            for k=1:Kmg
-                vr_po(:,:,k) = inv(vr_po(:,:,k));
-                vr_pr(:,:,k) = inv(vr_pr(:,:,k));
-            end
-            avg_vr_po = avg_vr_po + vr_po;
-            avg_vr_pr = avg_vr_pr + vr_pr;
-        end
-
-        % Average means
-        avg_m_po = avg_m_po./numel(p_ix{p});
-        avg_m_po = mean(avg_m_po,2);
-        avg_m_pr = avg_m_pr./numel(p_ix{p});
-        avg_m_pr = mean(avg_m_pr,2);
-
-        % Average variances
-        avg_vr_po = avg_vr_po./numel(p_ix{p});
-        avg_vr_po = mean(avg_vr_po,3);
-        avg_vr_pr = avg_vr_pr./numel(p_ix{p});
-        avg_vr_pr = mean(avg_vr_pr,3);
-
-        % Add a bit of random noise to prior    
-        mpo = zeros(C,Kmg);
-        mpr = zeros(C,Kmg);
-        for k=1:K1
-            kk = sum(mg_ix == k);
-            w  = 1./(1 + exp(-(kk - 1)*0.25)) - 0.5;
-
-            rng(1);
-            mn                = avg_m_po;
-            vr                = avg_vr_po;                
-            mpo(:,mg_ix == k) = sqrtm(vr)*sort(randn(C,kk),2)*w + repmat(mn,[1 kk]);
-
-            rng(1);
-            mn                = avg_m_pr;
-            vr                = avg_vr_pr;                
-            mpr(:,mg_ix == k) = sqrtm(vr)*sort(randn(C,kk),2)*w + repmat(mn,[1 kk]);
-        end
-
-        % Assign
-        for n=p_ix{p}
-            dat(n).mog.pr.m = mpr; % prior
-            dat(n).mog.po.m = mpo; % posterior
-        end
-
-        if 0
-            spm_gmm_lib('plot','gaussprior',{mpo,dat(n).mog.po.b,dat(n).mog.po.W,dat(n).mog.po.n},[],'InitMu');
-            spm_gmm_lib('plot','gaussprior',{mpr,dat(n).mog.pr.b,dat(n).mog.pr.W,dat(n).mog.pr.n},[],'InitMu');
-        end
-    end
-end
+% % Init over populations
+% for p=1:Np
+%     datn = dat(p_ix{p});
+%     
+%     % Load prior if given
+%     if appear_given, pr = model.appear.pr(num2str(datn(1).ix_pop));
+%     else,            pr = [];
+%     end
+%     
+%     % If init population (given by sett.model.ix_init_pop), should InitGMM
+%     % function be used to initialise GMM parameters and bias field scaling?
+%     % Not used if CT, multi-channel data, or template given.
+%     if datn(1).ix_pop == ix_init, use_initgmm = ~template_given && N > 1;
+%     else,                         use_initgmm = false;
+%     end
+%     
+%     % Do init for population(s) defined by p_ix
+%     dat(p_ix{p}) = InitPopulation(datn,mu,pr,K,use_initgmm,w_mu,mg_ix,sett);
+% end
 end
 %==========================================================================
 
@@ -1124,49 +1051,123 @@ end
 
 %==========================================================================
 % InitGMM()
-function [po,pr,dc] = InitGMM(dat,sett)
+function dat = InitGMM(dat,sett)
 % Code for initialising a GMM over lots of images and 
 % which might be scaled differently.
 %
 % FORMAT [po,pr,dc] = InitGMM(dat,sett)
 % dat  - Structure holding data of N subjects
 % sett - Structure of settings
-% po   - Structure of posterior parameters (m, b, W, n)
-% pr   - Structure of prior parameters (m, b, W, n)
-% dc   - DC component of bias field model (used to rescale image to
-%        simillar intensities)
+%
 
-% Parse function settings
-K  = sett.model.K;
+dmu   = sett.dmu;     % Template dimensions
+K     = sett.model.K; % Number of template classes
+mg_ix = sett.model.mg_ix;
+Mmu   = sett.Mmu;     % Template orientation matrix
+fwhm  = sett.bf.fwhm;
+reg   = sett.bf.reg;
 
-% Parameters
-K1    = K + 1;      % Number of classes
-[~,C] = spm_mb_io('GetSize',dat(1).f); % Number of channels
-N     = numel(dat); % Number of subjects
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Get number of populations, number of subjects of each population, and
+% number of channels
+%------------------------------------------------------------
+
+pop_id  = [];
+pop_chn = [];
+pop_cnt = [];
+pop_ix  = {};
+for n=1:numel(dat)
+    if ~any(pop_id == dat(n).pop_id) 
+        pop_id = [pop_id dat(n).pop_id];
+        
+        cnt1 = 0;
+        nix  = [];
+        for n1=1:numel(dat)
+            if dat(n1).pop_id == dat(n).pop_id 
+                cnt1 = cnt1 + 1;
+                nix  = [nix n1];
+            end
+        end
+        pop_ix{end + 1} = nix;
+        pop_cnt         = [pop_cnt cnt1];
+        
+        [~,C]   = spm_mb_io('GetSize',dat(n).f); 
+        pop_chn = [pop_chn C];
+    else
+        continue
+    end
+end
+
+% Just get element indices of the channels
+pop_cnh_ix = cell([1 numel(pop_chn)]);
+for i=1:numel(pop_chn)
+    if i == 1, pop_cnh_ix{i} = 1:pop_chn(i);
+    else,      pop_cnh_ix{i} = sum(pop_chn(1:i - 1)) + 1:sum(pop_chn(1:i));
+    end
+end
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Init model
+%------------------------------------------------------------
+
+% Model parameters
+N   = min(pop_cnt); % Number of subjects
+K1  = K + 1;        % Number of Gaussians
+Kmg = numel(mg_ix);
+C   = sum(pop_chn); % Number of channels
 
 % Get sample of image data (and labels, if provided)
 F   = cell(1,N);                 % hold imaging data
 L   = cell(1,N);                 % hold label data
-Nvx = min(round(256^3/N),10000); % number of voxels to sample from each image
+for n=1:N, L{n} = zeros([K1 1],'single'); end
+
+% Get points to sample in template space
+Nvx        = min(round(256^3/N),10000); % number of voxels to sample from each image
+r          = randperm(prod(dmu(1:3)),Nvx);
+[x1,x2,x3] = ind2sub(dmu(1:3),r(:));
+ymu        = cat(2,single(x1),single(x2),single(x3),ones([Nvx 1],'single'));
+clear r x1 x2 x3
+
 for n=1:N % Loop over subjects
     
-    % Read images and labels
-    df     = spm_mb_io('GetSize',dat(n).f);   
-    img    = spm_mb_io('GetData',dat(n).f);
-    img    = reshape(img,[prod(df(1:3)) C]);
-    labels = spm_mb_appearance('GetLabels',dat(n),sett);    
-    
-    fn = zeros([C,Nvx],'single');     
-    for m=1:C % Loop over populations                        
-        % Sample data
-        r       = floor(rand(Nvx,1)*prod(df(1:3))) + 1;
-        fn(m,:) = img(r,m);                
-    end
-    
-    if size(labels,1) > 1, L{n} = labels(r,:)';
-    else,                  L{n} = labels';
-    end
+    fn      = zeros([C Nvx],'single');    
+    cnt     = 1;
+    cnt_lab = 0;
+    for c=1:numel(pop_ix)
+        n1      = pop_ix{c}(n);
+        [df,C1] = spm_mb_io('GetSize',dat(n1).f);
         
+        % Move template space sample points to subject space        
+        Mn = dat(n1).Mat;  
+        M  = Mn\Mmu;
+        yf = ymu*M';       
+        yf = reshape(yf(:,1:3),[Nvx 1 1 3]);        
+        
+        % Image(s)
+        f1 = spm_mb_io('GetData',dat(n1).f);        
+        f1(f1 < -1020) = 0; % For CT
+        f1 = spm_diffeo('pull',f1,yf);        
+        f1 = reshape(f1,[Nvx C1]);          
+        for c1=1:C1
+            fn(cnt,:) = f1(:,c1);  
+            cnt       = cnt + 1;
+        end
+        
+        % Labels
+        l1 = spm_mb_appearance('GetLabels',dat(n1),sett);            
+        if size(l1,1) > 1
+            l1      = reshape(l1,[df K1]);
+            l1      = spm_diffeo('pull',l1,yf);
+            l1      = reshape(l1,[Nvx K1]);   
+            l1      = round(l1);
+            L{n}    = L{n} + l1';
+            cnt_lab = cnt_lab + 1;            
+        else                
+            L{n} = L{n} + l1';
+        end
+    end
+    if cnt_lab >= 1, L{n} = L{n}/cnt_lab; end % Makes sure that labels sum to one (if more than one population of labels)
+    
     % Mask
     mask = all(isfinite(fn) & fn~=0,1);   
     fn   = fn(:,mask);
@@ -1174,7 +1175,7 @@ for n=1:N % Loop over subjects
     
     if size(L{n},2) > 1, L{n} = L{n}(:,mask); end    
 end
-clear fn mask img labels
+clear fn d1 mask l1 yf ymu
 
 % Init bias field DC component
 dc = zeros(C,N);
@@ -1182,22 +1183,21 @@ mx = zeros(C,1);
 for n=1:N % Loop over subjects
     fn      = F{n};
     mx      = max(mx,max(fn,[],2));
-    dc(:,n) = -log(mean(fn,2));
+    dc(:,n) = -log(max(eps,mean(fn,2)));
 end
 
 % Make DC component zero mean, across N
 dc = dc - mean(dc,2);
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Fit model
+%------------------------------------------------------------
+
 % Init GMM parameters
 gam = ones(K1,1)./K1;
-% mu  = rand(M,K1).*mx;
-mu = zeros(C,K1);
-for m=1:C
-    mu(m,:) = (0:(K1-1))'*mx(m)/(K1+1);
-end
+mu  = rand(C,K1).*mx;
 Sig = diag((mx/10).^2).*ones([1,1,K1]);
 
-% Fit model
 ll = -Inf;
 for it=1:256
     llo = ll;
@@ -1205,21 +1205,21 @@ for it=1:256
     if false        
         % Visualise
         figure(666)
-        m = 1;
-        x = linspace(0,mx(m),1000);
+        c = 1;
+        x = linspace(0,mx(c),1000);
         p = 0;
         clf
         subplot(2,1,1);        
         hold on
         for k=1:K1
-            pk = exp(log(gam(k)) - 0.5*log(Sig(m,m,k)) - 0.5*log(2*pi) - 0.5*(x-mu(m,k)).^2/(Sig(m,m,k)));
+            pk = exp(log(gam(k)) - 0.5*log(Sig(c,c,k)) - 0.5*log(2*pi) - 0.5*(x-mu(c,k)).^2/(Sig(c,c,k)));
             p  = p + pk;
             plot(x,pk,'b-','LineWidth',1);
         end
         plot(x,p,'r-','LineWidth',3);
         hold off
         
-        subplot(2,1,2); bar(exp(dc(m,:)));
+        subplot(2,1,2); bar(exp(dc(c,:)));
         drawnow;
     end
 
@@ -1309,38 +1309,102 @@ if false
     % Visualise
     figure(666)
     clf
-    m = 1;
-    for n=1:N
-        xn = F{n}(m,:).*exp(dc(m,n));
-        x  = 0:20:max(xn);
-        h  = hist(xn,x);
-        h  = h/sum(h)/20;
-        plot(x,h,'k.','MarkerSize',1);
-        hold on
+    nr  = floor(sqrt(C));
+    nc  = ceil(C/nr);  
+    for c=1:C
+        subplot(nr,nc,c)
+        for n=1:N
+            xn = F{n}(c,:).*exp(dc(c,n));
+            x  = min(xn):20:max(xn);
+            h  = hist(xn,x);
+            h  = h/sum(h)/20;
+            plot(x,h,'k.','MarkerSize',1);
+            hold on
+        end
+        x = linspace(min(xn),max(xn),1000);
+        p = 0;
+        for k=1:K1
+            pk = exp(log(gam(k)) - 0.5*log(Sig(c,c,k)) - 0.5*log(2*pi) - 0.5*(x-mu(c,k)).^2/(Sig(c,c,k)));
+            p  = p + pk;
+            plot(x,pk,'b-','LineWidth',1);
+        end
+        plot(x,p,'r-','LineWidth',3);
+        hold off
+        title(['C=' num2str(c)])
     end
-    x = linspace(0,max(xn),1000);
-    p = 0;
-    for k=1:K1
-        pk = exp(log(gam(k)) - 0.5*log(Sig(m,m,k)) - 0.5*log(2*pi) - 0.5*(x-mu(m,k)).^2/(Sig(m,m,k)));
-        p  = p + pk;
-        plot(x,pk,'b-','LineWidth',1);
-    end
-    plot(x,p,'r-','LineWidth',3);
-    hold off
 end
-clear F L
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Make function output
-C   = size(Sig,1);
-b   = zeros(1,K1) + 0.01;
-ico = zeros(C,C,K1);
-for k=1:K1
-    ico(:,:,k) = inv(Sig(:,:,k));
+%------------------------------------------------------------
+
+% Lower bound struct
+lb  = struct('sum', NaN, 'X', [], 'XB', [], 'Z', [], 'P', [], 'MU', [], ...
+             'A', [], 'pr_v', [], 'pr_bf',[]);
+
+for n=1:N    
+    for c=1:numel(pop_ix)
+        n1      = pop_ix{c}(n);
+        [df,C1] = spm_mb_io('GetSize',dat(n1).f);                        
+        p       = dat(n1).pop_id;    
+        chn     = pop_cnh_ix{p};
+        
+        m   = mu(chn,:);
+        b   = zeros(1,K1) + 0.01;
+        ico = zeros(C1,C1,K1);
+        for k=1:K1
+            for c1=1:C1
+                ico(c1,c1,k) = inv(Sig(chn(c1),chn(c1),k));
+            end
+        end
+        W   = ico/C1;
+        nu  = C1*ones(1,K1);
+        po  = struct('m',m,'b',b,'W',W,'n',nu);    
+
+        mog.po     = po;
+        mog.pr     = po; % prior same as posterior
+        mog.lb     = lb;
+        mog.mg_w   = ones([1 K1]);
+        dat(n1).mog = mog;
+        
+        if any(dat(n1).do_bf == true)
+            % Get bias field parameterisation struct
+            chan        = spm_mb_appearance('BiasFieldStruct',dat(n1),C1,df,reg,fwhm,dc(chn,n));
+            dat(n1).bf.T = {chan(:).T};
+        end
+    end
 end
-W   = ico/C;
-n   = C*ones(1,K1);
-po  = struct('m',mu,'b',b,'W',W,'n',n);
-pr  = po;
+
+if K1 < Kmg
+    % Modify posteriors and priors for when using multiple Gaussians per
+    % tissue
+    for n=1:numel(dat)      
+        
+        is_ct = dat(n).is_ct;
+        
+        % Posterior
+        po            = dat(n).mog.po;
+        gmm           = spm_gmm_lib('extras', 'more_gmms', {po.m,po.b,po.W,po.n}, mg_ix);        
+        if ~is_ct, gmm{1} = abs(gmm{1}); end % make sure non-negative
+        po.m          = gmm{1};
+        po.b          = gmm{2};
+        po.W          = gmm{3};
+        po.n          = gmm{4};
+        dat(n).mog.po = po;
+        
+        % Prior
+        pr            = dat(n).mog.pr;
+        gmm           = spm_gmm_lib('extras', 'more_gmms', {pr.m,pr.b,pr.W,pr.n}, mg_ix);        
+        if ~is_ct, gmm{1} = abs(gmm{1}); end % make sure non-negative
+        pr.m          = gmm{1};
+        pr.b          = gmm{2};
+        pr.W          = gmm{3};
+        pr.n          = gmm{4};
+        dat(n).mog.pr = pr;
+        
+        dat(n).mog.mg_w   = ones(1,Kmg)./arrayfun(@(x) sum(x == mg_ix), mg_ix);
+    end
+end
 end
 %==========================================================================
 

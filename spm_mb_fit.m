@@ -100,6 +100,7 @@ else
 end
 vxmu     = sqrt(sum(Mmu(1:3,1:3).^2));
 sett.Mmu = Mmu;
+sett.dmu = dmu;
 
 %------------------
 % Set affine bases
@@ -140,8 +141,8 @@ if template_given
     % Shrink given template
     mu = spm_mb_shape('ShrinkTemplate',mu0,Mmu,sett);    
 else
-    % Initial template
-    [dat,mu] = spm_mb_shape('InitMu',dat,K,sett);
+    % Uninformative template
+    mu = zeros([sett.var.d K],'single');
 end
 
 % Save template
@@ -211,10 +212,10 @@ if do_updt_aff
         
         % Save template
         spm_mb_io('SaveTemplate',dat,mu,sett);
-    end        
-    
-    % Show stuff
-    spm_mb_show('All',dat,mu,Objective,N,sett);
+        
+        % Show stuff
+        spm_mb_show('All',dat,mu,Objective,N,sett);
+    end            
 end
 
 %------------------
@@ -298,10 +299,10 @@ for zm=numel(sz):-1:1 % loop over zoom levels
         
         % Save template
         spm_mb_io('SaveTemplate',dat,mu,sett);             
-    end           
 
-    % Show stuff
-    spm_mb_show('All',dat,mu,Objective,N,sett);
+        % Show stuff
+        spm_mb_show('All',dat,mu,Objective,N,sett);
+    end              
     
     if print2screen > 0, fprintf('%g seconds\n\n', toc); tic; end               
 end
