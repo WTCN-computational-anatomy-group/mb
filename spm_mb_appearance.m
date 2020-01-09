@@ -280,11 +280,8 @@ for p=1:Np
     % If init population (given by sett.model.ix_init_pop), should InitGMM
     % function be used to initialise GMM parameters and bias field scaling?
     % Not used if CT, multi-channel data, or template given.
-    if datn(1).ix_pop == ix_init
-        has_ct      = any(datn(1).is_ct == true);
-        use_initgmm = ~has_ct && ~template_given && N > 1;
-    else
-        use_initgmm = false;
+    if datn(1).ix_pop == ix_init, use_initgmm = ~template_given && N > 1;
+    else,                         use_initgmm = false;
     end
     
     % Do init for population(s) defined by p_ix
