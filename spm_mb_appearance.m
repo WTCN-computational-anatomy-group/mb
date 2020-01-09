@@ -228,13 +228,18 @@ end
 function [dat,sett] = Init(dat,model,K,sett)
 
 % Parse function settings
+do_gmm  = sett.do.gmm;
 ix_init = sett.model.ix_init_pop;
 mg_ix   = sett.model.mg_ix;
 
-% Get population parameters
+if ~do_gmm, return; end
+
+% Get parameters
 p_ix = spm_mb_appearance('GetPopulationIdx',dat);
 Np   = numel(p_ix);
 N    = numel(dat);
+Kmg  = numel(mg_ix);
+K1   = K + 1;
 
 % What model parameters were given?
 appear_given   = isfield(model,'appear');
@@ -284,6 +289,81 @@ for p=1:Np
     
     % Do init for population(s) defined by p_ix
     dat(p_ix{p}) = InitPopulation(datn,mu,pr,K,use_initgmm,w_mu,mg_ix,sett);
+end
+
+if ~template_given
+    % If learning a template, and using more than one population, set GMM
+    % priors and posteriors 'm' parameter, except for population
+    % 'ix_init', to uninformative (that is to the same value). A template
+    % learned on only population 'ix_init' is then used to initialise the
+    % other populations GMM parameters (see spm_mb_shape('InitMu')).
+    
+    pop_rng = 1:Np;
+    for p=pop_rng(pop_rng ~= ix_init) % loop over all populations except 'ix_init'
+        
+        C = size(dat(p_ix{p}(1)).mog.po.m,1);
+
+        avg_m_po  = 0;
+        avg_m_pr  = 0;
+        avg_vr_po = 0;
+        avg_vr_pr = 0;
+        for n=p_ix{p}
+            % mean
+            avg_m_po = avg_m_po + dat(n).mog.po.m;
+            avg_m_pr = avg_m_pr + dat(n).mog.pr.m;
+
+            % variance
+            vr_po = reshape(dat(n).mog.po.n,[1 1 Kmg]).*dat(n).mog.po.W;
+            vr_pr = reshape(dat(n).mog.pr.n,[1 1 Kmg]).*dat(n).mog.pr.W;
+            for k=1:Kmg
+                vr_po(:,:,k) = inv(vr_po(:,:,k));
+                vr_pr(:,:,k) = inv(vr_pr(:,:,k));
+            end
+            avg_vr_po = avg_vr_po + vr_po;
+            avg_vr_pr = avg_vr_pr + vr_pr;
+        end
+
+        % Average means
+        avg_m_po = avg_m_po./numel(p_ix{p});
+        avg_m_po = mean(avg_m_po,2);
+        avg_m_pr = avg_m_pr./numel(p_ix{p});
+        avg_m_pr = mean(avg_m_pr,2);
+
+        % Average variances
+        avg_vr_po = avg_vr_po./numel(p_ix{p});
+        avg_vr_po = mean(avg_vr_po,3);
+        avg_vr_pr = avg_vr_pr./numel(p_ix{p});
+        avg_vr_pr = mean(avg_vr_pr,3);
+
+        % Add a bit of random noise to prior    
+        mpo = zeros(C,Kmg);
+        mpr = zeros(C,Kmg);
+        for k=1:K1
+            kk = sum(mg_ix == k);
+            w  = 1./(1 + exp(-(kk - 1)*0.25)) - 0.5;
+
+            rng(1);
+            mn                = avg_m_po;
+            vr                = avg_vr_po;                
+            mpo(:,mg_ix == k) = sqrtm(vr)*sort(randn(C,kk),2)*w + repmat(mn,[1 kk]);
+
+            rng(1);
+            mn                = avg_m_pr;
+            vr                = avg_vr_pr;                
+            mpr(:,mg_ix == k) = sqrtm(vr)*sort(randn(C,kk),2)*w + repmat(mn,[1 kk]);
+        end
+
+        % Assign
+        for n=p_ix{p}
+            dat(n).mog.pr.m = mpr; % prior
+            dat(n).mog.po.m = mpo; % posterior
+        end
+
+        if 0
+            spm_gmm_lib('plot','gaussprior',{mpo,dat(n).mog.po.b,dat(n).mog.po.W,dat(n).mog.po.n},[],'InitMu');
+            spm_gmm_lib('plot','gaussprior',{mpr,dat(n).mog.pr.b,dat(n).mog.pr.W,dat(n).mog.pr.n},[],'InitMu');
+        end
+    end
 end
 end
 %==========================================================================
@@ -870,11 +950,8 @@ end
 function dat = InitPopulation(dat,mu,pr,K,use_initgmm,w_mu,mg_ix,sett)
 
 % Parse function settings
-do_gmm = sett.do.gmm;
-fwhm   = sett.bf.fwhm;
-reg    = sett.bf.reg;
-
-if ~do_gmm, return; end
+fwhm = sett.bf.fwhm;
+reg  = sett.bf.reg;
 
 % Parameters
 N     = numel(dat);

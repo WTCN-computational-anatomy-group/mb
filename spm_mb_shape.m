@@ -235,7 +235,6 @@ function [dat,mu] = InitMu(dat,K,sett)
 % Parse function settings
 do_gmm      = sett.do.gmm;
 ix_init     = sett.model.ix_init_pop;
-mg_ix       = sett.model.mg_ix;
 nit_init_mu = sett.nit.init_mu;
 
 % Uniform template
@@ -249,90 +248,16 @@ sett.gen.samp   = 5;
 sett.nit.appear = 1;
 sett.nit.gmm    = 100;
 
-% Parameters
-K1  = K + 1;
-Kmg = numel(mg_ix);
-
 % Get population indices
-p_ix       = spm_mb_appearance('GetPopulationIdx',dat);
-Npop       = numel(p_ix);
-pop_rng    = 1:Npop;
-
-for p=pop_rng(pop_rng ~= ix_init) % loop over populations (starting index defined by sett.model.ix_init_pop)
-    % To make the algorithm more robust when using multiple populations,
-    % set posterior and prior means (m) of GMMs of all but the first population to
-    % uniform  
-        
-    C = size(dat(p_ix{p}(1)).mog.po.m,1);
-   
-    avg_m_po  = 0;
-    avg_m_pr  = 0;
-    avg_vr_po = 0;
-    avg_vr_pr = 0;
-    for n=p_ix{p}
-        % mean
-        avg_m_po = avg_m_po + dat(n).mog.po.m;
-        avg_m_pr = avg_m_pr + dat(n).mog.pr.m;
-        
-        % variance
-        vr_po = reshape(dat(n).mog.po.n,[1 1 Kmg]).*dat(n).mog.po.W;
-        vr_pr = reshape(dat(n).mog.pr.n,[1 1 Kmg]).*dat(n).mog.pr.W;
-        for k=1:Kmg
-            vr_po(:,:,k) = inv(vr_po(:,:,k));
-            vr_pr(:,:,k) = inv(vr_pr(:,:,k));
-        end
-        avg_vr_po = avg_vr_po + vr_po;
-        avg_vr_pr = avg_vr_pr + vr_pr;
-    end
-    
-    % Average means
-    avg_m_po = avg_m_po./numel(p_ix{p});
-    avg_m_po = mean(avg_m_po,2);
-    avg_m_pr = avg_m_pr./numel(p_ix{p});
-    avg_m_pr = mean(avg_m_pr,2);
-        
-    % Average variances
-    avg_vr_po = avg_vr_po./numel(p_ix{p});
-    avg_vr_po = mean(avg_vr_po,3);
-    avg_vr_pr = avg_vr_pr./numel(p_ix{p});
-    avg_vr_pr = mean(avg_vr_pr,3);
-        
-    % Add a bit of random noise to prior    
-    mpo = zeros(C,Kmg);
-    mpr = zeros(C,Kmg);
-    for k=1:K1
-        kk = sum(mg_ix == k);
-        w  = 1./(1 + exp(-(kk - 1)*0.25)) - 0.5;
-                
-        rng(1);
-        mn                = avg_m_po;
-        vr                = avg_vr_po;                
-        mpo(:,mg_ix == k) = sqrtm(vr)*sort(randn(C,kk),2)*w + repmat(mn,[1 kk]);
-        
-        rng(1);
-        mn                = avg_m_pr;
-        vr                = avg_vr_pr;                
-        mpr(:,mg_ix == k) = sqrtm(vr)*sort(randn(C,kk),2)*w + repmat(mn,[1 kk]);
-    end
-    
-    % Assign
-    for n=p_ix{p}
-        dat(n).mog.pr.m = mpr; % prior
-        dat(n).mog.po.m = mpo; % posterior
-    end
-    
-    if 0
-        spm_gmm_lib('plot','gaussprior',{mpo,dat(n).mog.po.b,dat(n).mog.po.W,dat(n).mog.po.n},[],'InitMu');
-        spm_gmm_lib('plot','gaussprior',{mpr,dat(n).mog.pr.b,dat(n).mog.pr.W,dat(n).mog.pr.n},[],'InitMu');
-    end
-end
+p_ix = spm_mb_appearance('GetPopulationIdx',dat);
+Np   = numel(p_ix);
 
 % Update template using all subjects from population sett.model.ix_init_pop
 for it=1:nit_init_mu
     [mu,dat(p_ix{ix_init})] = UpdateSimpleMean(dat(p_ix{ix_init}), mu, sett);
     dat(p_ix{ix_init})      = spm_mb_appearance('UpdatePrior',dat(p_ix{ix_init}), sett);
 end
-if Npop > 1
+if Np > 1
     % If more than one population, use template learned on sett.model.ix_init_pop
     % population to initialise other populations' GMM parameters
     for it=1:nit_init_mu
