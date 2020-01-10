@@ -206,16 +206,18 @@ if do_updt_aff
         Objective = [Objective; E];        
         
         if write_ws && (do_updt_template || do_updt_int)
-            % Save workspace (except template) 
+            % Save workspace (except template - saved as nifti separately) 
             save(fullfile(dir_res,'fit_spm_mb.mat'), '-regexp', '^(?!(mu)$).');
         end          
         
         % Save template
-        spm_mb_io('SaveTemplate',dat,mu,sett);
+        spm_mb_io('SaveTemplate',dat,mu,sett);                
         
-        % Show stuff
-        spm_mb_show('All',dat,mu,Objective,N,sett);
+        if dmu(3) == 1, spm_mb_show('All',dat,mu,Objective,N,sett); end % If 2D, show stuff
     end            
+    
+    % Show stuff
+    spm_mb_show('All',dat,mu,Objective,N,sett);
 end
 
 %------------------
@@ -286,6 +288,9 @@ for zm=numel(sz):-1:1 % loop over zoom levels
             dat      = spm_mb_shape('VelocityEnergy',dat,sett);
         end
 
+        % Save template
+        spm_mb_io('SaveTemplate',dat,mu,sett);   
+        
         % Update deformations
         dat = spm_mb_shape('UpdateWarps',dat,sett);  
         
@@ -293,17 +298,16 @@ for zm=numel(sz):-1:1 % loop over zoom levels
         if print2screen > 0, fprintf('zm=%i it=%i\t%g\t%g\t%g\t%g\t%g\t%g\n', zm, it_zm, E0, E1, E2, E3, E4, E5); end               
                 
         if write_ws && (do_updt_template || do_updt_int)
-            % Save workspace (except template) 
+            % Save workspace (except template - saved as nifti separately) 
             save(fullfile(dir_res,'fit_spm_mb.mat'), '-regexp', '^(?!(mu)$).');
-        end          
+        end                                           
         
-        % Save template
-        spm_mb_io('SaveTemplate',dat,mu,sett);             
-
-        % Show stuff
-        spm_mb_show('All',dat,mu,Objective,N,sett);
+        if dmu(3) == 1, spm_mb_show('All',dat,mu,Objective,N,sett); end % If 2D, show stuff
     end              
     
+    % Show stuff
+    spm_mb_show('All',dat,mu,Objective,N,sett);
+        
     if print2screen > 0, fprintf('%g seconds\n\n', toc); tic; end               
 end
 
