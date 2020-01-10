@@ -1161,14 +1161,13 @@ for n=1:N % Loop over subjects
             l1      = reshape(l1,[df K1]);
             l1      = spm_diffeo('pull',l1,yf);
             l1      = reshape(l1,[Nvx K1]);   
-            l1      = round(l1);
             L{n}    = L{n} + l1';
             cnt_lab = cnt_lab + 1;            
         else                
             L{n} = L{n} + l1';
         end
     end
-    if cnt_lab >= 1, L{n} = L{n}/cnt_lab; end % Makes sure that labels sum to one (if more than one population of labels)
+    if cnt_lab > 1, L{n} = L{n}/cnt_lab; end % Makes sure that labels sum to one (if more than one population of labels)
     
     % Mask
     mask = all(isfinite(fn) & fn~=0,1);   
