@@ -1293,25 +1293,23 @@ for it=1:256
             end
         end
     end
-    
-    for ii=1:32        
-        % Infer missing suffstat
-        [SS0i,SS1i,SS2i] = spm_gmm_lib('suffstat','infer',SS0m, SS1m, SS2m, {mu,prec}, msk_chnm);        
-        
-        % Update GMM
-        SS0i = SS0i';
-        gam  = SS0i./sum(SS0i);
-        mu   = SS1i./SS0i';
-        Sig0 = (sum(SS2i,3) - (SS0i'.*mu)*mu')/sum(SS0i);
-        n0   = Nvx/K1;
-        for k=1:K1
-            Sig(:,:,k)  = (SS2i(:,:,k) - SS0i(k)*mu(:,k)*mu(:,k)' + n0*Sig0)./(SS0i(k)+n0);
-        end
 
-        % Compute precision
-        prec = zeros(size(Sig));
-        for k=1:K1, prec(:,:,k) = inv(Sig(:,:,k)); end
-    end            
+    % Infer missing suffstat
+    [SS0i,SS1i,SS2i] = spm_gmm_lib('suffstat','infer',SS0m, SS1m, SS2m, {mu,prec}, msk_chnm);        
+
+    % Update GMM
+    SS0i = SS0i';
+    gam  = SS0i./sum(SS0i);
+    mu   = SS1i./SS0i';
+    Sig0 = (sum(SS2i,3) - (SS0i'.*mu)*mu')/sum(SS0i);
+    n0   = Nvx/K1;
+    for k=1:K1
+        Sig(:,:,k)  = (SS2i(:,:,k) - SS0i(k)*mu(:,k)*mu(:,k)' + n0*Sig0)./(SS0i(k)+n0);
+    end
+
+    % Compute precision
+    prec = zeros(size(Sig));
+    for k=1:K1, prec(:,:,k) = inv(Sig(:,:,k)); end
         
     % Update rescaling s    
     ll = 0;
