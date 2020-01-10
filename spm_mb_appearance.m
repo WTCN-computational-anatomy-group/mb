@@ -1213,7 +1213,7 @@ clear fn
 Cm = size(msk_chnm,1);
     
 ll = -Inf;
-for it=1:128
+for it=1:256
     llo = ll;
     
     if false        
