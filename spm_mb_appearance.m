@@ -1373,7 +1373,7 @@ for n=1:max(pop_cnt)
         
         if any(dat(n1).do_bf == true)
             % Get bias field parameterisation struct
-            if n>size(dc,2)
+            if n > size(dc,2)
                 dc1 = zeros(C1,1);
                 fn  = spm_mb_io('GetData',dat(n1).f);
                 fn  = reshape(fn,[prod(df(1:3)) C1]);
