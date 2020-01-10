@@ -1111,7 +1111,7 @@ end
 %------------------------------------------------------------
 
 % Model parameters
-N   = min(pop_cnt); % Number of subjects
+N   = max(pop_cnt); % Number of subjects
 K1  = K + 1;        % Number of Gaussians
 Kmg = numel(mg_ix);
 C   = sum(pop_chn); % Number of channels
@@ -1130,10 +1130,12 @@ clear r x1 x2 x3
 
 for n=1:N % Loop over subjects
     
-    fn      = zeros([C Nvx],'single');    
+    fn      = NaN([C Nvx],'single');    
     cnt     = 1;
     cnt_lab = 0;
     for c=1:numel(pop_ix)
+        if n > numel(pop_ix{c}), continue; end
+        
         n1      = pop_ix{c}(n);
         [df,C1] = spm_mb_io('GetSize',dat(n1).f);
         
@@ -1170,21 +1172,21 @@ for n=1:N % Loop over subjects
     if cnt_lab > 1, L{n} = L{n}/cnt_lab; end % Makes sure that labels sum to one (if more than one population of labels)
     
     % Mask
-    mask = all(isfinite(fn) & fn~=0,1);   
-    fn   = fn(:,mask);
-    F{n} = fn;
+    fn(~isfinite(fn) | fn == 0) = NaN;
     
-    if size(L{n},2) > 1, L{n} = L{n}(:,mask); end    
+    F{n} = fn;     
 end
 clear fn d1 mask l1 yf ymu
 
 % Init bias field DC component
 dc = zeros(C,N);
+mn = zeros(C,1);
 mx = zeros(C,1);
 for n=1:N % Loop over subjects
     fn      = F{n};
-    mx      = max(mx,max(fn,[],2));
-    dc(:,n) = -log(max(eps,mean(fn,2)));
+    mn      = min(mn,min(fn,[],2,'omitnan'));
+    mx      = max(mx,max(fn,[],2,'omitnan'));
+    dc(:,n) = -log(max(eps('single'),mean(fn,2,'omitnan')));
 end
             
 % Make DC component zero mean, across N
@@ -1195,108 +1197,185 @@ dc = dc - mean(dc,2);
 %------------------------------------------------------------
 
 % Init GMM parameters
-gam = ones(K1,1)./K1;
-mu  = rand(C,K1).*mx;
-Sig = diag((mx/K1).^2).*ones([1,1,K1]);
+gam  = ones(1,K1)./K1;
+mu   = rand(C,K1).*mx;
+Sig  = diag((mx/K1).^2).*ones([1,1,K1]);
 
+% Compute precision
+prec = zeros(size(Sig));
+for k=1:K1, prec(:,:,k) = inv(Sig(:,:,k)); end
+    
+% Missing data stuff
+fn = [];
+for n=1:N, fn = [fn; F{n}']; end
+[~,~,msk_chnm] = spm_gmm_lib('obs2cell',fn);
+clear fn
+Cm = size(msk_chnm,1);
+    
 ll = -Inf;
-for it=1:256
+for it=1:128
     llo = ll;
     
     if false        
         % Visualise
-        figure(666)
-        c = 1;
-        x = linspace(0,mx(c),1000);
-        p = 0;
-        clf
-        subplot(2,1,1);        
-        hold on
-        for k=1:K1
-            pk = exp(log(gam(k)) - 0.5*log(Sig(c,c,k)) - 0.5*log(2*pi) - 0.5*(x-mu(c,k)).^2/(Sig(c,c,k)));
-            p  = p + pk;
-            plot(x,pk,'b-','LineWidth',1);
-        end
-        plot(x,p,'r-','LineWidth',3);
-        hold off
-        
-        subplot(2,1,2); bar(exp(dc(c,:)));
-        drawnow;
-    end
+        figure(666); clf
+        nr  = floor(sqrt(2*C));
+        nc  = ceil(2*C/nr);  
+        for c=1:C        
+            x = linspace(mn(c),mx(c),1000);
+            p = 0;            
+            subplot(nr,nc,c);        
+            hold on
+            for k=1:K1
+                pk = exp(log(gam(k)) - 0.5*log(Sig(c,c,k)) - 0.5*log(2*pi) - 0.5*(x-mu(c,k)).^2/(Sig(c,c,k)));
+                p  = p + pk;
+                plot(x,pk,'b-','LineWidth',1);
+            end
+            plot(x,p,'r-','LineWidth',3);
+            hold off
 
-    % Update GMM parameters
-    ss0 = zeros(K1,1);
-    ss1 = zeros(C,K1);
-    ss2 = zeros(C,C,K1);
-    ll  = 0;
-    for n=1:N % Loop over subjects
-        fn = F{n};
-        Ns = size(fn,2);
-        fn = fn.*exp(dc(:,n));         
-        
-        % Compute responsibilities
-        R = zeros(K1,Ns,'single');
-        for k=1:K1
-            Cov    = chol(Sig(:,:,k));
-            res    = Cov'\(fn - mu(:,k));
-            R(k,:) = L{n}(k,:) + log(gam(k)) - sum(log(diag(Cov))) + sum(dc(:,n)) - 0.5*C*log(2*pi) - 0.5*sum(res.^2,1);
-        end        
-        mxR = max(R,[],1);
-        R   = exp(R-mxR);
-        ll  = ll + sum(mxR+log(sum(R,1)),2);
-        R   = R./sum(R,1);
-        
-        % Compute suffstats
-        for k=1:K1
-            ss0(k)     = ss0(k)     + sum(R(k,:));
-            ss1(:,k)   = ss1(:,k)   + (fn*R(k,:)');
-            ss2(:,:,k) = ss2(:,:,k) + (R(k,:).*fn)*fn';
+            subplot(nr,nc,C + c);          
+            bar(exp(dc(c,:)));
         end
+        drawnow;       
+    end
+           
+    % For summing suffstats across subjects
+    SS0m = cell(1,Cm);
+    SS1m = cell(1,Cm);
+    SS2m = cell(1,Cm);    
+    for c=1:Cm        
+        Co      = sum(msk_chnm(c,:));                                        
+        SS0m{c} = zeros(1,K1);
+        SS1m{c} = zeros(Co,K1);
+        SS2m{c} = zeros(Co,Co,K1);
     end
     
-    % Compute GMM parameters
-    gam  = ss0./sum(ss0);
-    mu   = ss1./ss0';
-    Sig0 = (sum(ss2,3) - (ss0'.*mu)*mu')/sum(ss0);
-    n0   = Nvx/10;
-    for k=1:K1
-        Sig(:,:,k)  = (ss2(:,:,k) - ss0(k)*mu(:,k)*mu(:,k)' + n0*Sig0)./(ss0(k)+n0);
-    end
-
-    % Update rescaling s
+    % Update GMM parameters
     ll = 0;
     for n=1:N % Loop over subjects
+        
+        % ...
         fn = F{n};
-        Ns = size(fn,2);
-        fn = fn.*exp(dc(:,n));
+        fn = fn.*exp(dc(:,n));        
         
+        % ...
+        [fn,code_image,msk_chn] = spm_gmm_lib('obs2cell', fn');
+        Cmn                     = size(msk_chn,1);
+        
+        % ...
+        ln = L{n};
+        ln = ln + sum(dc(:,n));
+        ln = ln';
+        if size(ln,1) > 1            
+            ln = spm_gmm_lib('obs2cell', ln, code_image, false);
+        end                
+                
         % Compute responsibilities
-        R = zeros(K1,Ns,'single');
-        for k=1:K1
-            Cov    = chol(Sig(:,:,k));
-            res    = Cov'\(fn - mu(:,k));
-            R(k,:) = L{n}(k,:) + log(gam(k)) - sum(log(diag(Cov))) + sum(dc(:,n)) - 0.5*C*log(2*pi) - 0.5*sum(res.^2,1);
-        end        
-        mxR = max(R,[],1);
-        R   = exp(R-mxR);
-        ll  = ll + sum(mxR+log(sum(R,1)),2);
-        R   = R./sum(R,1);
+        norm_term        = spm_gmm_lib('normalisation',mu, prec, msk_chn);
+        logpX            = spm_gmm_lib('marginal',fn, [{mu} prec], norm_term, msk_chn);
+        zn               = spm_gmm_lib('responsibility',logpX, log(gam(:)'), ln);
+        [SS0n,SS1n,SS2n] = spm_gmm_lib('suffstat','base',fn, zn, 1, msk_chn); 
         
-        % Compute gradient and Hessian
-        g0  = 0;
-        H0  = 0;
-        for k=1:K1
-            rk = R(k,:);
-            g0 = g0 + Sig(:,:,k)\(rk.*(fn-mu(:,k)));
-            H0 = H0 + ((rk.*fn)*fn').*inv(Sig(:,:,k));
+        % Lower bound
+        ll = ll + spm_gmm_lib('marginalsum',SS0n, SS1n, SS2n, mu, prec, msk_chn);                
+        ll = ll + spm_gmm_lib('kl','categorical',zn, 1, log(gam(:)'), ln);
+        
+        % Sum suffstats
+        for c=1:Cmn    
+            Co        = msk_chn(c,:);
+            [~,index] = ismember(Co,msk_chnm,'rows');
+                                      
+            for k=1:K1
+                SS0m{index}(k)     = SS0m{index}(k)     + SS0n{c}(k);
+                SS1m{index}(:,k)   = SS1m{index}(:,k)   + SS1n{c}(:,k);
+                SS2m{index}(:,:,k) = SS2m{index}(:,:,k) + SS2n{c}(:,:,k);
+            end
         end
-        g      = sum(fn.*g0,2) - Ns;
-        H      = H0            + Ns*eye(C);
-        
-        % Gauss-Newton update
-        dc(:,n) = dc(:,n) - ((N-1)/N)*(H\g);
     end
     
+    for ii=1:32        
+        % Infer missing suffstat
+        [SS0i,SS1i,SS2i] = spm_gmm_lib('suffstat','infer',SS0m, SS1m, SS2m, {mu,prec}, msk_chnm);        
+        
+        % Update GMM
+        SS0i = SS0i';
+        gam  = SS0i./sum(SS0i);
+        mu   = SS1i./SS0i';
+        Sig0 = (sum(SS2i,3) - (SS0i'.*mu)*mu')/sum(SS0i);
+        n0   = Nvx/K1;
+        for k=1:K1
+            Sig(:,:,k)  = (SS2i(:,:,k) - SS0i(k)*mu(:,k)*mu(:,k)' + n0*Sig0)./(SS0i(k)+n0);
+        end
+
+        % Compute precision
+        prec = zeros(size(Sig));
+        for k=1:K1, prec(:,:,k) = inv(Sig(:,:,k)); end
+    end            
+        
+    % Update rescaling s    
+    ll = 0;
+    for n=1:N % Loop over subjects
+        
+        % ...
+        fn = F{n};
+        fn = fn.*exp(dc(:,n));        
+        
+        % ...
+        [fn,code_image,msk_chn] = spm_gmm_lib('obs2cell', fn');      
+        Cmn                     = size(msk_chn,1);
+        
+        % ...
+        ln = L{n};
+        ln = ln + sum(dc(:,n));
+        ln = ln';
+        if size(ln,1) > 1            
+            ln = spm_gmm_lib('obs2cell', ln, code_image, false);
+        end                
+                
+        % Compute responsibilities
+        norm_term        = spm_gmm_lib('normalisation',mu, prec, msk_chn);
+        logpX            = spm_gmm_lib('marginal',fn, [{mu} prec], norm_term, msk_chn);
+        zn               = spm_gmm_lib('responsibility',logpX, log(gam(:)'), ln);   
+        [SS0n,SS1n,SS2n] = spm_gmm_lib('suffstat','base',fn, zn, 1, msk_chn); 
+
+        % Lower bound
+        ll = ll + spm_gmm_lib('marginalsum',SS0n, SS1n, SS2n, mu, prec, msk_chn);                
+        ll = ll + spm_gmm_lib('kl','categorical',zn, 1, log(gam(:)'), ln);
+        
+        % Compute gradient and Hessian
+        Co = nnz(sum(msk_chn,1));
+        g  = zeros(Co,1);
+        H  = zeros(Co,Co);
+        for l=1:Cmn % loop over combinations of missing channels                        
+            ixo = msk_chn(l,:);
+                        
+            fnc = fn{l};            
+            fnc = fnc';
+            Ns  = size(fnc,2);
+            
+            go = 0;
+            Ho = 0;
+            for k=1:K1
+                rk = zn{l}(:,k);
+                rk = rk';
+                
+                go = go + Sig(ixo,ixo,k)\(rk.*(fnc - mu(ixo,k)));
+                Ho = Ho + ((rk.*fnc)*fnc').*inv(Sig(ixo,ixo,k));
+            end
+            go = sum(fnc.*go,2) - Ns;
+            Ho = Ho + Ns*eye(nnz(ixo));
+            
+            g(ixo)     = g(ixo)     + go;
+            H(ixo,ixo) = H(ixo,ixo) + Ho;
+        end        
+        
+        % Gauss-Newton update
+        msk       = dc(ixo,n) == 0;
+        dc(ixo,n) = dc(ixo,n) - ((N - 1)/N)*(H\g);
+        dc(msk,n) = 0;
+    end
+
     % Make DC component zero mean, across N
     dc  = dc - mean(dc,2);
 
@@ -1341,12 +1420,10 @@ end
 % Lower bound struct
 lb  = struct('sum', NaN, 'X', [], 'XB', [], 'Z', [], 'P', [], 'MU', [], ...
              'A', [], 'pr_v', [], 'pr_bf',[]);
-
-mn = sum((gam').*mu,2);
          
 for n=1:max(pop_cnt)
     for c=1:numel(pop_ix)
-        if n>numel(pop_ix{c}), continue; end
+        if n > numel(pop_ix{c}), continue; end
         
         n1      = pop_ix{c}(n);
         [df,C1] = spm_mb_io('GetSize',dat(n1).f);                        
@@ -1372,21 +1449,7 @@ for n=1:max(pop_cnt)
         dat(n1).mog = mog;
         
         if any(dat(n1).do_bf == true)
-            % Get bias field parameterisation struct
-            if n > size(dc,2)
-                dc1 = zeros(C1,1);
-                fn  = spm_mb_io('GetData',dat(n1).f);
-                fn  = reshape(fn,[prod(df(1:3)) C1]);
-                fn  = spm_mb_appearance('Mask',fn,dat(n1).is_ct);                                
-                for c1=1:C1
-                    msk    = isfinite(fn(:,c1));
-                    dc1(c1) = mn(chn(c1))./mean(fn(msk,c1));
-                end
-                dc1 = log(dc1);
-            else
-                dc1 = dc(chn,n);
-            end
-            chan = spm_mb_appearance('BiasFieldStruct',dat(n1),C1,df,reg,fwhm,dc1);
+            chan         = spm_mb_appearance('BiasFieldStruct',dat(n1),C1,df,reg,fwhm,dc(chn,n));
             dat(n1).bf.T = {chan(:).T};
         end
     end
