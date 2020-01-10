@@ -1134,14 +1134,20 @@ for n=1:N % Loop over subjects
     cnt     = 1;
     cnt_lab = 0;
     for c=1:numel(pop_ix)
-        if n > numel(pop_ix{c}), continue; end
+        if n > numel(pop_ix{c})
+            cnt = cnt + 1;
+            continue; 
+        end
         
         n1      = pop_ix{c}(n);
         [df,C1] = spm_mb_io('GetSize',dat(n1).f);
+        is_ct   = dat(n1).is_ct;  
         
         % Get image data
-        f1             = spm_mb_io('GetData',dat(n1).f);        
-        f1(f1 < -1020) = 0; % For CT..
+        f1 = spm_mb_io('GetData',dat(n1).f);        
+        if any(is_ct == true)
+            f1(f1 < -1020) = 0; 
+        end
         
         % Move template space sample points to subject space        
         Mn = dat(n1).Mat;  
@@ -1342,9 +1348,9 @@ for it=1:256
         ll = ll + spm_gmm_lib('kl','categorical',zn, 1, log(gam(:)'), ln);
         
         % Compute gradient and Hessian
-        Co = nnz(sum(msk_chn,1));
-        g  = zeros(Co,1);
-        H  = zeros(Co,Co);
+%         Co = nnz(sum(msk_chn,1));
+        g  = zeros(C,1);
+        H  = zeros(C,C);
         for l=1:Cmn % loop over combinations of missing channels                        
             ixo = msk_chn(l,:);
                         
@@ -1370,7 +1376,7 @@ for it=1:256
         
         % Gauss-Newton update
         msk       = dc(ixo,n) == 0;
-        dc(ixo,n) = dc(ixo,n) - ((N - 1)/N)*(H\g);
+        dc(ixo,n) = dc(ixo,n) - ((N - 1)/N)*(H(ixo,ixo)\g(ixo));
         dc(msk,n) = 0;
     end
 
