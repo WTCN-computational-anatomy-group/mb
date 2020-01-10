@@ -1137,15 +1137,17 @@ for n=1:N % Loop over subjects
         n1      = pop_ix{c}(n);
         [df,C1] = spm_mb_io('GetSize',dat(n1).f);
         
+        % Get image data
+        f1             = spm_mb_io('GetData',dat(n1).f);        
+        f1(f1 < -1020) = 0; % For CT..
+        
         % Move template space sample points to subject space        
         Mn = dat(n1).Mat;  
         M  = Mn\Mmu;
         yf = ymu*M';       
         yf = reshape(yf(:,1:3),[Nvx 1 1 3]);        
         
-        % Image(s)
-        f1 = spm_mb_io('GetData',dat(n1).f);        
-        f1(f1 < -1020) = 0; % For CT
+        % Get sample of image(s)        
         f1 = spm_diffeo('pull',f1,yf);        
         f1 = reshape(f1,[Nvx C1]);          
         for c1=1:C1
@@ -1196,7 +1198,7 @@ dc = dc - mean(dc,2);
 % Init GMM parameters
 gam = ones(K1,1)./K1;
 mu  = rand(C,K1).*mx;
-Sig = diag((mx/10).^2).*ones([1,1,K1]);
+Sig = diag((mx/K1).^2).*ones([1,1,K1]);
 
 ll = -Inf;
 for it=1:256
@@ -1307,8 +1309,7 @@ end
 
 if false
     % Visualise
-    figure(666)
-    clf
+    figure(666); clf
     nr  = floor(sqrt(C));
     nc  = ceil(C/nr);  
     for c=1:C
