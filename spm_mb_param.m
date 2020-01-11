@@ -394,6 +394,12 @@ end
 if ~isfield(sett.write,'im')
     sett.write.im = false(1,4); % image, corrected, warped, warped corrected
 end
+if ~isfield(sett.write,'vel')
+    sett.write.vel = false;
+end
+if ~isfield(sett.write,'affine')
+    sett.write.affine = false;
+end
 if ~isfield(sett.write,'workspace')
     sett.write.workspace = false;
 end

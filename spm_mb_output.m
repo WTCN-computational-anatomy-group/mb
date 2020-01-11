@@ -9,7 +9,7 @@ function res = spm_mb_output(dat,model,sett)
 % struct for saving paths of data written to disk
 N   = numel(dat);
 cl  = cell(N,1);
-res = struct('bf',cl,'im',cl,'imc',cl,'c',cl,'y',cl,'iy',cl,'wim',cl,'wimc',cl,'wc',cl,'mwc',cl,'lab',cl,'wlab',cl);
+res = struct('bf',cl,'im',cl,'imc',cl,'c',cl,'y',cl,'iy',cl,'wim',cl,'wimc',cl,'wc',cl,'mwc',cl,'lab',cl,'wlab',cl,'v',cl);
 
 % Get template
 mu = spm_mb_io('GetData',model.shape.template);
@@ -150,7 +150,9 @@ write_df   = sett.write.df; % forward, inverse
 write_lab  = sett.write.labels;
 write_im   = sett.write.im; % image, corrected, warped, warped corrected
 write_tc   = sett.write.tc; % native, warped, warped-mod
-
+write_vel  = sett.write.vel;
+write_aff  = sett.write.affine;
+    
 % Get parameters
 [df,C] = spm_mb_io('GetSize',datn.f);
 K      = size(mun,4);
@@ -180,6 +182,24 @@ if size(write_tc,1) == 1 && K1 > 1, write_tc = repmat(write_tc,[K1 1]); end
 
 if ~(all(write_bf(:) == false) && all(write_im(:) == false) && all(write_tc(:) == false) && all(write_lab(:) == false) && all(write_df(:) == false))   
     psi0 = spm_mb_io('GetData',datn.psi);
+end
+
+if write_vel
+    % Write initial velocity
+    descrip = 'Velocity';
+    nam     = ['vel_' namn '.nii'];
+    fpth    = fullfile(dir_res,nam);            
+    v       = spm_mb_io('GetData',datn.v);
+    spm_mb_io('WriteNii',fpth,v,Mmu,descrip);                            
+    resn.v  = fpth;
+    clear v
+end
+
+if write_aff
+    % Write affine matrix
+    nam  = ['Affine_' namn '.mat'];
+    fpth = fullfile(dir_res,nam);
+    save(fpth,'Mr');
 end
 
 if isfield(datn,'mog') && (any(write_bf(:) == true) || any(write_im(:) == true) || any(write_tc(:) == true) || write_lab(1))    
