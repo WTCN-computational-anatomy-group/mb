@@ -1052,38 +1052,50 @@ end
 %==========================================================================
 % InitGMM()
 function dat = InitGMM(dat,sett)
-% Code for initialising a GMM over lots of images and 
-% which might be scaled differently.
+% Code for initialising a GMM over lots of images of different channels and
+% that can be scaled differently.
 %
 % FORMAT [po,pr,dc] = InitGMM(dat,sett)
 % dat  - Structure holding data of N subjects
 % sett - Structure of settings
 %
+% Adds dat.mog and dat.bf to the dat struct, for each subject. The mog
+% field holds GMM parameters and the bf field the parameterisation of the
+% bias field model. These parameters are estimated by this function.
 
-dmu     = sett.dmu;     % Template dimensions
-K       = sett.model.K; % Number of template classes
+% Parse function settings
+dmu     = sett.dmu;
+K       = sett.model.K;
 mg_ix   = sett.model.mg_ix;
-Mmu     = sett.Mmu;     % Template orientation matrix
+Mmu     = sett.Mmu;     
 fwhm    = sett.bf.fwhm;
 reg     = sett.bf.reg;
-verbose = 0; % 0,1,2
+
+% Parameters
+verbose = 0;    % Shows fit, with various levels of verbosity (0,1,2)
+tol     = 1e-4; % Convergence tolerance
+nit     = 512;  % Max number of iterations
+
+Ndat = numel(dat);
+K1   = K + 1;        % Number of Gaussians
+Kmg  = numel(mg_ix);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Get number of populations, number of subjects of each population, and
 % number of channels
 %------------------------------------------------------------
 
-pop_id  = [];
-pop_chn = [];
-pop_cnt = [];
-pop_ix  = {};
-for n=1:numel(dat)
+pop_id  = []; % vector of populations ids [1,2,3,...]
+pop_chn = []; % vector with number of image channels in each population
+pop_cnt = []; % vector with count of number of subjects in each population
+pop_ix  = {}; % cell array, where each element is a vector with the dat struct indices of a population
+for n=1:Ndat
     if ~any(pop_id == dat(n).pop_id) 
         pop_id = [pop_id dat(n).pop_id];
         
         cnt1 = 0;
         nix  = [];
-        for n1=1:numel(dat)
+        for n1=1:Ndat
             if dat(n1).pop_id == dat(n).pop_id 
                 cnt1 = cnt1 + 1;
                 nix  = [nix n1];
@@ -1099,7 +1111,8 @@ for n=1:numel(dat)
     end
 end
 
-% Map from population to channels in GMM parameters
+% cell array. where each element is a vector that maps that populations
+% channels to...
 pop_cnh_ix = cell([1 numel(pop_chn)]);
 for i=1:numel(pop_chn)
     if i == 1, pop_cnh_ix{i} = 1:pop_chn(i);
@@ -1111,51 +1124,52 @@ end
 % Init model
 %------------------------------------------------------------
 
-% Model parameters
-N   = max(pop_cnt); % Number of subjects
-K1  = K + 1;        % Number of Gaussians
-Kmg = numel(mg_ix);
-C   = sum(pop_chn); % Number of channels
+% Size of model data
+N = max(pop_cnt); % Number of population observations
+C = sum(pop_chn); % Number of channels
 
-% Get sample of image data (and labels, if provided)
-F   = cell(1,N);                 % hold imaging data
-L   = cell(1,N);                 % hold label data
-for n=1:N, L{n} = zeros([K1 1],'single'); end
-
-% Get points to sample in template space
+% We sample a subset of voxels for each image, these points are chosen in
+% template space, and then projected to each image's space, so that voxel
+% locations corresponds. 'sampmu' decides on the distance between sampled 
+% voxels in template space (smaller -> uses more memory, but better estimates)
 sampmu       = 4;
 vxmu         = sqrt(sum(Mmu(1:3,1:3).^2));
 sk           = max([1 1 1],round(sampmu*[1 1 1]./vxmu));
-sk(dmu == 1) = 1;
+sk(dmu == 1) = 1; % defines sampling grid
 
-Nvx        = min(round(prod(dmu(1:3))/N), round(prod(dmu(1:3)./sk))); % number of voxels to sample from each image (TODO: integrate template dimensions here)
+% Number of voxels to sample
+Nvx        = min(round(prod(dmu(1:3))/N), round(prod(dmu(1:3)./sk))); 
 r          = randperm(prod(dmu(1:3)),Nvx);
-[x1,x2,x3] = ind2sub(dmu(1:3),r(:));
-ymu        = cat(2,single(x1),single(x2),single(x3),ones([Nvx 1],'single'));
+[x1,x2,x3] = ind2sub(dmu(1:3),r(:)); % voxel indicies in template space
+ymu        = cat(2,single(x1),single(x2),single(x3),ones([Nvx 1],'single')); 
 clear r x1 x2 x3
 
+% Get sample of image data (and labels, if provided)
+F = cell(1,N); % holds imaging data
+L = cell(1,N); % holds possible label data
+for n=1:N, L{n} = zeros([K1 1],'single'); end
 for n=1:N % Loop over subjects
     
-    fn      = NaN([C Nvx],'single');    
-    cnt_chn = 1;
-    cnt_lab = 0;
+    fn    = NaN([C Nvx],'single');    
+    cnt_c = 1; % channel count
+    cnt_l = 0; % label count
     for c=1:numel(pop_ix)
         if n > numel(pop_ix{c})
+            % Population has no more images
             n1      = pop_ix{c}(1);
             [~,C1]  = spm_mb_io('GetSize',dat(n1).f);            
-            cnt_chn = cnt_chn + C1;
+            cnt_c = cnt_c + C1;
             continue; 
         end
         
+        % Parameters
         n1      = pop_ix{c}(n);
         [df,C1] = spm_mb_io('GetSize',dat(n1).f);
         is_ct   = dat(n1).is_ct;  
         
         % Get image data
         f1 = spm_mb_io('GetData',dat(n1).f);        
-        if any(is_ct == true)
-            f1(f1 < -1020) = 0; 
-        end
+        if any(is_ct == true), f1(f1 < -1020) = 0; end
         
         % Move template space sample points to subject space        
         Mn = dat(n1).Mat;  
@@ -1167,27 +1181,30 @@ for n=1:N % Loop over subjects
         f1 = spm_diffeo('pull',f1,yf);        
         f1 = reshape(f1,[Nvx C1]);          
         for c1=1:C1
-            fn(cnt_chn,:) = f1(:,c1);  
-            cnt_chn       = cnt_chn + 1;
+            fn(cnt_c,:) = f1(:,c1);  
+            cnt_c       = cnt_c + 1;
         end
         
-        % Labels
+        % Deal with (possible) labels
         l1 = spm_mb_appearance('GetLabels',dat(n1),sett);            
         if size(l1,1) > 1
             l1      = reshape(l1,[df K1]);
             l1      = spm_diffeo('pull',l1,yf);
             l1      = reshape(l1,[Nvx K1]);   
             L{n}    = L{n} + l1';
-            cnt_lab = cnt_lab + 1;            
+            cnt_l = cnt_l + 1;            
         else                
             L{n} = L{n} + l1';
         end
     end
-    if cnt_lab > 1, L{n} = L{n}/cnt_lab; end % Makes sure that labels sum to one (if more than one population of labels)
     
-    % Mask
-    fn(~isfinite(fn) | fn == 0) = NaN;
+    % Makes sure that labels sum to one (if more than one population of labels)
+    if cnt_l > 1, L{n} = L{n}/cnt_l; end 
     
+    % Set zeros as NaN
+    fn(fn == 0) = NaN;
+    
+    % Add to F array
     F{n} = fn;     
 end
 clear fn d1 mask l1 yf ymu
@@ -1207,33 +1224,47 @@ end
 % Make DC component zero mean, across N
 dc = dc - mean(dc,2,'omitnan');
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Fit model
-%------------------------------------------------------------
-
 % Init GMM parameters
-gam  = ones(1,K1)./K1;
-mu   = rand(C,K1).*mx;
-Sig  = diag((mx/K1).^2).*ones([1,1,K1]);
+gam = ones(1,K1)./K1;
+mu  = rand(C,K1).*mx;
+Sig = diag((mx/K1).^2).*ones([1,1,K1]);
 
 % Compute precision
 prec = zeros(size(Sig));
 for k=1:K1, prec(:,:,k) = inv(Sig(:,:,k)); end
     
-% Missing data stuff
-fn = [];
-for n=1:N, fn = [fn; F{n}']; end
+% Get combinations of missing data, and the number of such combinations (Cm)
+fn             = [];
+for n=1:N, fn  = [fn; F{n}']; end
 [~,~,msk_chnm] = spm_gmm_lib('obs2cell',fn);
 clear fn
-Cm = size(msk_chnm,1);
-    
+Cm             = size(msk_chnm,1);
+
+% Cast images and labels into spm_gmm_lib format
+for n=1:N
+    fn                      = F{n}'; 
+    [fn,code_image,msk_chn] = spm_gmm_lib('obs2cell',fn);
+    F{n}                    = {fn,msk_chn};
+    if verbose > 0, F{n}{end + 1} = code_image; end % store code_image so that we can use the image dat for final visualisation
+    ln = L{n};
+    ln = ln';
+    if size(ln,1) > 1            
+        L{n} = spm_gmm_lib('obs2cell', ln, code_image, false);
+    end 
+end
+clear fn code_image msk_chn
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Fit model
+%------------------------------------------------------------
+
 ll = -Inf;
-for it=1:256
+for it=1:nit
     oll = ll(it);
     
     if verbose > 1
         % Visualise
-        figure(666); clf
+        figure(665); clf
         nr  = floor(sqrt(2*C));
         nc  = ceil(2*C/nr);  
         for c=1:C        
@@ -1266,40 +1297,49 @@ for it=1:256
         SS2m{c} = zeros(Co,Co,K1);
     end
     
-    % Update GMM parameters
+    %---------------------
+    % Update GMM parameters (mu,Sig)
+    %---------------------
+    
     sll = 0;
     for n=1:N % Loop over subjects
         
+        % Get image data
+        fn      = F{n}{1};
+        msk_chn = F{n}{2};        
+        Cmn     = size(msk_chn,1);
+        
+        % Modulate with scaling parameter
         dcn                 = dc(:,n);
-        dcn(~isfinite(dcn)) = 0;
+        dcn(~isfinite(dcn)) = 0;   
+        for c=1:Cmn
+            fn{c} = fn{c}.*exp(dcn(msk_chn(c,:)))';
+        end 
         
-        % ...
-        fn = F{n};
-        fn = fn.*exp(dcn);        
-        
-        % ...
-        [fn,code_image,msk_chn] = spm_gmm_lib('obs2cell', fn');
-        Cmn                     = size(msk_chn,1);
-        
-        % ...
+        % Get labels and add bias normilisation term
         ln = L{n};
-        ln = ln + sum(dcn);
-        ln = ln';
-        if size(ln,1) > 1            
-            ln = spm_gmm_lib('obs2cell', ln, code_image, false);
-        end                
+        if iscell(ln)
+            for c=1:Cmn
+                ln{c} = ln{c}  + sum(dcn);
+            end 
+        else
+            ln = ln + sum(dcn);
+            ln = ln';
+        end              
                 
         % Compute responsibilities
         norm_term        = spm_gmm_lib('normalisation',mu, prec, msk_chn);
         logpX            = spm_gmm_lib('marginal',fn, [{mu} prec], norm_term, msk_chn);
         zn               = spm_gmm_lib('responsibility',logpX, log(gam(:)'), ln);
         [SS0n,SS1n,SS2n] = spm_gmm_lib('suffstat','base',fn, zn, 1, msk_chn); 
+        clear norm_term logpX fn
         
         % Lower bound
         sll = sll + spm_gmm_lib('marginalsum',SS0n, SS1n, SS2n, mu, prec, msk_chn);                
         sll = sll + spm_gmm_lib('kl','categorical',zn, 1, log(gam(:)'), ln);
+        clear zn ln
         
-        % Sum suffstats
+        % Add nth suffstats to total suffstats
         for c=1:Cmn    
             Co        = msk_chn(c,:);
             [~,index] = ismember(Co,msk_chnm,'rows');
@@ -1326,31 +1366,38 @@ for it=1:256
         Sig(:,:,k)  = (SS2i(:,:,k) - SS0i(k)*mu(:,k)*mu(:,k)' + n0*Sig0)./(SS0i(k)+n0);
     end
 
-    % Compute precision
+    % Update precision
     prec = zeros(size(Sig));
     for k=1:K1, prec(:,:,k) = inv(Sig(:,:,k)); end
         
-    % Update rescaling s    
+    %---------------------
+    % Update rescaling (s)
+    %---------------------
+    
     sll = 0;
     for n=1:N % Loop over subjects
         
+        % Get image data
+        fn      = F{n}{1};
+        msk_chn = F{n}{2};        
+        Cmn     = size(msk_chn,1);
+        
+        % Modulate with scaling parameter
         dcn                 = dc(:,n);
-        dcn(~isfinite(dcn)) = 0;
+        dcn(~isfinite(dcn)) = 0;   
+        for c=1:Cmn
+            fn{c} = fn{c}.*exp(dcn(msk_chn(c,:)))';
+        end 
         
-        % ...
-        fn = F{n};
-        fn = fn.*exp(dcn);        
-        
-        % ...
-        [fn,code_image,msk_chn] = spm_gmm_lib('obs2cell', fn');      
-        Cmn                     = size(msk_chn,1);
-        
-        % ...
+        % Get labels and add bias normilisation term
         ln = L{n};
-        ln = ln + sum(dcn);
-        ln = ln';
-        if size(ln,1) > 1            
-            ln = spm_gmm_lib('obs2cell', ln, code_image, false);
+        if iscell(ln)
+            for c=1:Cmn
+                ln{c} = ln{c}  + sum(dcn);
+            end 
+        else
+            ln = ln + sum(dcn);
+            ln = ln';
         end                
                 
         % Compute responsibilities
@@ -1358,15 +1405,15 @@ for it=1:256
         logpX            = spm_gmm_lib('marginal',fn, [{mu} prec], norm_term, msk_chn);
         zn               = spm_gmm_lib('responsibility',logpX, log(gam(:)'), ln);   
         [SS0n,SS1n,SS2n] = spm_gmm_lib('suffstat','base',fn, zn, 1, msk_chn); 
+        clear norm_term logpX
 
         % Lower bound
         sll = sll + spm_gmm_lib('marginalsum',SS0n, SS1n, SS2n, mu, prec, msk_chn);                
         sll = sll + spm_gmm_lib('kl','categorical',zn, 1, log(gam(:)'), ln);
         
         % Compute gradient and Hessian
-%         Co = nnz(sum(msk_chn,1));
-        g  = zeros(C,1);
-        H  = zeros(C,C);
+        g = zeros(C,1);
+        H = zeros(C,C);
         for l=1:Cmn % loop over combinations of missing channels                        
             ixo = msk_chn(l,:);
                         
@@ -1389,6 +1436,7 @@ for it=1:256
             g(ixo)     = g(ixo)     + go;
             H(ixo,ixo) = H(ixo,ixo) + Ho;
         end        
+        clear zn fn
         
         % Gauss-Newton update
         msk       = dcn == 0;
@@ -1400,15 +1448,17 @@ for it=1:256
 
     if verbose > 1       
         % Visualise
-        figure(667);
+        figure(666);
         plot(1:numel(ll),ll,'b-','LineWidth',2)
+        titll = sprintf('it=%i, ll - oll=%0.6f',it,(ll(end) - oll)/abs(ll(end) + oll));
+        title(titll)
         drawnow;       
     end
     
     % Make DC component zero mean, across N
     dc  = dc - mean(dc,2,'omitnan');
 
-    if (ll(end) - oll)/abs(ll(end) + oll) < 1e-6
+    if (ll(end) - oll)/abs(ll(end) + oll) < tol
         % Finished
         break; 
     end
@@ -1416,13 +1466,15 @@ end
 
 if verbose > 0
     % Visualise
-    figure(666); clf
+    figure(667); clf
     nr  = floor(sqrt(C));
     nc  = ceil(C/nr);  
     for c=1:C
-        subplot(nr,nc,c)
-        for n=1:N
-            xn = F{n}(c,:).*exp(dc(c,n));
+        subplot(nr,nc,c)                
+        for n=1:N            
+            fn = spm_gmm_lib('cell2obs', F{n}{1}, F{n}{3}, F{n}{2}); 
+            fn = fn';
+            xn = fn(c,:).*exp(dc(c,n));
             x  = min(xn):20:max(xn);
             h  = hist(xn,x);
             h  = h/sum(h)/20;
@@ -1450,7 +1502,8 @@ end
 lb  = struct('sum', NaN, 'X', [], 'XB', [], 'Z', [], 'P', [], 'MU', [], ...
              'A', [], 'pr_v', [], 'pr_bf',[]);
          
-for n=1:max(pop_cnt)
+% Set GMM and bias field parameters for all subjects
+for n=1:N
     for c=1:numel(pop_ix)
         if n > numel(pop_ix{c}), continue; end
         
@@ -1487,7 +1540,7 @@ end
 if K1 < Kmg
     % Modify posteriors and priors for when using multiple Gaussians per
     % tissue
-    for n=1:numel(dat)      
+    for n=1:Ndat      
         
         is_ct = dat(n).is_ct;
         
