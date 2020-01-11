@@ -1123,7 +1123,7 @@ L   = cell(1,N);                 % hold label data
 for n=1:N, L{n} = zeros([K1 1],'single'); end
 
 % Get points to sample in template space
-sampmu       = 6;
+sampmu       = 4;
 vxmu         = sqrt(sum(Mmu(1:3,1:3).^2));
 sk           = max([1 1 1],round(sampmu*[1 1 1]./vxmu));
 sk(dmu == 1) = 1;
