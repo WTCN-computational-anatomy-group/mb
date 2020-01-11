@@ -1060,12 +1060,13 @@ function dat = InitGMM(dat,sett)
 % sett - Structure of settings
 %
 
-dmu   = sett.dmu;     % Template dimensions
-K     = sett.model.K; % Number of template classes
-mg_ix = sett.model.mg_ix;
-Mmu   = sett.Mmu;     % Template orientation matrix
-fwhm  = sett.bf.fwhm;
-reg   = sett.bf.reg;
+dmu     = sett.dmu;     % Template dimensions
+K       = sett.model.K; % Number of template classes
+mg_ix   = sett.model.mg_ix;
+Mmu     = sett.Mmu;     % Template orientation matrix
+fwhm    = sett.bf.fwhm;
+reg     = sett.bf.reg;
+verbose = 0; % 0,1,2
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Get number of populations, number of subjects of each population, and
@@ -1122,7 +1123,12 @@ L   = cell(1,N);                 % hold label data
 for n=1:N, L{n} = zeros([K1 1],'single'); end
 
 % Get points to sample in template space
-Nvx        = min(round(256^3/N),10000); % number of voxels to sample from each image
+sampmu       = 6;
+vxmu         = sqrt(sum(Mmu(1:3,1:3).^2));
+sk           = max([1 1 1],round(sampmu*[1 1 1]./vxmu));
+sk(dmu == 1) = 1;
+
+Nvx        = min(round(prod(dmu(1:3))/N), round(prod(dmu(1:3)./sk))); % number of voxels to sample from each image (TODO: integrate template dimensions here)
 r          = randperm(prod(dmu(1:3)),Nvx);
 [x1,x2,x3] = ind2sub(dmu(1:3),r(:));
 ymu        = cat(2,single(x1),single(x2),single(x3),ones([Nvx 1],'single'));
@@ -1131,11 +1137,13 @@ clear r x1 x2 x3
 for n=1:N % Loop over subjects
     
     fn      = NaN([C Nvx],'single');    
-    cnt     = 1;
+    cnt_chn = 1;
     cnt_lab = 0;
     for c=1:numel(pop_ix)
         if n > numel(pop_ix{c})
-            cnt = cnt + 1;
+            n1      = pop_ix{c}(1);
+            [~,C1]  = spm_mb_io('GetSize',dat(n1).f);            
+            cnt_chn = cnt_chn + C1;
             continue; 
         end
         
@@ -1159,8 +1167,8 @@ for n=1:N % Loop over subjects
         f1 = spm_diffeo('pull',f1,yf);        
         f1 = reshape(f1,[Nvx C1]);          
         for c1=1:C1
-            fn(cnt,:) = f1(:,c1);  
-            cnt       = cnt + 1;
+            fn(cnt_chn,:) = f1(:,c1);  
+            cnt_chn       = cnt_chn + 1;
         end
         
         % Labels
@@ -1189,14 +1197,15 @@ dc = zeros(C,N);
 mn = zeros(C,1);
 mx = zeros(C,1);
 for n=1:N % Loop over subjects
-    fn      = F{n};
-    mn      = min(mn,min(fn,[],2,'omitnan'));
-    mx      = max(mx,max(fn,[],2,'omitnan'));
-    dc(:,n) = -log(max(eps('single'),mean(fn,2,'omitnan')));
+    fn         = F{n};
+    mn         = min(mn,min(fn,[],2,'omitnan'));
+    mx         = max(mx,max(fn,[],2,'omitnan'));
+    fn(mn<0,:) = NaN;
+    dc(:,n)    = -log(mean(fn,2,'omitnan'));
 end
             
 % Make DC component zero mean, across N
-dc = dc - mean(dc,2);
+dc = dc - mean(dc,2,'omitnan');
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Fit model
@@ -1220,9 +1229,9 @@ Cm = size(msk_chnm,1);
     
 ll = -Inf;
 for it=1:256
-    llo = ll;
+    oll = ll(it);
     
-    if false        
+    if verbose > 1
         % Visualise
         figure(666); clf
         nr  = floor(sqrt(2*C));
@@ -1258,12 +1267,15 @@ for it=1:256
     end
     
     % Update GMM parameters
-    ll = 0;
+    sll = 0;
     for n=1:N % Loop over subjects
+        
+        dcn                 = dc(:,n);
+        dcn(~isfinite(dcn)) = 0;
         
         % ...
         fn = F{n};
-        fn = fn.*exp(dc(:,n));        
+        fn = fn.*exp(dcn);        
         
         % ...
         [fn,code_image,msk_chn] = spm_gmm_lib('obs2cell', fn');
@@ -1271,7 +1283,7 @@ for it=1:256
         
         % ...
         ln = L{n};
-        ln = ln + sum(dc(:,n));
+        ln = ln + sum(dcn);
         ln = ln';
         if size(ln,1) > 1            
             ln = spm_gmm_lib('obs2cell', ln, code_image, false);
@@ -1284,8 +1296,8 @@ for it=1:256
         [SS0n,SS1n,SS2n] = spm_gmm_lib('suffstat','base',fn, zn, 1, msk_chn); 
         
         % Lower bound
-        ll = ll + spm_gmm_lib('marginalsum',SS0n, SS1n, SS2n, mu, prec, msk_chn);                
-        ll = ll + spm_gmm_lib('kl','categorical',zn, 1, log(gam(:)'), ln);
+        sll = sll + spm_gmm_lib('marginalsum',SS0n, SS1n, SS2n, mu, prec, msk_chn);                
+        sll = sll + spm_gmm_lib('kl','categorical',zn, 1, log(gam(:)'), ln);
         
         % Sum suffstats
         for c=1:Cmn    
@@ -1299,7 +1311,8 @@ for it=1:256
             end
         end
     end
-
+    ll = [ll sll];
+    
     % Infer missing suffstat
     [SS0i,SS1i,SS2i] = spm_gmm_lib('suffstat','infer',SS0m, SS1m, SS2m, {mu,prec}, msk_chnm);        
 
@@ -1318,12 +1331,15 @@ for it=1:256
     for k=1:K1, prec(:,:,k) = inv(Sig(:,:,k)); end
         
     % Update rescaling s    
-    ll = 0;
+    sll = 0;
     for n=1:N % Loop over subjects
+        
+        dcn                 = dc(:,n);
+        dcn(~isfinite(dcn)) = 0;
         
         % ...
         fn = F{n};
-        fn = fn.*exp(dc(:,n));        
+        fn = fn.*exp(dcn);        
         
         % ...
         [fn,code_image,msk_chn] = spm_gmm_lib('obs2cell', fn');      
@@ -1331,7 +1347,7 @@ for it=1:256
         
         % ...
         ln = L{n};
-        ln = ln + sum(dc(:,n));
+        ln = ln + sum(dcn);
         ln = ln';
         if size(ln,1) > 1            
             ln = spm_gmm_lib('obs2cell', ln, code_image, false);
@@ -1344,8 +1360,8 @@ for it=1:256
         [SS0n,SS1n,SS2n] = spm_gmm_lib('suffstat','base',fn, zn, 1, msk_chn); 
 
         % Lower bound
-        ll = ll + spm_gmm_lib('marginalsum',SS0n, SS1n, SS2n, mu, prec, msk_chn);                
-        ll = ll + spm_gmm_lib('kl','categorical',zn, 1, log(gam(:)'), ln);
+        sll = sll + spm_gmm_lib('marginalsum',SS0n, SS1n, SS2n, mu, prec, msk_chn);                
+        sll = sll + spm_gmm_lib('kl','categorical',zn, 1, log(gam(:)'), ln);
         
         % Compute gradient and Hessian
 %         Co = nnz(sum(msk_chn,1));
@@ -1375,21 +1391,30 @@ for it=1:256
         end        
         
         % Gauss-Newton update
-        msk       = dc(ixo,n) == 0;
-        dc(ixo,n) = dc(ixo,n) - ((N - 1)/N)*(H(ixo,ixo)\g(ixo));
-        dc(msk,n) = 0;
+        msk       = dcn == 0;
+        dcn(ixo)  = dcn(ixo) - ((N - 1)/N)*(H(ixo,ixo)\g(ixo));    
+        dcn(msk)  = NaN;
+        dc(ixo,n) = dcn(ixo);
     end
+    ll = [ll sll];
 
+    if verbose > 1       
+        % Visualise
+        figure(667);
+        plot(1:numel(ll),ll,'b-','LineWidth',2)
+        drawnow;       
+    end
+    
     % Make DC component zero mean, across N
-    dc  = dc - mean(dc,2);
+    dc  = dc - mean(dc,2,'omitnan');
 
-    if (ll - llo)/abs(ll + llo) < 1e-6
+    if (ll(end) - oll)/abs(ll(end) + oll) < 1e-6
         % Finished
         break; 
     end
 end
 
-if false
+if verbose > 0
     % Visualise
     figure(666); clf
     nr  = floor(sqrt(C));
