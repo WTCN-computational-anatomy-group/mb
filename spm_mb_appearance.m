@@ -1076,7 +1076,6 @@ verbose = 0;    % Shows fit, with various levels of verbosity (0,1,2)
 tol     = 1e-4; % Convergence tolerance
 nit     = 256;  % Max number of iterations
 nit_sub = 32;   % Max number of sub-iterations to update GMM mu and Sigma
-wp_reg  = 100;  % Regularises the GMM proportion (as in spm_preproc8)
 
 Ndat = numel(dat);   % Total number of subjects
 K1   = K + 1;        % Number of Gaussians
@@ -1154,7 +1153,7 @@ for n=1:N % Loop over subjects
     
     fn    = NaN([C Nvx],'single');    
     cnt_c = 1; % channel count
-    cnt_l = 0; % label count
+    cnt_l = single(0); % label count
     for c=1:numel(pop_ix)
         if n > numel(pop_ix{c})
             % Population has no more images
@@ -1171,7 +1170,7 @@ for n=1:N % Loop over subjects
         
         % Get image data
         f1 = spm_mb_io('GetData',dat(n1).f);        
-        if any(is_ct == true), f1(f1 < -1020) = 0; end
+        if any(is_ct == true), f1(f1 < -1020 | f1 > 3000) = 0; end
         
         % Move template space sample points to subject space        
         Mn = dat(n1).Mat;  
@@ -1192,16 +1191,23 @@ for n=1:N % Loop over subjects
         if size(l1,1) > 1
             l1      = reshape(l1,[df K1]);
             l1      = spm_diffeo('pull',l1,yf);
-            l1      = reshape(l1,[Nvx K1]);   
+            l1      = reshape(l1,[Nvx K1]);      
+            msk     = isnan(l1);
+            l1(msk) = 0;             % we don't want NaN in the transformed labels
             L{n}    = L{n} + l1';
-            cnt_l = cnt_l + 1;            
+            cnt_l   = cnt_l + ~msk'; % for normalising labels across populations
+            clear msk
         else                
             L{n} = L{n} + l1';
         end
     end
-    
-    % Makes sure that labels sum to one (if more than one population of labels)
-    if cnt_l > 1, L{n} = L{n}/cnt_l; end 
+        
+    if numel(cnt_l) > 1
+        % Makes sure that labels sum to one (if more than one population of labels)
+        cnt_l(cnt_l == 0) = 1;
+        L{n}              = L{n}./cnt_l;
+        clear cnt_l
+    end 
     
     % Set zeros as NaN
     fn(fn == 0) = NaN;
@@ -1230,6 +1236,9 @@ dc = dc - mean(dc,2,'omitnan');
 gam = ones(1,K1)./K1;
 mu  = rand(C,K1).*mx;
 Sig = diag((mx/K1).^2).*ones([1,1,K1]);
+
+% Regularises the GMM proportion (as in spm_preproc8)
+wp_reg = 0.1*Nvx;
 
 % Compute precision
 prec = zeros(size(Sig));
@@ -1456,9 +1465,12 @@ for it=1:nit
     if verbose > 1       
         % Visualise
         figure(666);
+        subplot(121)
         plot(1:numel(ll),ll,'b-','LineWidth',2)
         titll = sprintf('it=%i, ll - oll=%0.6f',it,(ll(end) - oll)/abs(ll(end) + oll));
         title(titll)
+        subplot(122)
+        bar(gam)
         drawnow;       
     end
     
