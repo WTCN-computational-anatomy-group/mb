@@ -1074,11 +1074,13 @@ reg     = sett.bf.reg;
 % Parameters
 verbose = 0;    % Shows fit, with various levels of verbosity (0,1,2)
 tol     = 1e-4; % Convergence tolerance
-nit     = 512;  % Max number of iterations
+nit     = 256;  % Max number of iterations
+nit_sub = 32;   % Max number of sub-iterations to update GMM mu and Sigma
+wp_reg  = 100;  % Regularises the GMM proportion (as in spm_preproc8)
 
-Ndat = numel(dat);
+Ndat = numel(dat);   % Total number of subjects
 K1   = K + 1;        % Number of Gaussians
-Kmg  = numel(mg_ix);
+Kmg  = numel(mg_ix); % Total number of Gaussians (when using multiple Gaussians per tissue)
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Get number of populations, number of subjects of each population, and
@@ -1132,7 +1134,7 @@ C = sum(pop_chn); % Number of channels
 % template space, and then projected to each image's space, so that voxel
 % locations corresponds. 'sampmu' decides on the distance between sampled 
 % voxels in template space (smaller -> uses more memory, but better estimates)
-sampmu       = 4;
+sampmu       = 3;
 vxmu         = sqrt(sum(Mmu(1:3,1:3).^2));
 sk           = max([1 1 1],round(sampmu*[1 1 1]./vxmu));
 sk(dmu == 1) = 1; % defines sampling grid
@@ -1353,23 +1355,28 @@ for it=1:nit
     end
     ll = [ll sll];
     
-    % Infer missing suffstat
-    [SS0i,SS1i,SS2i] = spm_gmm_lib('suffstat','infer',SS0m, SS1m, SS2m, {mu,prec}, msk_chnm);        
+    for it1=1:nit_sub       
+        % Infer missing suffstat
+        [SS0i,SS1i,SS2i] = spm_gmm_lib('suffstat','infer',SS0m, SS1m, SS2m, {mu,prec}, msk_chnm);        
 
-    % Update GMM
-    SS0i = SS0i';
-    gam  = SS0i./sum(SS0i);
-    mu   = SS1i./SS0i';
-    Sig0 = (sum(SS2i,3) - (SS0i'.*mu)*mu')/sum(SS0i);
-    n0   = Nvx/K1;
-    for k=1:K1
-        Sig(:,:,k)  = (SS2i(:,:,k) - SS0i(k)*mu(:,k)*mu(:,k)' + n0*Sig0)./(SS0i(k)+n0);
+        % Update GMM
+        SS0i = SS0i';        
+        mu   = SS1i./SS0i';
+        Sig0 = (sum(SS2i,3) - (SS0i'.*mu)*mu')/sum(SS0i);
+        n0   = Nvx/K1;
+        for k=1:K1
+            Sig(:,:,k)  = (SS2i(:,:,k) - SS0i(k)*mu(:,k)*mu(:,k)' + n0*Sig0)./(SS0i(k)+n0);
+        end
+
+        % Update precision
+        prec = zeros(size(Sig));
+        for k=1:K1, prec(:,:,k) = inv(Sig(:,:,k)); end
     end
-
-    % Update precision
-    prec = zeros(size(Sig));
-    for k=1:K1, prec(:,:,k) = inv(Sig(:,:,k)); end
-        
+    clear SS0m SS1m SS2m
+    
+    % Update proportion
+    gam = (SS0i + wp_reg)./(sum(SS0i) + wp_reg*K1);
+    
     %---------------------
     % Update rescaling (s)
     %---------------------
@@ -1472,12 +1479,19 @@ if verbose > 0
     for c=1:C
         subplot(nr,nc,c)                
         for n=1:N            
-            fn = spm_gmm_lib('cell2obs', F{n}{1}, F{n}{3}, F{n}{2}); 
-            fn = fn';
-            xn = fn(c,:).*exp(dc(c,n));
-            x  = min(xn):20:max(xn);
-            h  = hist(xn,x);
-            h  = h/sum(h)/20;
+            fn  = spm_gmm_lib('cell2obs', F{n}{1}, F{n}{3}, F{n}{2}); 
+            fn  = fn';
+            fnc = fn(c,:);
+            fnc = fnc(isfinite(fnc));
+            if isempty(fnc), continue; end
+            
+            dcn                 = dc(c,n);
+            dcn(~isfinite(dcn)) = 0;   
+        
+            xn  = fnc.*exp(dcn);
+            x   = min(xn):20:max(xn);
+            h   = hist(xn,x);
+            h   = h/sum(h)/20;
             plot(x,h,'k.','MarkerSize',1);
             hold on
         end
@@ -1538,8 +1552,12 @@ for n=1:N
 end
 
 if K1 < Kmg
+    
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    
     % Modify posteriors and priors for when using multiple Gaussians per
     % tissue
+    %------------------------------------------------------------
+    
     for n=1:Ndat      
         
         is_ct = dat(n).is_ct;
