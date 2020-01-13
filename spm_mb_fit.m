@@ -144,6 +144,7 @@ else
     % Uninformative template
     mu = zeros([sett.var.d K],'single');
     
+    % Partion CT and MR images
     ix_mri = [];
     ix_ct  = [];
     for n=1:N
@@ -152,14 +153,20 @@ else
         end
     end
 
-    if ~isempty(ix_ct)    
-        samp             = sett.gen.samp;
-        sett.gen.samp    = 5;
-        [mu,dat(ix_mri)] = spm_mb_shape('UpdateSimpleMean',dat(ix_mri), mu, sett);
-        dat(ix_mri)      = spm_mb_appearance('UpdatePrior',dat(ix_mri), sett);
-        [mu,dat]         = spm_mb_shape('UpdateSimpleMean',dat, mu, sett);
-        dat              = spm_mb_appearance('UpdatePrior',dat, sett);
-        sett.gen.samp    = samp;
+    if ~isempty(ix_ct) && ~isempty(ix_mri)
+        % If there are CT and MR images, make initial estimate of template
+        % from all MR images, then fit this template to the entire
+        % population. This should make the CT GMM parameters align up with
+        % the tissues in the MRIs.
+        samp          = sett.gen.samp;
+        sett.gen.samp = 4;
+        for it=1:nit_init_mu
+            [mu,dat(ix_mri)] = spm_mb_shape('UpdateSimpleMean',dat(ix_mri), mu, sett);
+            dat(ix_mri)      = spm_mb_appearance('UpdatePrior',dat(ix_mri), sett);
+        end
+        [mu,dat]      = spm_mb_shape('UpdateSimpleMean',dat, mu, sett);
+        dat           = spm_mb_appearance('UpdatePrior',dat, sett);
+        sett.gen.samp = samp;
     end
 end
 
