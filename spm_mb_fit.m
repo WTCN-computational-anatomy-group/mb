@@ -152,11 +152,14 @@ else
         end
     end
 
-    if ~isempty(ix_ct)        
+    if ~isempty(ix_ct)    
+        samp             = sett.gen.samp;
+        sett.gen.samp    = 5;
         [mu,dat(ix_mri)] = spm_mb_shape('UpdateSimpleMean',dat(ix_mri), mu, sett);
-        dat              = spm_mb_appearance('UpdatePrior',dat, sett);
+        dat(ix_mri)      = spm_mb_appearance('UpdatePrior',dat(ix_mri), sett);
         [mu,dat]         = spm_mb_shape('UpdateSimpleMean',dat, mu, sett);
         dat              = spm_mb_appearance('UpdatePrior',dat, sett);
+        sett.gen.samp    = samp;
     end
 end
 
