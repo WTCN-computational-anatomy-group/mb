@@ -297,13 +297,16 @@ if ~isfield(sett.show,'channel')
     sett.show.channel = 1; % 1, ..., C
 end
 if ~isfield(sett.show,'figs')
-    sett.show.figs = {}; % {'model','normalised','segmentations','intensity','parameters'}
+    sett.show.figs = {}; % {'model','normalised','segmentations','intensity','parameters','InitGMM'}
 end
 if ~isfield(sett.show,'figname_bf')
     sett.show.figname_bf = '(spm_mb) Bias fields';
 end
 if ~isfield(sett.show,'figname_int')
     sett.show.figname_int = '(spm_mb) Intensity model';
+end
+if ~isfield(sett.show,'figname_gmm')
+    sett.show.figname_gmm = '(spm_mb) InitGMM';
 end
 if ~isfield(sett.show,'figname_model')
     sett.show.figname_model = '(spm_mb) Template model';

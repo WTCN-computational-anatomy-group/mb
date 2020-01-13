@@ -1136,20 +1136,21 @@ function dat = InitGMM(dat,sett)
 % bias field model. These parameters are estimated by this function.
 
 % Parse function settings
-dmu     = sett.dmu;
-K       = sett.model.K;
-mg_ix   = sett.model.mg_ix;
-Mmu     = sett.Mmu;     
-fwhm    = sett.bf.fwhm;
-reg     = sett.bf.reg;
+dmu    = sett.dmu;
+K      = sett.model.K;
+Mmu    = sett.Mmu;     
+fwhm   = sett.bf.fwhm;
+reg    = sett.bf.reg;
+fignam = sett.show.figname_gmm;
+figs   = sett.show.figs;
 
 % Parameters
-verbose = 0;    % Shows fit, with various levels of verbosity (0,1,2)
 tol     = 1e-4; % Convergence tolerance
 nit     = 256;  % Max number of iterations
 nit_sub = 32;   % Max number of sub-iterations to update GMM mu and Sigma
-wp_reg  = 100;   % Regularises the GMM proportion (as in spm_preproc8)
+wp_reg  = 100;  % Regularises the GMM proportion (as in spm_preproc8)
 do_dc   = true;
+verbose = any(strcmp(figs,'InitGMM'));
 
 Ndat = numel(dat);   % Total number of subjects
 K1   = K + 1;        % Number of Gaussians
@@ -1590,9 +1591,14 @@ end
 
 if verbose > 0
     % Visualise
-    figure(667); clf
-    nr  = floor(sqrt((C + 1)));
-    nc  = ceil((C + 1)/nr);  
+    f  = findobj('Type', 'Figure', 'Name', fignam);
+    if isempty(f), f = figure('Name', fignam, 'NumberTitle', 'off'); end
+    set(0, 'CurrentFigure', f);   
+
+    nr = floor(sqrt((C + 2)));
+    nc = ceil((C + 2)/nr);  
+    
+    % GMM fit
     for c=1:C
         subplot(nr,nc,c)                
         for n=1:N            
@@ -1624,8 +1630,16 @@ if verbose > 0
         title(['C=' num2str(c)])
     end
     
+    % Log-likelihood
     subplot(nr,nc,c + 1)
     plot(1:numel(ll),ll,'b-','LineWidth',2)
+    title('ll');
+    
+    % GMM prop
+    subplot(nr,nc,c + 2)
+    bar(gam)
+    title('prop')
+    
     drawnow
 end
 
