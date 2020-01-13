@@ -1145,11 +1145,11 @@ fignam = sett.show.figname_gmm;
 figs   = sett.show.figs;
 
 % Parameters
-tol     = 1e-4; % Convergence tolerance
-nit     = 256;  % Max number of iterations
-nit_sub = 16;   % Max number of sub-iterations to update GMM mu and Sigma
-wp_reg  = 100;  % Regularises the GMM proportion (as in spm_preproc8)
+tol     = 1e-4;  % Convergence tolerance
+nit     = 256;   % Max number of iterations
+nit_sub = 16;    % Max number of sub-iterations to update GMM mu and Sigma
 do_dc   = true;
+wp_reg  = 0.01;  % Regularises the GMM proportion by a percentage of the sampled number of voxels
 verbose = any(strcmp(figs,'InitGMM'));
 
 Ndat = numel(dat);   % Total number of subjects
@@ -1337,6 +1337,9 @@ Sig = diag((mx/K1).^2).*ones([1,1,K1]);
 prec = zeros(size(Sig));
 for k=1:K1, prec(:,:,k) = inv(Sig(:,:,k)); end
     
+% Regularise the GMM proportion (as in spm_preproc8)
+wp_reg = wp_reg*Nvx;  
+
 % Get combinations of missing data, and the number of such combinations (Cm)
 fn             = [];
 for n=1:N, fn  = [fn; F{n}']; end
