@@ -892,8 +892,8 @@ end
 %==========================================================================
 % ApplyMask()
 function f = ApplyMask(f,is_ct)
-if is_ct, f(~isfinite(f) | f == 0 | f <= - 1020) = NaN;
-else,     f(~isfinite(f) | f == 0)               = NaN;
+if is_ct, f(~isfinite(f) | f == 0 | f < - 1020 | f > 3000) = NaN;
+else,     f(~isfinite(f) | f == 0)                         = NaN;
 end
 end
 %==========================================================================
@@ -1147,7 +1147,7 @@ figs   = sett.show.figs;
 % Parameters
 tol     = 1e-4; % Convergence tolerance
 nit     = 256;  % Max number of iterations
-nit_sub = 32;   % Max number of sub-iterations to update GMM mu and Sigma
+nit_sub = 16;   % Max number of sub-iterations to update GMM mu and Sigma
 wp_reg  = 100;  % Regularises the GMM proportion (as in spm_preproc8)
 do_dc   = true;
 verbose = any(strcmp(figs,'InitGMM'));
@@ -1260,6 +1260,13 @@ for n=1:N % Loop over subjects
             cnt_c       = cnt_c + 1;
         end
         
+%         r  = randperm(prod(df(1:3)),Nvx);
+%         f1 = reshape(f1,[prod(df(1:3)) C1]);
+%         for c1=1:C1
+%             fn(cnt_c,:) = f1(r,c1);  
+%             cnt_c       = cnt_c + 1;
+%         end
+        
         % Deal with (possible) labels
         l1 = spm_mb_appearance('GetLabels',dat(n1),sett);            
         if size(l1,1) > 1
@@ -1315,7 +1322,15 @@ end
 
 % Init GMM parameters
 gam = ones(1,K1)./K1;
-mu  = rand(C,K1).*mx;
+
+% mu  = rand(C,K1).*mx; 
+mu = zeros(C,K1);
+for c=1:C
+    rng     = linspace(0,mx(c),K1);
+    rng     = -sum(rng<0):sum(rng>=0) - 1;
+    mu(c,:) = rng'*mx(c)/(1.0*K1);
+end    
+
 Sig = diag((mx/K1).^2).*ones([1,1,K1]);
 
 % Compute precision
