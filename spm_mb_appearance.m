@@ -268,8 +268,80 @@ else
     w_mu = 1;
 end
 
-dat = InitGMM(dat,sett);
+ix_mri = [];
+ix_ct  = [];
+for n=1:N
+    if any(dat(n).is_ct == true), ix_ct  = [ix_ct n];
+    else,                         ix_mri = [ix_mri n];
+    end
+end
+
+lb  = struct('sum', NaN, 'X', [], 'XB', [], 'Z', [], 'P', [], 'MU', [], ...
+             'A', [], 'pr_v', [], 'pr_bf',[]);
+         
+if ~isempty(ix_ct)
+    % Init CT subjects    
+    Nct = numel(ix_ct);
+    mx  = 2000;
+    mu  = zeros([1 K1]);
+    Sig = diag((mx/K1).^2).*ones([1,1,K1]);
+
+    % Compute precision
+    W                    = zeros(size(Sig));
+    for k=1:K1, W(:,:,k) = inv(Sig(:,:,k)); end
     
+    b  = zeros(1,K1) + 0.01;
+    nu = ones(1,K1);
+    
+    po       = struct('m',mu,'b',b,'W',W,'n',nu);      
+    mog.po   = po;
+    mog.pr   = po;
+    mog.lb   = lb;
+    mog.mg_w = ones([1 K1]);
+        
+    for n=1:Nct   
+        n1          = ix_ct(n);        
+        dat(n1).mog = mog;
+    end
+end
+
+% Run on all MRI subjects
+dat(ix_mri) = InitGMM(dat(ix_mri),sett);
+    
+if K1 < Kmg
+    
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    
+    % Modify posteriors and priors for when using multiple Gaussians per
+    % tissue
+    %------------------------------------------------------------
+    
+    for n=1:N              
+        is_ct = dat(n).is_ct;
+        
+        % Posterior
+        po            = dat(n).mog.po;
+        gmm           = spm_gmm_lib('extras', 'more_gmms', {po.m,po.b,po.W,po.n}, mg_ix);        
+        if ~is_ct, gmm{1} = abs(gmm{1}); end % make sure non-negative
+        po.m          = gmm{1};
+        po.b          = gmm{2};
+        po.W          = gmm{3};
+        po.n          = gmm{4};
+        dat(n).mog.po = po;
+        
+        % Prior
+        pr            = dat(n).mog.pr;
+        gmm           = spm_gmm_lib('extras', 'more_gmms', {pr.m,pr.b,pr.W,pr.n}, mg_ix);        
+        if ~is_ct, gmm{1} = abs(gmm{1}); end % make sure non-negative
+        pr.m          = gmm{1};
+        pr.b          = gmm{2};
+        pr.W          = gmm{3};
+        pr.n          = gmm{4};
+        dat(n).mog.pr = pr;
+        
+        dat(n).mog.mg_w   = ones(1,Kmg)./arrayfun(@(x) sum(x == mg_ix), mg_ix);
+    end
+end
+
 % % Init over populations
 % for p=1:Np
 %     datn = dat(p_ix{p});
@@ -1076,10 +1148,11 @@ verbose = 0;    % Shows fit, with various levels of verbosity (0,1,2)
 tol     = 1e-4; % Convergence tolerance
 nit     = 256;  % Max number of iterations
 nit_sub = 32;   % Max number of sub-iterations to update GMM mu and Sigma
+wp_reg  = 100;   % Regularises the GMM proportion (as in spm_preproc8)
+do_dc   = true;
 
 Ndat = numel(dat);   % Total number of subjects
 K1   = K + 1;        % Number of Gaussians
-Kmg  = numel(mg_ix); % Total number of Gaussians (when using multiple Gaussians per tissue)
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Get number of populations, number of subjects of each population, and
@@ -1230,15 +1303,19 @@ for n=1:N % Loop over subjects
 end
             
 % Make DC component zero mean, across N
-dc = dc - mean(dc,2,'omitnan');
+for c=1:C
+    dcn     = dc(c,:);
+    msk_dcn = isfinite(dcn);
+    if all(msk_dcn == 0) || sum(msk_dcn) == 1, continue; end
+    
+    mn_dcn  = mean(dcn(msk_dcn));
+    dc(c,:) = dc(c,:) - mn_dcn;
+end
 
 % Init GMM parameters
 gam = ones(1,K1)./K1;
 mu  = rand(C,K1).*mx;
 Sig = diag((mx/K1).^2).*ones([1,1,K1]);
-
-% Regularises the GMM proportion (as in spm_preproc8)
-wp_reg = 0.1*Nvx;
 
 % Compute precision
 prec = zeros(size(Sig));
@@ -1269,11 +1346,13 @@ clear fn code_image msk_chn
 % Fit model
 %------------------------------------------------------------
 
+if ~do_dc, dc = zeros(size(dc)); end
+
 ll = -Inf;
 for it=1:nit
     oll = ll(it);
     
-    if verbose > 1
+    if verbose > 1 && mod(it,5) == 0
         % Visualise
         figure(665); clf
         nr  = floor(sqrt(2*C));
@@ -1364,7 +1443,8 @@ for it=1:nit
     end
     ll = [ll sll];
     
-    for it1=1:nit_sub       
+    for it1=1:nit_sub               
+                        
         % Infer missing suffstat
         [SS0i,SS1i,SS2i] = spm_gmm_lib('suffstat','infer',SS0m, SS1m, SS2m, {mu,prec}, msk_chnm);        
 
@@ -1376,93 +1456,121 @@ for it=1:nit
         for k=1:K1
             Sig(:,:,k)  = (SS2i(:,:,k) - SS0i(k)*mu(:,k)*mu(:,k)' + n0*Sig0)./(SS0i(k)+n0);
         end
-
+                    
         % Update precision
-        prec = zeros(size(Sig));
+        oprec = prec;
+        prec  = zeros(size(Sig));
         for k=1:K1, prec(:,:,k) = inv(Sig(:,:,k)); end
+        
+        for k=1:K1
+            [~,cholp] = chol(prec(:,:,k));
+            if cholp ~= 0
+                prec(:,:,k) = oprec(:,:,k);
+            end            
+        end
     end
     clear SS0m SS1m SS2m
     
     % Update proportion
     gam = (SS0i + wp_reg)./(sum(SS0i) + wp_reg*K1);
     
-    %---------------------
-    % Update rescaling (s)
-    %---------------------
-    
-    sll = 0;
-    for n=1:N % Loop over subjects
-        
-        % Get image data
-        fn      = F{n}{1};
-        msk_chn = F{n}{2};        
-        Cmn     = size(msk_chn,1);
-        
-        % Modulate with scaling parameter
-        dcn                 = dc(:,n);
-        dcn(~isfinite(dcn)) = 0;   
-        for c=1:Cmn
-            fn{c} = fn{c}.*exp(dcn(msk_chn(c,:)))';
-        end 
-        
-        % Get labels and add bias normilisation term
-        ln = L{n};
-        if iscell(ln)
+    if do_dc
+        %---------------------
+        % Update rescaling (s)
+        %---------------------
+
+        sll = 0;
+        for n=1:N % Loop over subjects
+
+            % Get image data
+            fn      = F{n}{1};
+            msk_chn = F{n}{2};        
+            Cmn     = size(msk_chn,1);
+
+            % Modulate with scaling parameter
+            dcn                 = dc(:,n);
+            dcn(~isfinite(dcn)) = 0;   
             for c=1:Cmn
-                ln{c} = ln{c}  + sum(dcn);
+                fn{c} = fn{c}.*exp(dcn(msk_chn(c,:)))';
             end 
-        else
-            ln = ln + sum(dcn);
-            ln = ln';
-        end                
-                
-        % Compute responsibilities
-        norm_term        = spm_gmm_lib('normalisation',mu, prec, msk_chn);
-        logpX            = spm_gmm_lib('marginal',fn, [{mu} prec], norm_term, msk_chn);
-        zn               = spm_gmm_lib('responsibility',logpX, log(gam(:)'), ln);   
-        [SS0n,SS1n,SS2n] = spm_gmm_lib('suffstat','base',fn, zn, 1, msk_chn); 
-        clear norm_term logpX
 
-        % Lower bound
-        sll = sll + spm_gmm_lib('marginalsum',SS0n, SS1n, SS2n, mu, prec, msk_chn);                
-        sll = sll + spm_gmm_lib('kl','categorical',zn, 1, log(gam(:)'), ln);
-        
-        % Compute gradient and Hessian
-        g = zeros(C,1);
-        H = zeros(C,C);
-        for l=1:Cmn % loop over combinations of missing channels                        
-            ixo = msk_chn(l,:);
-                        
-            fnc = fn{l};            
-            fnc = fnc';
-            Ns  = size(fnc,2);
-            
-            go = 0;
-            Ho = 0;
-            for k=1:K1
-                rk = zn{l}(:,k);
-                rk = rk';
-                
-                go = go + Sig(ixo,ixo,k)\(rk.*(fnc - mu(ixo,k)));
-                Ho = Ho + ((rk.*fnc)*fnc').*inv(Sig(ixo,ixo,k));
-            end
-            go = sum(fnc.*go,2) - Ns;
-            Ho = Ho + Ns*eye(nnz(ixo));
-            
-            g(ixo)     = g(ixo)     + go;
-            H(ixo,ixo) = H(ixo,ixo) + Ho;
-        end        
-        clear zn fn
-        
-        % Gauss-Newton update
-        msk       = dcn == 0;
-        dcn(ixo)  = dcn(ixo) - ((N - 1)/N)*(H(ixo,ixo)\g(ixo));    
-        dcn(msk)  = NaN;
-        dc(ixo,n) = dcn(ixo);
+            % Get labels and add bias normilisation term
+            ln = L{n};
+            if iscell(ln)
+                for c=1:Cmn
+                    ln{c} = ln{c}  + sum(dcn);
+                end 
+            else
+                ln = ln + sum(dcn);
+                ln = ln';
+            end                
+
+            % Compute responsibilities
+            norm_term        = spm_gmm_lib('normalisation',mu, prec, msk_chn);
+            logpX            = spm_gmm_lib('marginal',fn, [{mu} prec], norm_term, msk_chn);
+            zn               = spm_gmm_lib('responsibility',logpX, log(gam(:)'), ln);   
+            [SS0n,SS1n,SS2n] = spm_gmm_lib('suffstat','base',fn, zn, 1, msk_chn); 
+            clear norm_term logpX
+
+            % Lower bound
+            sll = sll + spm_gmm_lib('marginalsum',SS0n, SS1n, SS2n, mu, prec, msk_chn);                
+            sll = sll + spm_gmm_lib('kl','categorical',zn, 1, log(gam(:)'), ln);
+
+            % Compute gradient and Hessian
+            msk_dc = isfinite(dc(:,n))';
+            g      = zeros(C,1);
+            H      = zeros(C,C);        
+            for l=1:Cmn % loop over combinations of missing channels                        
+                ixo = msk_chn(l,:) & msk_dc;
+                if all(ixo == 0), continue; end
+
+                mskfc = ixo;
+                mskfc(msk_chn(l,:) == 0) = [];          
+
+                fnc = fn{l}(:,mskfc);            
+                fnc = fnc';                       
+                znc = zn{l};
+                Ns  = size(fnc,2);
+
+                go = 0;
+                Ho = 0;
+                for k=1:K1
+                    rk = znc(:,k);
+                    rk = rk';
+
+                    muk = mu(ixo,k);
+                    Sk  = Sig(ixo,ixo,k);
+
+                    go = go + Sk\(rk.*(fnc - muk));
+                    Ho = Ho + ((rk.*fnc)*fnc').*inv(Sk);
+                end
+                go = sum(fnc.*go,2) - Ns;
+                Ho = Ho + Ns*eye(nnz(ixo));
+
+                g(ixo)     = g(ixo)     + go;
+                H(ixo,ixo) = H(ixo,ixo) + Ho;
+            end        
+            clear zn fn
+
+            % Gauss-Newton update     
+            dcn(dcn == 0) = NaN;
+            dcn(msk_dc)   = dcn(msk_dc) - ((N - 1)/N)*(H(msk_dc,msk_dc)\g(msk_dc));            
+            dc(:,n)       = dcn;
+        end
+        ll = [ll sll];
+
+        % Make DC component zero mean, across N
+        for c=1:C
+            dcn     = dc(c,:);
+            msk_dcn = isfinite(dcn);
+            if all(msk_dcn == 0) || sum(msk_dcn) == 1, continue; end
+
+            mn_dcn  = mean(dcn(msk_dcn));
+            dc(c,:) = dc(c,:) - mn_dcn;
+        end
     end
-    ll = [ll sll];
-
-    if verbose > 1       
+    
+    if verbose > 1 && mod(it,5) == 0      
         % Visualise
         figure(666);
         subplot(121)
@@ -1472,10 +1580,7 @@ for it=1:nit
         subplot(122)
         bar(gam)
         drawnow;       
-    end
-    
-    % Make DC component zero mean, across N
-    dc  = dc - mean(dc,2,'omitnan');
+    end    
 
     if (ll(end) - oll)/abs(ll(end) + oll) < tol
         % Finished
@@ -1486,8 +1591,8 @@ end
 if verbose > 0
     % Visualise
     figure(667); clf
-    nr  = floor(sqrt(C));
-    nc  = ceil(C/nr);  
+    nr  = floor(sqrt((C + 1)));
+    nc  = ceil((C + 1)/nr);  
     for c=1:C
         subplot(nr,nc,c)                
         for n=1:N            
@@ -1518,6 +1623,10 @@ if verbose > 0
         hold off
         title(['C=' num2str(c)])
     end
+    
+    subplot(nr,nc,c + 1)
+    plot(1:numel(ll),ll,'b-','LineWidth',2)
+    drawnow
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1560,41 +1669,6 @@ for n=1:N
             chan         = spm_mb_appearance('BiasFieldStruct',dat(n1),C1,df,reg,fwhm,dc(chn,n));
             dat(n1).bf.T = {chan(:).T};
         end
-    end
-end
-
-if K1 < Kmg
-    
-    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    
-    % Modify posteriors and priors for when using multiple Gaussians per
-    % tissue
-    %------------------------------------------------------------
-    
-    for n=1:Ndat      
-        
-        is_ct = dat(n).is_ct;
-        
-        % Posterior
-        po            = dat(n).mog.po;
-        gmm           = spm_gmm_lib('extras', 'more_gmms', {po.m,po.b,po.W,po.n}, mg_ix);        
-        if ~is_ct, gmm{1} = abs(gmm{1}); end % make sure non-negative
-        po.m          = gmm{1};
-        po.b          = gmm{2};
-        po.W          = gmm{3};
-        po.n          = gmm{4};
-        dat(n).mog.po = po;
-        
-        % Prior
-        pr            = dat(n).mog.pr;
-        gmm           = spm_gmm_lib('extras', 'more_gmms', {pr.m,pr.b,pr.W,pr.n}, mg_ix);        
-        if ~is_ct, gmm{1} = abs(gmm{1}); end % make sure non-negative
-        pr.m          = gmm{1};
-        pr.b          = gmm{2};
-        pr.W          = gmm{3};
-        pr.n          = gmm{4};
-        dat(n).mog.pr = pr;
-        
-        dat(n).mog.mg_w   = ones(1,Kmg)./arrayfun(@(x) sum(x == mg_ix), mg_ix);
     end
 end
 end

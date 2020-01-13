@@ -143,6 +143,21 @@ if template_given
 else
     % Uninformative template
     mu = zeros([sett.var.d K],'single');
+    
+    ix_mri = [];
+    ix_ct  = [];
+    for n=1:N
+        if any(dat(n).is_ct == true), ix_ct  = [ix_ct n];
+        else,                         ix_mri = [ix_mri n];
+        end
+    end
+
+    if ~isempty(ix_ct)        
+        [mu,dat(ix_mri)] = spm_mb_shape('UpdateSimpleMean',dat(ix_mri), mu, sett);
+        dat              = spm_mb_appearance('UpdatePrior',dat, sett);
+        [mu,dat]         = spm_mb_shape('UpdateSimpleMean',dat, mu, sett);
+        dat              = spm_mb_appearance('UpdatePrior',dat, sett);
+    end
 end
 
 % Save template
