@@ -282,7 +282,7 @@ lb  = struct('sum', NaN, 'X', [], 'XB', [], 'Z', [], 'P', [], 'MU', [], ...
 if ~isempty(ix_ct)
     % Init CT subjects    
     Nct = numel(ix_ct);
-    mx  = 2000;
+    mx  = 3000;
     mu  = zeros([1 K1]);
     Sig = diag((mx/K1).^2).*ones([1,1,K1]);
 
@@ -1223,6 +1223,7 @@ clear r x1 x2 x3
 F = cell(1,N); % holds imaging data
 L = cell(1,N); % holds possible label data
 for n=1:N, L{n} = zeros([K1 1],'single'); end
+labels_present = false;
 for n=1:N % Loop over subjects
     
     fn    = NaN([C Nvx],'single');    
@@ -1240,17 +1241,18 @@ for n=1:N % Loop over subjects
         % Parameters
         n1      = pop_ix{c}(n);
         [df,C1] = spm_mb_io('GetSize',dat(n1).f);
-        is_ct   = dat(n1).is_ct;  
+%         is_ct   = dat(n1).is_ct;  
         
         % Get image data
         f1 = spm_mb_io('GetData',dat(n1).f);        
-        if any(is_ct == true), f1(f1 < -1020 | f1 > 3000) = 0; end
+%         if any(is_ct == true), f1(f1 < -1020 | f1 > 3000) = 0; end
         
         % Move template space sample points to subject space        
         Mn = dat(n1).Mat;  
         M  = Mn\Mmu;
         yf = ymu*M';       
         yf = reshape(yf(:,1:3),[Nvx 1 1 3]);        
+        if df(3) == 1, yf(:,:,:,3) = 1; end
         
         % Get sample of image(s)        
         f1 = spm_diffeo('pull',f1,yf);        
@@ -1270,6 +1272,8 @@ for n=1:N % Loop over subjects
         % Deal with (possible) labels
         l1 = spm_mb_appearance('GetLabels',dat(n1),sett);            
         if size(l1,1) > 1
+            labels_present = true;
+            
             l1      = reshape(l1,[df K1]);
             l1      = spm_diffeo('pull',l1,yf);
             l1      = reshape(l1,[Nvx K1]);      
@@ -1290,8 +1294,8 @@ for n=1:N % Loop over subjects
         clear cnt_l
     end 
     
-    % Set zeros as NaN
-    fn(fn == 0) = NaN;
+    % Set leq to zero as NaN
+    fn(fn <= 0) = NaN;
     
     % Add to F array
     F{n} = fn;     
@@ -1300,14 +1304,11 @@ clear fn d1 mask l1 yf ymu
 
 % Init bias field DC component
 dc = zeros(C,N);
-mn = zeros(C,1);
 mx = zeros(C,1);
 for n=1:N % Loop over subjects
-    fn         = F{n};
-    mn         = min(mn,min(fn,[],2,'omitnan'));
-    mx         = max(mx,max(fn,[],2,'omitnan'));
-    fn(mn<0,:) = NaN;
-    dc(:,n)    = -log(mean(fn,2,'omitnan'));
+    fn      = F{n};
+    mx      = max(mx,max(fn,[],2,'omitnan'));    
+    dc(:,n) = -log(mean(fn,2,'omitnan'));
 end
             
 % Make DC component zero mean, across N
@@ -1323,13 +1324,16 @@ end
 % Init GMM parameters
 gam = ones(1,K1)./K1;
 
-% mu  = rand(C,K1).*mx; 
-mu = zeros(C,K1);
-for c=1:C
-    rng     = linspace(0,mx(c),K1);
-    rng     = -sum(rng<0):sum(rng>=0) - 1;
-    mu(c,:) = rng'*mx(c)/(1.0*K1);
-end    
+% if labels_present
+%     mu = rand(C,K1).*mx; 
+% else
+    mu = zeros(C,K1);
+    for c=1:C
+        rng     = linspace(0,mx(c),K1);
+        rng     = -sum(rng<0):sum(rng>=0) - 1;
+        mu(c,:) = rng'*mx(c)/(1.0*K1);
+    end    
+% end
 
 Sig = diag((mx/K1).^2).*ones([1,1,K1]);
 
@@ -1543,7 +1547,7 @@ for it=1:nit
                 ixo = msk_chn(l,:) & msk_dc;
                 if all(ixo == 0), continue; end
 
-                mskfc = ixo;
+                mskfc                    = ixo;
                 mskfc(msk_chn(l,:) == 0) = [];          
 
                 fnc = fn{l}(:,mskfc);            
