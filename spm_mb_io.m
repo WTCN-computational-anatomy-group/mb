@@ -3,21 +3,22 @@ function varargout = spm_mb_io(varargin)
 %
 % Functions for I/O related.
 %
-% FORMAT to         = spm_mb_io('CopyFields',from,to)
-% FORMAT pth        = spm_mb_io('CropLearnedTemplate',pth,centre,bb,do_crop)
-% FORMAT [P,datn]   = spm_mb_io('GetClasses',datn,mu,sett)
-% FORMAT [out,M]    = spm_mb_io('GetData',in)
-% FORMAT Mat        = spm_mb_io('GetMat',fin)
-% FORMAT [d,M]      = spm_mb_io('GetSize',fin)
-% FORMAT s          = spm_mb_io('GetScale',fin,sett);
-% FORMAT dat        = spm_mb_io('InitDat',data,sett)
-% FORMAT model      = spm_mb_io('MakeModel',dat,model,sett)
-% FORMAT [psi,fpth] = spm_mb_io('SavePsiSub',datn,sett) 
-% FORMAT              spm_mb_io('SaveTemplate',dat,mu,sett)
-% FORMAT              spm_mb_io('SetBoundCond')
-% FORMAT fout       = spm_mb_io('SetData',fin,f) 
-% FORMAT              spm_mb_io('SetPath')
-% FORMAT              spm_mb_io('WriteNii',f,img,Mmu,descrip);
+% FORMAT to                = spm_mb_io('CopyFields',from,to)
+% FORMAT pth               = spm_mb_io('CropLearnedTemplate',pth,centre,bb,do_crop)
+% FORMAT [P,datn]          = spm_mb_io('GetClasses',datn,mu,sett)
+% FORMAT [ix_ct,ix_mri,Np] = spm_mb_io('GetCTandMRI',dat)
+% FORMAT [out,M]           = spm_mb_io('GetData',in)
+% FORMAT Mat               = spm_mb_io('GetMat',fin)
+% FORMAT [d,M]             = spm_mb_io('GetSize',fin)
+% FORMAT s                 = spm_mb_io('GetScale',fin,sett);
+% FORMAT dat               = spm_mb_io('InitDat',data,sett)
+% FORMAT model             = spm_mb_io('MakeModel',dat,model,sett)
+% FORMAT [psi,fpth]        = spm_mb_io('SavePsiSub',datn,sett) 
+% FORMAT                     spm_mb_io('SaveTemplate',dat,mu,sett)
+% FORMAT                     spm_mb_io('SetBoundCond')
+% FORMAT fout              = spm_mb_io('SetData',fin,f) 
+% FORMAT                     spm_mb_io('SetPath')
+% FORMAT                     spm_mb_io('WriteNii',f,img,Mmu,descrip);
 %
 %__________________________________________________________________________
 % Copyright (C) 2019 Wellcome Trust Centre for Neuroimaging
@@ -35,6 +36,8 @@ switch id
         [varargout{1:nargout}] = CropLearnedTemplate(varargin{:});        
     case 'GetClasses'
         [varargout{1:nargout}] = GetClasses(varargin{:});
+    case 'GetCTandMRI'
+        [varargout{1:nargout}] = GetCTandMRI(varargin{:});        
     case 'GetData'
         [varargout{1:nargout}] = GetData(varargin{:});
     case 'GetMat'
@@ -87,16 +90,19 @@ if isscalar(mrg), mrg = mrg*ones(1,3); end
 
 if do
     [pth,nam,ext] = fileparts(fin);
-    fout          = fullfile(pth,['cpy_' nam ext]);
+    nnam          = ['crp_' nam];
+    fout          = fullfile(pth,[nnam ext]);
     copyfile(fin,fout);
     
     c = [192 189 201];
-    bb = [c - [100 120 180]; c + [100 140 110]]; % [l b d], [r f u]
+    bb = [c - [90 100 180]; c + [90 120 90]]; % [l b d], [r f u]
     
     V  = spm_vol(fout);
     for k=1:numel(V)
         VO = SubVol(V(k),bb);
     end
+    
+    spm_check_registration([fout ',1']);
 else
 %     Nii       = nifti(pth);
 %     dim       = Nii.dat.dim;    
@@ -206,6 +212,24 @@ if isa(in,'nifti')
     return
 end
 error('Unknown datatype.');
+end
+%==========================================================================
+
+%==========================================================================
+% GetCTandMRI()
+function [ix_ct,ix_mri,Np] = GetCTandMRI(dat)
+N      = numel(dat);
+ix_ct  = [];
+ix_mri = [];
+ix_pop = [];
+for n=1:N
+    ix_pop = [ix_pop dat(n).pop_id];
+    
+    if any(dat(n).is_ct == true), ix_ct  = [ix_ct n];
+    else,                         ix_mri = [ix_mri n];
+    end
+end
+Np = numel(unique(ix_pop));
 end
 %==========================================================================
 

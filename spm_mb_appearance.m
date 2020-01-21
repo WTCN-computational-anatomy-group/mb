@@ -6,7 +6,7 @@ function varargout = spm_mb_appearance(varargin)
 % FORMAT [bfn,lln]  = spm_mb_appearance('BiasField',chan,d,varargin)
 % FORMAT chan       = spm_mb_appearance('BiasFieldStruct',datn,C,df,reg,fwhm,dc,T,samp)
 % FORMAT labels     = spm_mb_appearance('GetLabels',datn,sett,do_samp)
-% FORMAT [nvx,msk]  = spm_mb_appearance('GetNumVoxObserved',f,is_ct)
+% FORMAT [nvx_obs,msk_allmiss] = spm_mb_appearance('GetNumVoxObserved',f,is_ct)
 % FORMAT p_ix       = spm_mb_appearance('GetPopulationIdx',dat)
 % FORMAT [dat,sett] = spm_mb_appearance('Init',dat,model,K,sett)
 % FORMAT fn         = spm_mb_appearance('Mask',fn,is_ct)
@@ -201,11 +201,10 @@ end
 
 %==========================================================================
 % GetNumVoxObserved()
-function [nvx,msk] = GetNumVoxObserved(f,is_ct)
-f   = ApplyMask(f,is_ct);
-msk = ~isnan(f);
-msk = sum(msk,4);
-nvx = sum(msk(:) > 0);
+function [nvx_obs,msk_allmiss] = GetNumVoxObserved(fn,is_ct)
+fn          = ApplyMask(fn,is_ct);
+msk_allmiss = all(isnan(fn),2);
+nvx_obs     = sum(msk_allmiss(:) == 0);
 end
 %==========================================================================
 
@@ -268,13 +267,7 @@ else
     w_mu = 1;
 end
 
-ix_mri = [];
-ix_ct  = [];
-for n=1:N
-    if any(dat(n).is_ct == true), ix_ct  = [ix_ct n];
-    else,                         ix_mri = [ix_mri n];
-    end
-end
+[ix_ct,ix_mri] = spm_mb_io('GetCTandMRI',dat);
 
 lb  = struct('sum', NaN, 'X', [], 'XB', [], 'Z', [], 'P', [], 'MU', [], ...
              'A', [], 'pr_v', [], 'pr_bf',[]);
@@ -435,12 +428,11 @@ fn = spm_mb_io('GetData',datn.f);
 % Store template voxels for where there are no observations in the image
 % data. These values will be used at the end of this function to fill in
 % responsibilities with NaNs.
-[~,msk_zn] = GetNumVoxObserved(fn,is_ct);
-msk_zn     = ~msk_zn;
-bg_mun     = zeros([nnz(msk_zn) K],'single');
+[~,msk_allmiss] = GetNumVoxObserved(fn,is_ct);
+bg_mun          = zeros([nnz(msk_allmiss) K],'single');
 for k=1:K
     kbg_mun     = mun0(:,:,:,k);
-    kbg_mun     = kbg_mun(msk_zn);
+    kbg_mun     = kbg_mun(msk_allmiss);
     bg_mun(:,k) = kbg_mun;
 end
 clear kbg_mun
@@ -758,7 +750,7 @@ if size(zn,2) > K
 end
 
 % Fill in resps with no observations using template
-for k=1:K, zn(msk_zn,k) = bg_mun(:,k); end
+for k=1:K, zn(msk_allmiss,k) = bg_mun(:,k); end
 clear bg_mun msk_zn
 
 % Make 4D
@@ -1324,16 +1316,16 @@ end
 % Init GMM parameters
 gam = ones(1,K1)./K1;
 
-% if labels_present
-%     mu = rand(C,K1).*mx; 
-% else
+if labels_present
+    mu = rand(C,K1).*mx; 
+else
     mu = zeros(C,K1);
     for c=1:C
         rng     = linspace(0,mx(c),K1);
         rng     = -sum(rng<0):sum(rng>=0) - 1;
         mu(c,:) = rng'*mx(c)/(1.0*K1);
     end    
-% end
+end
 
 Sig = diag((mx/K1).^2).*ones([1,1,K1]);
 
