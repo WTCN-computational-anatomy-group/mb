@@ -144,6 +144,9 @@ else
     % Uninformative template
     mu = zeros([sett.var.d K],'single');
     
+    % Show stuff
+    spm_mb_show('All',dat,mu,[],N,sett);
+
     % Partion CT and MR images
     ix_mri = [];
     ix_ct  = [];
