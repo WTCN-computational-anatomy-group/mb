@@ -8,7 +8,7 @@ function varargout = spm_mb_show(varargin)
 % FORMAT spm_mb_show('IntensityPrior',dat,sett,p)
 % FORMAT spm_mb_show('Model',mu,Objective,N,sett)
 % FORMAT spm_mb_show('Subjects',dat,mu,sett,p,show_extras)
-% FORMAT spm_mb_show('Tissues',im,do_softmax,num_montage,fig_nam)
+% FORMAT spm_mb_show('Tissues',im,do_softmax,num_montage,perm,fig_nam)
 % FORMAT spm_mb_show('Speak',nam,sett,varargin)
 %
 %__________________________________________________________________________
@@ -283,11 +283,11 @@ for n=1:nd
         % Store template voxels for where there are no observations in the image
         % data. These values will be used at the end of this function to fill in
         % responsibilities with NaNs.
-        msk_zn = ~isfinite(sum(fn,2));
-        bg_mun = zeros([nnz(msk_zn) K],'single');
+        msk_allmiss = all(isnan(fn),2);
+        bg_mun      = zeros([nnz(msk_allmiss) K],'single');
         for k=1:K
             kbg_mun     = mun(:,:,:,k);
-            kbg_mun     = kbg_mun(msk_zn);
+            kbg_mun     = kbg_mun(msk_allmiss);
             bg_mun(:,k) = kbg_mun;
         end
         clear kbg_mun
@@ -323,7 +323,7 @@ for n=1:nd
         end
         
         % Fill in resps with no observations using template
-        for k=1:K1, zn(msk_zn,k) = bg_mun(:,k); end
+        for k=1:K1, zn(msk_allmiss,k) = bg_mun(:,k); end
         clear bg_mun msk_zn
         
         % Reshape back
@@ -520,10 +520,11 @@ end
 
 %==========================================================================
 % Tissues()
-function Tissues(im,do_softmax,num_montage,fig_nam)
+function Tissues(im,do_softmax,num_montage,perm,fig_nam)
 if nargin < 2, do_softmax  = true; end
 if nargin < 3, num_montage = 20; end
-if nargin < 4, fig_nam     = '(spm_mb) Tissues'; end
+if nargin < 4, perm        = []; end
+if nargin < 5, fig_nam     = '(spm_mb) Tissues'; end
 
 f  = findobj('Type', 'Figure', 'Name', fig_nam);
 if isempty(f)
@@ -541,6 +542,10 @@ if do_softmax
     im = cat(4,im,zeros(dm(1:3),'single'));
     im = spm_mb_shape('Softmax',im,4); 
     K        = K + 1;
+end
+
+if ~isempty(perm)
+    im = permute(im,perm);
 end
 
 nr = floor(sqrt(K));
