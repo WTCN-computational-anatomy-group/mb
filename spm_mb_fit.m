@@ -49,6 +49,8 @@ nit_init     = sett.nit.init;
 nit_init_mu  = sett.nit.init_mu;
 nit_zm0      = sett.nit.zm;
 print2screen = sett.show.print2screen;
+samp         = sett.gen.samp;
+samp_mx      = sett.gen.samp_mx;
 vx           = sett.model.vx;
 write_ws     = sett.write.workspace;
 
@@ -161,8 +163,7 @@ else
         % from all MR images, then fit this template to the entire
         % population. This should make the CT GMM parameters align up with
         % the tissues in the MRIs.
-        samp          = sett.gen.samp;
-        sett.gen.samp = 4;
+        sett.gen.samp = min(max(vxmu(1),numel(sz)),samp_mx);
         for it=1:nit_init_mu
             [mu,dat(ix_mri)] = spm_mb_shape('UpdateSimpleMean',dat(ix_mri), mu, sett);
             dat(ix_mri)      = spm_mb_appearance('UpdatePrior',dat(ix_mri), sett);
@@ -195,7 +196,7 @@ if do_updt_aff
     % Update shape (only affine) and appearance, on coarsest resolution
     %------------------
         
-    sett.gen.samp = min(max(vxmu(1),numel(sz)),5); % coarse-to-fine sampling of observed data
+    sett.gen.samp = min(max(vxmu(1),numel(sz)),samp_mx); % coarse-to-fine sampling of observed data
     
     spm_mb_show('Speak','InitAff',sett);
     for it_init=1:nit_init
@@ -257,7 +258,7 @@ if print2screen > 0, tic; end
 for zm=numel(sz):-1:1 % loop over zoom levels
     
     % coarse-to-fine sampling of observed data    
-    sett.gen.samp = min(max(vxmu(1),zm),5);     
+    sett.gen.samp = min(max(vxmu(1),zm),samp_mx);     
     
     if template_given && ~do_updt_template
         mu = spm_mb_shape('ShrinkTemplate',mu0,Mmu,sett);

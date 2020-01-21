@@ -169,6 +169,9 @@ end
 if ~isfield(sett.gen,'samp')
     sett.gen.samp = 3;
 end
+if ~isfield(sett.gen,'samp_mx')
+    sett.gen.samp_mx = 5;
+end
 
 %------------------
 % .labels (label related)
