@@ -170,7 +170,7 @@ if ~isfield(sett.gen,'samp')
     sett.gen.samp = 3;
 end
 if ~isfield(sett.gen,'samp_mx')
-    sett.gen.samp_mx = 5;
+    sett.gen.samp_mx = 4;
 end
 
 %------------------
