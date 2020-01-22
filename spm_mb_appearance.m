@@ -230,6 +230,9 @@ function [dat,sett] = Init(dat,model,K,sett)
 do_gmm  = sett.do.gmm;
 ix_init = sett.model.ix_init_pop;
 mg_ix   = sett.model.mg_ix;
+fwhm    = sett.bf.fwhm;
+reg     = sett.bf.reg;
+
 
 if ~do_gmm, return; end
 
@@ -267,7 +270,7 @@ else
     w_mu = 1;
 end
 
-[ix_ct,ix_mri] = spm_mb_io('GetCTandMRI',dat);
+[ix_ct,ix_mri1,ix_mri2] = spm_mb_io('GetCTandMRI',dat,sett);
 
 lb  = struct('sum', NaN, 'X', [], 'XB', [], 'Z', [], 'P', [], 'MU', [], ...
              'A', [], 'pr_v', [], 'pr_bf',[]);
@@ -299,8 +302,47 @@ if ~isempty(ix_ct)
 end
 
 % Run on all MRI subjects
-dat(ix_mri) = InitGMM(dat(ix_mri),sett);
+dat(ix_mri1) = InitGMM(dat(ix_mri1),sett);
+             
+if ~isempty(ix_mri2)
+    Nmri = numel(ix_mri2);
+                
+    b  = zeros(1,K1) + 0.01;
+    nu = ones(1,K1);
     
+    for n=1:Nmri   
+        
+        n1    = ix_mri2(n);       
+        [df,C] = spm_mb_io('GetSize',dat(n1).f);
+        
+        po       = struct('m',ones(C,K1),'b',b,'W',repmat(eye(C),[1 1 K1])/C,'n',C*nu);      
+        mog.po   = po;
+        mog.pr   = po;
+        mog.lb   = lb;
+        mog.mg_w = ones([1 K1]);
+                 
+        dat(n1).mog = mog;        
+        
+        fn = spm_mb_io('GetData',dat(n1).f);
+        fn = reshape(fn,[prod(df(1:3)) C]);
+        fn = spm_mb_appearance('Mask',fn,dat(n1).is_ct);
+        
+        % Make mean close to val
+        val = 1e3*ones(1,C);                        
+        dc  = zeros(1,C);
+        for c=1:C
+            msk   = isfinite(fn(:,c));
+            dc(c) = val(c)./mean(fn(msk,c));
+        end
+        dc = log(dc);
+        
+        
+        % Get bias field parameterisation struct
+        chan         = spm_mb_appearance('BiasFieldStruct',dat(n1),C,df,reg,fwhm,dc);
+        dat(n1).bf.T = {chan(:).T};
+    end    
+end
+
 if K1 < Kmg
     
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    
@@ -1139,7 +1181,7 @@ figs   = sett.show.figs;
 % Parameters
 tol     = 1e-4;  % Convergence tolerance
 nit     = 256;   % Max number of iterations
-nit_sub = 16;    % Max number of sub-iterations to update GMM mu and Sigma
+nit_sub = 64;    % Max number of sub-iterations to update GMM mu and Sigma
 do_dc   = true;
 wp_reg  = 0.01;  % Regularises the GMM proportion by a percentage of the sampled number of voxels
 verbose = any(strcmp(figs,'InitGMM'));
@@ -1157,13 +1199,13 @@ pop_chn = []; % vector with number of image channels in each population
 pop_cnt = []; % vector with count of number of subjects in each population
 pop_ix  = {}; % cell array, where each element is a vector with the dat struct indices of a population
 for n=1:Ndat
-    if ~any(pop_id == dat(n).pop_id) 
-        pop_id = [pop_id dat(n).pop_id];
+    if ~any(pop_id == dat(n).ix_pop) 
+        pop_id = [pop_id dat(n).ix_pop];
         
         cnt1 = 0;
         nix  = [];
         for n1=1:Ndat
-            if dat(n1).pop_id == dat(n).pop_id 
+            if dat(n1).ix_pop == dat(n).ix_pop 
                 cnt1 = cnt1 + 1;
                 nix  = [nix n1];
             end
@@ -1327,7 +1369,7 @@ else
     end    
 end
 
-Sig = diag((mx/K1).^2).*ones([1,1,K1]);
+Sig = diag((mx/(2*K1)).^2).*ones([1,1,K1]);
 
 % Compute precision
 prec = zeros(size(Sig));
@@ -1367,13 +1409,13 @@ ll = -Inf;
 for it=1:nit
     oll = ll(it);
     
-    if verbose > 1 && mod(it,5) == 0
+    if verbose > 1 && (mod(it,20) == 0 || it == 1)
         % Visualise
         figure(665); clf
         nr  = floor(sqrt(2*C));
         nc  = ceil(2*C/nr);  
         for c=1:C        
-            x = linspace(mn(c),mx(c),1000);
+            x = linspace(0,mx(c),1000);
             p = 0;            
             subplot(nr,nc,c);        
             hold on
@@ -1467,9 +1509,8 @@ for it=1:nit
         SS0i = SS0i';        
         mu   = SS1i./SS0i';
         Sig0 = (sum(SS2i,3) - (SS0i'.*mu)*mu')/sum(SS0i);
-        n0   = Nvx/K1;
         for k=1:K1
-            Sig(:,:,k)  = (SS2i(:,:,k) - SS0i(k)*mu(:,k)*mu(:,k)' + n0*Sig0)./(SS0i(k)+n0);
+            Sig(:,:,k)  = (SS2i(:,:,k) - SS0i(k)*mu(:,k)*mu(:,k)' + C*Sig0)./(SS0i(k) + C);
         end
                     
         % Update precision
@@ -1585,7 +1626,7 @@ for it=1:nit
         end
     end
     
-    if verbose > 1 && mod(it,5) == 0      
+    if verbose > 1 && mod(it,20) == 0      
         % Visualise
         figure(666);
         subplot(121)
@@ -1672,25 +1713,30 @@ for n=1:N
         
         n1      = pop_ix{c}(n);
         [df,C1] = spm_mb_io('GetSize',dat(n1).f);                        
-        p       = dat(n1).pop_id;    
+        p       = dat(n1).ix_pop;    
         chn     = pop_cnh_ix{p};
         
-        m   = mu(chn,:);
-        b   = zeros(1,K1) + 0.01;
-        ico = zeros(C1,C1,K1);
+        m     = mu(chn,:);
+        b     = zeros(1,K1) + 0.01;
+        ico   = zeros(C1,C1,K1);
+        mnico = zeros(C1,C1);
         for k=1:K1
             for c1=1:C1
                 ico(c1,c1,k) = inv(Sig(chn(c1),chn(c1),k));
+                mnico(c1,c1) = mnico(c1,c1) + Sig(chn(c1),chn(c1),k);
             end
         end
+        mnico = inv(mnico/K);
+        
         W  = ico/C1;
         nu = C1*ones(1,K1);
         po = struct('m',m,'b',b,'W',W,'n',nu);    
 
-        mog.po     = po;
-        mog.pr     = po; % prior same as posterior
-        mog.lb     = lb;
-        mog.mg_w   = ones([1 K1]);
+        mog.po      = po;
+        mog.pr      = po;
+%         mog.pr      = struct('m',repmat(mean(m,2),[1 K1]),'b',b,'W',repmat(mnico/C1,[1 1 K1]),'n',nu); % uninformative prior
+        mog.lb      = lb;
+        mog.mg_w    = ones([1 K1]);
         dat(n1).mog = mog;
         
         if any(dat(n1).do_bf == true)

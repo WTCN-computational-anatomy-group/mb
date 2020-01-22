@@ -6,7 +6,7 @@ function varargout = spm_mb_io(varargin)
 % FORMAT to                = spm_mb_io('CopyFields',from,to)
 % FORMAT pth               = spm_mb_io('CropLearnedTemplate',pth,centre,bb,do_crop)
 % FORMAT [P,datn]          = spm_mb_io('GetClasses',datn,mu,sett)
-% FORMAT [ix_ct,ix_mri,Np] = spm_mb_io('GetCTandMRI',dat)
+% FORMAT [ix_ct,ix_mri1,ix_mri2,Np] = spm_mb_io('GetCTandMRI',dat)
 % FORMAT [out,M]           = spm_mb_io('GetData',in)
 % FORMAT Mat               = spm_mb_io('GetMat',fin)
 % FORMAT [d,M]             = spm_mb_io('GetSize',fin)
@@ -217,19 +217,28 @@ end
 
 %==========================================================================
 % GetCTandMRI()
-function [ix_ct,ix_mri,Np] = GetCTandMRI(dat)
-N      = numel(dat);
-ix_ct  = [];
-ix_mri = [];
-ix_pop = [];
-for n=1:N
-    ix_pop = [ix_pop dat(n).pop_id];
-    
-    if any(dat(n).is_ct == true), ix_ct  = [ix_ct n];
-    else,                         ix_mri = [ix_mri n];
+function [ix_ct,ix_mri1,ix_mri2] = GetCTandMRI(dat,sett)
+
+% Parse function settings
+ix_init = sett.model.ix_init_pop;
+
+N          = numel(dat);
+ix_ct      = [];
+ix_mri2    = [];
+ix_pop_mri = [];
+for n=1:N        
+    if any(dat(n).is_ct == true)
+        ix_ct = [ix_ct n];
+    else                         
+        ix_pop_mri = [ix_pop_mri dat(n).ix_pop];
+        ix_mri2    = [ix_mri2 n];
     end
 end
-Np = numel(unique(ix_pop));
+Np = numel(unique(ix_pop_mri));
+
+ix_mri1 = ix_mri2(ix_pop_mri == ix_init);
+ix_mri2 = ix_mri2(ix_pop_mri ~= ix_init);
+
 end
 %==========================================================================
 
@@ -392,14 +401,7 @@ for n=1:N
         dat(n).ix_pop = data(n).ix_pop;
     else
         dat(n).ix_pop = 1;
-    end
-    
-    % Population id (used by InitGMM)
-    if isstruct(data(n)) && isfield(data(n),'pop_id') && ~isempty(data(n).pop_id)
-        dat(n).pop_id = data(n).pop_id;
-    else
-        dat(n).pop_id = 1;
-    end
+    end    
     
     % Is CT data
     if isstruct(data(n)) && isfield(data(n),'is_ct') && ~isempty(data(n).is_ct)

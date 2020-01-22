@@ -49,7 +49,6 @@ nit_init     = sett.nit.init;
 nit_init_mu  = sett.nit.init_mu;
 nit_zm0      = sett.nit.zm;
 print2screen = sett.show.print2screen;
-samp         = sett.gen.samp;
 samp_mx      = sett.gen.samp_mx;
 vx           = sett.model.vx;
 write_ws     = sett.write.workspace;
@@ -150,21 +149,26 @@ else
     spm_mb_show('All',dat,mu,[],N,sett);
 
     % Partion CT and MR images
-    [ix_ct,ix_mri,Np] = spm_mb_io('GetCTandMRI',dat);
+    [ix_ct,ix_mri1,ix_mri2] = spm_mb_io('GetCTandMRI',dat,sett);
 
-    if ~isempty(ix_ct) && ~isempty(ix_mri) && Np > 1
-        % If there are CT and MR images, make initial estimate of template
-        % from all MR images, then fit this template to the entire
-        % population. This should make the CT GMM parameters align up with
-        % the tissues in the MRIs.        
+    if ~isempty(ix_ct) || ~isempty(ix_mri2)        
         sett.gen.samp = min(max(vxmu(1),numel(sz)),samp_mx);
         for it=1:nit_init_mu
-            [mu,dat(ix_mri)] = spm_mb_shape('UpdateMean',dat(ix_mri), mu, sett);
-            dat(ix_mri)      = spm_mb_appearance('UpdatePrior',dat(ix_mri), sett);
+            [mu,dat(ix_mri1)] = spm_mb_shape('UpdateMean',dat(ix_mri1), mu, sett);
+            dat(ix_mri1)      = spm_mb_appearance('UpdatePrior',dat(ix_mri1), sett);
         end
-        [mu,dat]      = spm_mb_shape('UpdateMean',dat, mu, sett);
-        dat           = spm_mb_appearance('UpdatePrior',dat, sett);
-        sett.gen.samp = samp;
+        if ~isempty(ix_mri2)
+            for it=1:nit_init_mu
+                [mu,dat([ix_mri1 ix_mri2])] = spm_mb_shape('UpdateMean',dat([ix_mri1 ix_mri2]), mu, sett);
+                dat([ix_mri1 ix_mri2])      = spm_mb_appearance('UpdatePrior',dat([ix_mri1 ix_mri2]), sett);
+            end
+        end
+        if isempty(ix_mri2) && ~isempty(ix_ct)
+            for it=1:nit_init_mu
+                [mu,dat([ix_mri1 ix_ct])] = spm_mb_shape('UpdateMean',dat([ix_mri1 ix_ct]), mu, sett);
+                dat([ix_mri1 ix_ct])      = spm_mb_appearance('UpdatePrior',dat([ix_mri1 ix_ct]), sett);
+            end
+        end
     end
 end
 
