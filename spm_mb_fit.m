@@ -148,28 +148,9 @@ else
     % Show stuff
     spm_mb_show('All',dat,mu,[],N,sett);
 
-    % Partion CT and MR images
-    [ix_ct,ix_mri1,ix_mri2] = spm_mb_io('GetCTandMRI',dat,sett);
-
-    if ~isempty(ix_ct) || ~isempty(ix_mri2)        
-        sett.gen.samp = min(max(vxmu(1),numel(sz)),samp_mx);
-        for it=1:nit_init_mu
-            [mu,dat(ix_mri1)] = spm_mb_shape('UpdateMean',dat(ix_mri1), mu, sett);
-            dat(ix_mri1)      = spm_mb_appearance('UpdatePrior',dat(ix_mri1), sett);
-        end
-        if ~isempty(ix_mri2)
-            for it=1:nit_init_mu
-                [mu,dat([ix_mri1 ix_mri2])] = spm_mb_shape('UpdateMean',dat([ix_mri1 ix_mri2]), mu, sett);
-                dat([ix_mri1 ix_mri2])      = spm_mb_appearance('UpdatePrior',dat([ix_mri1 ix_mri2]), sett);
-            end
-        end
-        if isempty(ix_mri2) && ~isempty(ix_ct)
-            for it=1:nit_init_mu
-                [mu,dat([ix_mri1 ix_ct])] = spm_mb_shape('UpdateMean',dat([ix_mri1 ix_ct]), mu, sett);
-                dat([ix_mri1 ix_ct])      = spm_mb_appearance('UpdatePrior',dat([ix_mri1 ix_ct]), sett);
-            end
-        end
-    end
+    % Init template with one population then use that template to init GMM
+    % parameters of other populations
+    [dat,mu] = spm_mb_shape('PropagateTemplate',dat,mu,sett);        
 end
 
 % Save template

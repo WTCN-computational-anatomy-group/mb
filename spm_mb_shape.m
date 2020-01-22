@@ -12,6 +12,7 @@ function varargout = spm_mb_shape(varargin)
 % FORMAT sett          = spm_mb_shape('MuValOutsideFOV',mu,sett);
 % FORMAT a1            = spm_mb_shape('Pull1',a0,psi,bg,r)
 % FORMAT [f1,w1]       = spm_mb_shape('Push1',f,psi,d,r,bg)
+% FORMAT [dat,mu]      = spm_mb_shape('PropagateTemplate',dat,mu,sett)
 % FORMAT sd            = spm_mb_shape('SampDens',Mmu,Mn)
 % FORMAT mu1           = spm_mb_shape('ShrinkTemplate',mu,oMmu,sett)
 % FORMAT P             = spm_mb_shape('Softmax',mu,dr)
@@ -55,6 +56,8 @@ switch id
         [varargout{1:nargout}] = Pull1(varargin{:});
     case 'Push1'
         [varargout{1:nargout}] = Push1(varargin{:});    
+    case 'PropagateTemplate'
+        [varargout{1:nargout}] = PropagateTemplate(varargin{:});            
     case 'SampDens'
         [varargout{1:nargout}] = SampDens(varargin{:});
     case 'ShrinkTemplate'
@@ -426,6 +429,42 @@ end
 %==========================================================================
 
 %==========================================================================
+% PropagateTemplate()
+function [dat,mu] = PropagateTemplate(dat,mu,sett)
+
+% Parse function settings
+samp_mx = sett.gen.samp_mx;
+
+% Partion CT and MR images
+[ix_ct,ix_mri1,ix_mri2] = spm_mb_io('GetCTandMRI',dat,sett);
+
+if ~isempty(ix_ct) || ~isempty(ix_mri2)    
+    
+    sett.gen.samp = min(max(vxmu(1),numel(sz)),samp_mx);
+    
+    for it=1:nit_init_mu
+        [mu,dat(ix_mri1)] = spm_mb_shape('UpdateMean',dat(ix_mri1), mu, sett);
+        dat(ix_mri1)      = spm_mb_appearance('UpdatePrior',dat(ix_mri1), sett);
+    end
+    
+    if ~isempty(ix_mri2)
+        for it=1:nit_init_mu
+            [mu,dat([ix_mri1 ix_mri2])] = spm_mb_shape('UpdateMean',dat([ix_mri1 ix_mri2]), mu, sett);
+            dat([ix_mri1 ix_mri2])      = spm_mb_appearance('UpdatePrior',dat([ix_mri1 ix_mri2]), sett);
+        end
+    end
+    
+    if isempty(ix_mri2) && ~isempty(ix_ct)
+        for it=1:nit_init_mu
+            [mu,dat([ix_mri1 ix_ct])] = spm_mb_shape('UpdateMean',dat([ix_mri1 ix_ct]), mu, sett);
+            dat([ix_mri1 ix_ct])      = spm_mb_appearance('UpdatePrior',dat([ix_mri1 ix_ct]), sett);
+        end
+    end
+end
+end
+%==========================================================================
+
+%==========================================================================
 % SampDens()
 function sd = SampDens(Mmu,Mn)
 vx_mu = sqrt(sum(Mmu(1:3,1:3).^2,1));
@@ -470,7 +509,8 @@ end
 function [Mmu,d] = SpecifyMean(dat,vx,sett)
 
 % Parse function settings
-do_gmm = sett.do.gmm;
+do_gmm  = sett.do.gmm;
+crop_mu = sett.model.crop_mu;
 
 dims = zeros(numel(dat),3);
 Mat0 = zeros(4,4,numel(dat));
@@ -479,7 +519,8 @@ for n=1:numel(dat)
     Mat0(:,:,n) = dat(n).Mat;
 end
 
-[Mmu,d] = ComputeAvgMat(Mat0,dims,do_gmm);
+do_crop = dims(1,3) > 1 && do_gmm && crop_mu;
+[Mmu,d] = ComputeAvgMat(Mat0,dims,do_crop);
 
 % Adjust voxel size
 if numel(vx) == 1
@@ -794,7 +835,7 @@ end
 
 %==========================================================================
 % ComputeAvgMat()
-function [M_avg,d] = ComputeAvgMat(Mat0,dims,do_gmm)
+function [M_avg,d] = ComputeAvgMat(Mat0,dims,do_crop)
 % Compute an average voxel-to-world mapping and suitable dimensions
 % FORMAT [M_avg,d] = spm_compute_avg_mat(Mat0,dims)
 % Mat0  - array of matrices (4x4xN)
@@ -902,11 +943,12 @@ for i=1:size(Mat0,3)
 end
 mx    = ceil(mx);
 mn    = floor(mn);
-prct  = 0.1;            % percentage to remove (in each direction)
-o     = -prct*(mx - mn); % offset -> make template a bit smaller (for using less memory!)
-% o     = ones(3,1);
-if dims(1,3) == 1 || ~do_gmm, o(1:3) = 0; end % not if 2D
-% o     = 3;
+if do_crop
+    prct  = 0.1;            % percentage to remove (in each direction)
+    o     = -prct*(mx - mn); % offset -> make template a bit smaller (for using less memory!)
+else
+    o = 3;
+end
 d     = (mx - mn + (2*o + 1))';
 M_avg = M_avg * [eye(3) mn - (o + 1); 0 0 0 1];
 end

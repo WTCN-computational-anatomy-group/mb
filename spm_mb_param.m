@@ -194,6 +194,9 @@ end
 if ~isfield(sett,'model')
     sett.model = struct;
 end
+if ~isfield(sett.model,'crop_mu')
+    sett.model.crop_mu  = true;
+end
 if ~isfield(sett.model,'groupwise')
     sett.model.groupwise = false;
 end
