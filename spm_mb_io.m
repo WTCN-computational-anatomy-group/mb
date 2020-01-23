@@ -146,7 +146,7 @@ if ~isfield(datn,'mog')
     end
 else
     % Update appearance model
-    [P,datn] = spm_mb_appearance('Update',datn,mu,sett);
+    [datn,P] = spm_mb_appearance('Update',datn,mu,sett);
 end
 
 if 0

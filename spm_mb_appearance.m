@@ -6,13 +6,13 @@ function varargout = spm_mb_appearance(varargin)
 % FORMAT [bfn,lln]  = spm_mb_appearance('BiasField',chan,d,varargin)
 % FORMAT chan       = spm_mb_appearance('BiasFieldStruct',datn,C,df,reg,fwhm,dc,T,samp)
 % FORMAT labels     = spm_mb_appearance('GetLabels',datn,sett,do_samp)
-% FORMAT [nvx_obs,msk_allmiss] = spm_mb_appearance('GetNumVoxObserved',f,is_ct)
+% FORMAT [nvx_obs,msk_allmiss] = spm_mb_appearance('GetNumObsVox',f,is_ct,ax)
 % FORMAT p_ix       = spm_mb_appearance('GetPopulationIdx',dat)
 % FORMAT [dat,sett] = spm_mb_appearance('Init',dat,model,K,sett)
 % FORMAT fn         = spm_mb_appearance('Mask',fn,is_ct)
 % FORMAT zn         = spm_mb_appearance('Responsibility',m,b,W,n,fn,mu,msk_chn)
 % FORMAT [zn,datn]  = spm_mb_appearance('Update',datn,mun0,sett)
-% FORMAT dat        = spm_mb_appearance('UpdatePrior',dat,sett,add_po_observation)
+% FORMAT dat        = spm_mb_appearance('UpdatePrior',dat,mu,sett,add_po_observation)
 %__________________________________________________________________________
 % Copyright (C) 2019 Wellcome Trust Centre for Neuroimaging
 
@@ -30,7 +30,7 @@ switch id
     case 'GetLabels'
         [varargout{1:nargout}] = GetLabels(varargin{:});            
     case 'GetNumVoxObserved'
-        [varargout{1:nargout}] = GetNumVoxObserved(varargin{:});           
+        [varargout{1:nargout}] = GetNumObsVox(varargin{:});           
     case 'GetPopulationIdx'
         [varargout{1:nargout}] = GetPopulationIdx(varargin{:});           
     case 'Init'
@@ -40,7 +40,7 @@ switch id
     case 'Responsibility'
         [varargout{1:nargout}] = Responsibility(varargin{:});             
     case 'Update'
-        [varargout{1:nargout}] = Update(varargin{:});     
+        [varargout{1:nargout}] = Update(varargin{:});             
     case 'UpdatePrior'
         [varargout{1:nargout}] = UpdatePrior(varargin{:});            
     otherwise
@@ -200,10 +200,10 @@ end
 %==========================================================================
 
 %==========================================================================
-% GetNumVoxObserved()
-function [nvx_obs,msk_allmiss] = GetNumVoxObserved(fn,is_ct)
+% GetNumObsVox()
+function [nvx_obs,msk_allmiss] = GetNumObsVox(fn,is_ct,ax)
 fn          = ApplyMask(fn,is_ct);
-msk_allmiss = all(isnan(fn),2);
+msk_allmiss = all(isnan(fn),ax);
 nvx_obs     = sum(msk_allmiss(:) == 0);
 end
 %==========================================================================
@@ -254,6 +254,10 @@ if appear_given
     sett.model.mg_ix = mg_ix;
 end
 
+% Lower bound struct
+lb  = struct('sum', NaN, 'X', [], 'XB', [], 'Z', [], 'P', [], 'MU', [], ...
+                 'A', [], 'pr_v', [], 'pr_bf',[]);
+             
 % Get template
 if template_given
     mu = spm_mb_io('GetData',model.shape.template);                    
@@ -270,77 +274,120 @@ else
     w_mu = 1;
 end
 
-[ix_ct,ix_mri1,ix_mri2] = spm_mb_io('GetCTandMRI',dat,sett);
-
-lb  = struct('sum', NaN, 'X', [], 'XB', [], 'Z', [], 'P', [], 'MU', [], ...
-             'A', [], 'pr_v', [], 'pr_bf',[]);
-         
-if ~isempty(ix_ct)
-    % Init CT subjects    
-    Nct = numel(ix_ct);
-    mx  = 3000;
-    mu  = zeros([1 K1]);
-    Sig = diag((mx/K1).^2).*ones([1,1,K1]);
-
-    % Compute precision
-    W                    = zeros(size(Sig));
-    for k=1:K1, W(:,:,k) = inv(Sig(:,:,k)); end
-    
-    b  = zeros(1,K1) + 0.01;
-    nu = ones(1,K1);
-    
-    po       = struct('m',mu,'b',b,'W',W,'n',nu);      
-    mog.po   = po;
-    mog.pr   = po;
-    mog.lb   = lb;
-    mog.mg_w = ones([1 K1]);
-        
-    for n=1:Nct   
-        n1          = ix_ct(n);        
-        dat(n1).mog = mog;
-    end
-end
-
-% Run on all MRI subjects
-dat(ix_mri1) = InitGMM(dat(ix_mri1),sett);
+if appear_given && template_given    
              
-if ~isempty(ix_mri2)
-    Nmri = numel(ix_mri2);
-                
-    b  = zeros(1,K1) + 0.01;
-    nu = ones(1,K1);
+    pr = model.appear.pr;
+    dc = w_mu.*pr.m;    
+    dc = sum(dc,2); 
     
-    for n=1:Nmri   
+    for n=1:N
+        [df,C] = spm_mb_io('GetSize',dat(n).f);
+    
+        % Load image data
+        fn = spm_mb_io('GetData',dat(n).f);
+        fn = reshape(fn,[prod(df(1:3)) C]);
+        fn = spm_mb_appearance('Mask',fn,dat(n).is_ct);
         
-        n1    = ix_mri2(n);       
-        [df,C] = spm_mb_io('GetSize',dat(n1).f);
+        for c=1:C
+            msk   = isfinite(fn(:,c));
+            dc(c) = dc(c)./mean(fn(msk,c));
+        end
+        dc = log(dc);
         
-        po       = struct('m',ones(C,K1),'b',b,'W',repmat(eye(C),[1 1 K1])/C,'n',C*nu);      
+        if any(dat(n).do_bf == true)
+            % Get bias field parameterisation struct
+            chan        = spm_mb_appearance('BiasFieldStruct',dat(n),C,df,reg,fwhm,dc);
+            dat(n).bf.T = {chan(:).T};
+            
+            % Get bias field
+            bf = spm_mb_appearance('BiasField',chan,df);
+        else
+            bf = ones([1 C],'single');
+        end
+        
+        % Modulate with bias field
+        fn = bf.*fn;
+        
+        po = InitSimplePosteriorGMM(dat(n),fn,mu,pr,K1,mg_ix,sett);
+         
+        mog.po   = po;
+        mog.pr   = pr;
+        mog.lb   = lb;
+        mog.mg_w = ones([1 K1]);
+   
+        dat(n).mog = mog;                        
+    end
+else
+    
+    [ix_ct,ix_mri1,ix_mri2] = spm_mb_io('GetCTandMRI',dat,sett);
+
+    if ~isempty(ix_ct)
+        % Init CT subjects    
+        Nct = numel(ix_ct);
+        mx  = 3000;
+        mu  = zeros([1 K1]);
+        Sig = diag((mx/K1).^2).*ones([1,1,K1]);
+
+        % Compute precision
+        W                    = zeros(size(Sig));
+        for k=1:K1, W(:,:,k) = inv(Sig(:,:,k)); end
+
+        b  = zeros(1,K1) + 0.01;
+        nu = ones(1,K1);
+
+        po       = struct('m',mu,'b',b,'W',W,'n',nu);      
         mog.po   = po;
         mog.pr   = po;
         mog.lb   = lb;
         mog.mg_w = ones([1 K1]);
-                 
-        dat(n1).mog = mog;        
-        
-        fn = spm_mb_io('GetData',dat(n1).f);
-        fn = reshape(fn,[prod(df(1:3)) C]);
-        fn = spm_mb_appearance('Mask',fn,dat(n1).is_ct);
-        
-        % Make mean close to val
-        val = 1e3*ones(1,C);                        
-        dc  = zeros(1,C);
-        for c=1:C
-            msk   = isfinite(fn(:,c));
-            dc(c) = val(c)./mean(fn(msk,c));
+
+        for n=1:Nct   
+            n1          = ix_ct(n);        
+            dat(n1).mog = mog;
         end
-        dc = log(dc);
-        
-        
-        % Get bias field parameterisation struct
-        chan         = spm_mb_appearance('BiasFieldStruct',dat(n1),C,df,reg,fwhm,dc);
-        dat(n1).bf.T = {chan(:).T};
-    end    
+    end
+
+    % Run on all MRI subjects
+    dat(ix_mri1) = InitGMM(dat(ix_mri1),sett);
+
+    if ~isempty(ix_mri2)
+        Nmri = numel(ix_mri2);
+
+        b  = zeros(1,K1) + 0.01;
+        nu = ones(1,K1);
+
+        for n=1:Nmri   
+
+            n1    = ix_mri2(n);       
+            [df,C] = spm_mb_io('GetSize',dat(n1).f);
+
+            po       = struct('m',ones(C,K1),'b',b,'W',repmat(eye(C),[1 1 K1])/C,'n',C*nu);      
+            mog.po   = po;
+            mog.pr   = po;
+            mog.lb   = lb;
+            mog.mg_w = ones([1 K1]);
+
+            dat(n1).mog = mog;        
+
+            fn = spm_mb_io('GetData',dat(n1).f);
+            fn = reshape(fn,[prod(df(1:3)) C]);
+            fn = spm_mb_appearance('Mask',fn,dat(n1).is_ct);
+
+            % Make mean close to val
+            val = 1e3*ones(1,C);                        
+            dc  = zeros(1,C);
+            for c=1:C
+                msk   = isfinite(fn(:,c));
+                dc(c) = val(c)./mean(fn(msk,c));
+            end
+            dc = log(dc);
+
+
+            % Get bias field parameterisation struct
+            chan         = spm_mb_appearance('BiasFieldStruct',dat(n1),C,df,reg,fwhm,dc);
+            dat(n1).bf.T = {chan(:).T};
+        end    
+    end
 end
 
 if K1 < Kmg
@@ -432,10 +479,10 @@ end
 
 %==========================================================================
 % Update()
-function [zn,datn] = Update(datn,mun0,sett)
+function [datn,zn] = Update(datn,mun0,sett)
 % Update appearance model for a single subject (GMM & bias field)
 %
-% FORMAT [zn,datn] = Update(datn,mun0,sett)
+% FORMAT [datn,zn] = Update(datn,mun0,sett)
 % datn - Structure holding data for a single subject
 % mun0 - Log template
 % sett - Structure of settings
@@ -452,6 +499,7 @@ nit_lsbf     = sett.optim.nls_bf;
 reg          = sett.bf.reg;
 samp         = sett.gen.samp;
 tol_gmm      = sett.appear.tol_gmm;
+scal_bf      = sett.optim.scal_bf;
 
 % Parameters
 [df,C]     = spm_mb_io('GetSize',datn.f);
@@ -467,20 +515,20 @@ mg_w         = datn.mog.mg_w;
 % Get image data
 fn = spm_mb_io('GetData',datn.f);
 
-% Store template voxels for where there are no observations in the image
-% data. These values will be used at the end of this function to fill in
-% responsibilities with NaNs.
-[~,msk_allmiss] = GetNumVoxObserved(fn,is_ct);
-bg_mun          = zeros([nnz(msk_allmiss) K],'single');
-for k=1:K
-    kbg_mun     = mun0(:,:,:,k);
-    kbg_mun     = kbg_mun(msk_allmiss);
-    bg_mun(:,k) = kbg_mun;
-end
-clear kbg_mun
-bg_mun = spm_mb_shape('TemplateK1',bg_mun,2);
-bg_mun = exp(bg_mun);
-bg_mun = bg_mun(:,1:end - 1);
+% % Store template voxels for where there are no observations in the image
+% % data. These values will be used at the end of this function to fill in
+% % responsibilities with NaNs.
+% [~,msk_allmiss] = GetNumVoxObserved(fn,is_ct);
+% bg_mun          = zeros([nnz(msk_allmiss) K],'single');
+% for k=1:K
+%     kbg_mun     = mun0(:,:,:,k);
+%     kbg_mun     = kbg_mun(msk_allmiss);
+%     bg_mun(:,k) = kbg_mun;
+% end
+% clear kbg_mun
+% bg_mun = spm_mb_shape('TemplateK1',bg_mun,2);
+% bg_mun = exp(bg_mun);
+% bg_mun = bg_mun(:,1:end - 1);
 
 % Get amount to jitter by
 jitter = spm_mb_io('GetScale',datn.f,sett);
@@ -503,11 +551,13 @@ lb = datn.mog.lb;
 
 if samp > 1
     % Subsample (runs faster, lower bound is corrected by scl_samp)
-    % Image data
-    nvx_full = GetNumVoxObserved(fn,is_ct);  % get number of obseved voxels in input image(s)
-    [fn,d]   = SubSample(fn,Mn,samp);        
-    nvx_samp = GetNumVoxObserved(fn,is_ct);  % get number of obseved voxels in subsampled image(s)  
-    scl_samp = nvx_full/nvx_samp;            % get voxel ratio between original and subsamped image(s)
+    
+    % Image data        
+    nobs0    = GetNumObsVox(fn,is_ct,4);
+    [fn,d]   = SubSample(fn,Mn,samp);            
+    nobs1    = GetNumObsVox(fn,is_ct,4);
+    scl_samp = nobs0/nobs1; % get voxel ratio between original and subsamped image(s)
+    
     % Template
     mun = SubSample(mun0,Mn,samp);      
     mun = reshape(mun,[prod(d(1:3)) K]);        
@@ -681,7 +731,7 @@ for it_appear=1:nit_appear
                 clear H gr
 
                 % Line-search
-                armijo = 1;        
+                armijo = scal_bf;        
                 oT     = chan(c).T;  
                 opr_bf = pr_bf;
                 olxb   = lxb;   
@@ -744,60 +794,6 @@ for it_appear=1:nit_appear
 end
 clear fn bf mun
 
-if samp > 1
-    % Compute responsibilities on original data
-    fn = spm_mb_io('GetData',datn.f);
-    fn = reshape(fn,[prod(df(1:3)) C]);
-    fn = Mask(fn,is_ct);
-    
-    % Bias field
-    if any(do_bf == true)
-        % Get full-sized bias field
-        chan = BiasFieldStruct(datn,C,df,reg,fwhm,[],datn.bf.T);
-        bf   = BiasField(chan,df);
-        bffn = bf.*fn;
-        clear bf
-    else
-        bffn = fn;
-    end
-    clear fn
-    [bffn,code_image,msk_chn] = spm_gmm_lib('obs2cell', bffn);    
-
-    % Template
-    mun0 = reshape(mun0,[prod(df(1:3)) K]);
-    mun0 = spm_mb_shape('TemplateK1',mun0,2);
-    
-    % Integrate labels and multiple Gaussians per tissue
-    labels = GetLabels(datn,sett);    
-    mun0   = mun0 + labels;
-    clear labels
-    mun0   = mun0(:,mg_ix);
-    mun0   = mun0 + log(mg_w);    
-    
-    % Compute full-size resps
-    mun0 = spm_gmm_lib('obs2cell', mun0, code_image, false);            
-    zn   = Responsibility(m,b,W,n,bffn,mun0,msk_chn); 
-    clear mun0
-end       
-zn = spm_gmm_lib('cell2obs', zn, code_image, msk_chn);
-
-% Get K1 - 1 classes resp
-zn = zn(:,mg_ix <= K);
-
-% If using multiple Gaussians per tissue, collapse so that zn is of
-% size K
-if size(zn,2) > K
-    for k=1:K, zn(:,k) = sum(zn(:,mg_ix==k),2); end
-    zn(:,K + 1:end)    = [];
-end
-
-% Fill in resps with no observations using template
-for k=1:K, zn(msk_allmiss,k) = bg_mun(:,k); end
-clear bg_mun msk_zn
-
-% Make 4D
-zn = reshape(zn,[df(1:3) K]);
-
 % Update datn     
 datn.E(1)     = -lb.sum(end);
 datn.mog.po.m = m;
@@ -805,20 +801,106 @@ datn.mog.po.b = b;
 datn.mog.po.W = W;
 datn.mog.po.n = n;          
 datn.mog.lb   = lb;  
-datn.mog.mg_w   = mg_w;
+datn.mog.mg_w = mg_w;
+
+if nargout > 1
+    % Compute full size resps
+    
+    if samp > 1
+        % Compute responsibilities on original data
+        fn = spm_mb_io('GetData',datn.f);
+        fn = reshape(fn,[prod(df(1:3)) C]);
+        fn = Mask(fn,is_ct);
+
+        % Bias field
+        if any(do_bf == true)
+            % Get full-sized bias field
+            chan = BiasFieldStruct(datn,C,df,reg,fwhm,[],datn.bf.T);
+            bf   = BiasField(chan,df);
+            bffn = bf.*fn;
+            clear bf
+        else
+            bffn = fn;
+        end
+        clear fn
+        [bffn,code_image,msk_chn] = spm_gmm_lib('obs2cell', bffn);    
+
+        % Template
+        mun0 = reshape(mun0,[prod(df(1:3)) K]);
+        mun0 = spm_mb_shape('TemplateK1',mun0,2);
+
+        % Integrate labels and multiple Gaussians per tissue
+        labels = GetLabels(datn,sett);    
+        mun0   = mun0 + labels;
+        clear labels
+        mun0   = mun0(:,mg_ix);
+        mun0   = mun0 + log(mg_w);    
+
+        % Compute full-size resps
+        mun0 = spm_gmm_lib('obs2cell', mun0, code_image, false);            
+        zn   = Responsibility(m,b,W,n,bffn,mun0,msk_chn); 
+        clear mun0
+    end       
+    zn = spm_gmm_lib('cell2obs', zn, code_image, msk_chn);
+
+    % Get K1 - 1 classes resp
+    zn = zn(:,mg_ix <= K);
+
+    % If using multiple Gaussians per tissue, collapse so that zn is of
+    % size K
+    if size(zn,2) > K
+        for k=1:K, zn(:,k) = sum(zn(:,mg_ix==k),2); end
+        zn(:,K + 1:end)    = [];
+    end
+
+    % % Fill in resps with no observations using template
+    % for k=1:K, zn(msk_allmiss,k) = bg_mun(:,k); end
+    % clear bg_mun msk_zn
+
+    % Make 4D
+    zn = reshape(zn,[df(1:3) K]);
+end
+end
+%==========================================================================
+
+%==========================================================================
+% UpdateAllGMMs()
+function dat = UpdateAllGMMs(dat, mu0, sett)
+
+% Parse function settings
+B     = sett.registr.B;
+Mmu   = sett.var.Mmu;
+mu_bg = sett.model.mu_bg;
+
+for n=1:numel(dat)
+    
+    % Warp template to subject
+    df  = spm_mb_io('GetSize',dat(n).f);
+    q   = double(dat(n).q);
+    Mn  = dat(n).Mat;
+    psi = spm_mb_shape('Compose',spm_mb_io('GetData',dat(n).psi),spm_mb_shape('Affine',df, Mmu\spm_dexpm(q,B)*Mn));
+    mu  = spm_mb_shape('Pull1',mu0,psi,mu_bg);
+    clear psi
+    
+    % Update GMM parameters
+    dat(n) = Update(dat(n),mu,sett);
+end
 end
 %==========================================================================
 
 %==========================================================================
 % UpdatePrior()
-function dat = UpdatePrior(dat, sett, add_po_observation)
-if nargin < 3, add_po_observation = false; end
+function dat = UpdatePrior(dat, mu, sett, add_po_observation)
+if nargin < 4, add_po_observation = false; end
 
 if ~sett.do.updt_int,      return; end
 if ~isfield(dat(1),'mog'), return; end
 
 % Parse function settings
 mg_ix = sett.model.mg_ix;
+
+% Make sure we use the latest GMM parameters
+dat = UpdateAllGMMs(dat, mu, sett);
 
 % Get population indices
 p_ix = GetPopulationIdx(dat);
@@ -1901,9 +1983,10 @@ if ~isempty(mu)
     [MU,~,b,W,n]  = spm_gmm_lib('UpdateClusters', SS0, SS1, SS2, {po.m,po.b,po.W,po.n});
     
     po.m = MU;
-    po.b = b;
-    po.n = n;
-    po.W = W;
+    po.b = b;%zeros(1,K1) + 0.01;
+%     A    = po.W.*reshape(po.n,[1 1 K1]);
+    po.n = n;%C*ones(1,K1);    
+    po.W = W;%A/C;
 end
 
 if 0

@@ -12,7 +12,7 @@ function varargout = spm_mb_shape(varargin)
 % FORMAT sett          = spm_mb_shape('MuValOutsideFOV',mu,sett);
 % FORMAT a1            = spm_mb_shape('Pull1',a0,psi,bg,r)
 % FORMAT [f1,w1]       = spm_mb_shape('Push1',f,psi,d,r,bg)
-% FORMAT [dat,mu]      = spm_mb_shape('PropagateTemplate',dat,mu,sett)
+% FORMAT [dat,mu]      = spm_mb_shape('PropagateTemplate',dat,mu,sz,sett)
 % FORMAT sd            = spm_mb_shape('SampDens',Mmu,Mn)
 % FORMAT mu1           = spm_mb_shape('ShrinkTemplate',mu,oMmu,sett)
 % FORMAT P             = spm_mb_shape('Softmax',mu,dr)
@@ -430,34 +430,34 @@ end
 
 %==========================================================================
 % PropagateTemplate()
-function [dat,mu] = PropagateTemplate(dat,mu,sett)
+function [dat,mu] = PropagateTemplate(dat,mu,sz,sett)
 
 % Parse function settings
-samp_mx = sett.gen.samp_mx;
+nit_init_mu = sett.nit.init_mu;
 
 % Partion CT and MR images
 [ix_ct,ix_mri1,ix_mri2] = spm_mb_io('GetCTandMRI',dat,sett);
 
 if ~isempty(ix_ct) || ~isempty(ix_mri2)    
     
-    sett.gen.samp = min(max(vxmu(1),numel(sz)),samp_mx);
+    sett.gen.samp = numel(sz); % coarse-to-fine sampling of observed data
     
     for it=1:nit_init_mu
         [mu,dat(ix_mri1)] = spm_mb_shape('UpdateMean',dat(ix_mri1), mu, sett);
-        dat(ix_mri1)      = spm_mb_appearance('UpdatePrior',dat(ix_mri1), sett);
+        dat(ix_mri1)      = spm_mb_appearance('UpdatePrior',dat(ix_mri1), mu, sett);
     end
     
     if ~isempty(ix_mri2)
         for it=1:nit_init_mu
             [mu,dat([ix_mri1 ix_mri2])] = spm_mb_shape('UpdateMean',dat([ix_mri1 ix_mri2]), mu, sett);
-            dat([ix_mri1 ix_mri2])      = spm_mb_appearance('UpdatePrior',dat([ix_mri1 ix_mri2]), sett);
+            dat([ix_mri1 ix_mri2])      = spm_mb_appearance('UpdatePrior',dat([ix_mri1 ix_mri2]), mu, sett);
         end
     end
     
     if isempty(ix_mri2) && ~isempty(ix_ct)
         for it=1:nit_init_mu
             [mu,dat([ix_mri1 ix_ct])] = spm_mb_shape('UpdateMean',dat([ix_mri1 ix_ct]), mu, sett);
-            dat([ix_mri1 ix_ct])      = spm_mb_appearance('UpdatePrior',dat([ix_mri1 ix_ct]), sett);
+            dat([ix_mri1 ix_ct])      = spm_mb_appearance('UpdatePrior',dat([ix_mri1 ix_ct]), mu, sett);
         end
     end
 end
@@ -1337,7 +1337,7 @@ H         = w.*H0;
 clear a w
 
 u0        = spm_diffeo('vel2mom', v, v_settings);                          % Initial momentum
-datn.E(2) = 0.5*sum(u0(:).*v(:));                                          % Prior term
+% datn.E(2) = 0.5*sum(u0(:).*v(:));                                          % Prior term
 v         = v - scal*spm_diffeo('fmg',H, g + u0, [v_settings s_settings]); % Gauss-Newton update
 
 if d(3)==1, v(:,:,:,3) = 0; end % If 2D

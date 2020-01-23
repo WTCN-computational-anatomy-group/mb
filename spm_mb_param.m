@@ -126,7 +126,7 @@ end
 if ~isfield(sett.do,'mu_bg')
     % Should voxels outside the FOV of the template, when warped to subject
     % space, be replaced? (only when using an already learned template)
-    sett.do.mu_bg = true;
+    sett.do.mu_bg = false;
 end
 if ~isfield(sett.do,'updt_aff')
     sett.do.updt_aff = true;
@@ -170,7 +170,7 @@ if ~isfield(sett.gen,'samp')
     sett.gen.samp = 3;
 end
 if ~isfield(sett.gen,'samp_mx')
-    sett.gen.samp_mx = 4;
+    sett.gen.samp_mx = 1;
 end
 
 %------------------
@@ -246,11 +246,11 @@ if ~isfield(sett.nit,'gmm')
 end
 if ~isfield(sett.nit,'init')
     % The number of iterations, for init rigid alignment.
-    sett.nit.init = 12;
+    sett.nit.init = 16;
 end
 if ~isfield(sett.nit,'init_mu')
     % The number of template update iterations
-    sett.nit.init_mu = 3;
+    sett.nit.init_mu = 2;
 end
 if ~isfield(sett.nit,'miss')   
     sett.nit.gmm_miss = 32;
@@ -271,6 +271,10 @@ if ~isfield(sett,'optim')
 end
 if ~isfield(sett.optim,'nls_bf')
     sett.optim.nls_bf = 1;
+end
+if ~isfield(sett.optim,'scal_bf')
+     % Scaling of bf GN updates
+    sett.optim.scal_bf = 1.0;
 end
 if ~isfield(sett.optim,'scal_q')
      % Scaling of q GN updates

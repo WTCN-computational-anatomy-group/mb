@@ -280,19 +280,19 @@ for n=1:nd
         fn = reshape(fn,[prod(df(1:3)) C]);
         fn = spm_mb_appearance('Mask',fn,is_ct);
         
-        % Store template voxels for where there are no observations in the image
-        % data. These values will be used at the end of this function to fill in
-        % responsibilities with NaNs.
-        msk_allmiss = all(isnan(fn),2);
-        bg_mun      = zeros([nnz(msk_allmiss) K],'single');
-        for k=1:K
-            kbg_mun     = mun(:,:,:,k);
-            kbg_mun     = kbg_mun(msk_allmiss);
-            bg_mun(:,k) = kbg_mun;
-        end
-        clear kbg_mun
-        bg_mun = spm_mb_shape('TemplateK1',bg_mun,2);
-        bg_mun = exp(bg_mun);
+%         % Store template voxels for where there are no observations in the image
+%         % data. These values will be used at the end of this function to fill in
+%         % responsibilities with NaNs.
+%         msk_allmiss = all(isnan(fn),2);
+%         bg_mun      = zeros([nnz(msk_allmiss) K],'single');
+%         for k=1:K
+%             kbg_mun     = mun(:,:,:,k);
+%             kbg_mun     = kbg_mun(msk_allmiss);
+%             bg_mun(:,k) = kbg_mun;
+%         end
+%         clear kbg_mun
+%         bg_mun = spm_mb_shape('TemplateK1',bg_mun,2);
+%         bg_mun = exp(bg_mun);
 
         % Get template (K + 1)
         mun = spm_mb_shape('TemplateK1',mun,4);
@@ -322,9 +322,9 @@ for n=1:nd
             zn(:,K1 + 1:end)    = [];
         end
         
-        % Fill in resps with no observations using template
-        for k=1:K1, zn(msk_allmiss,k) = bg_mun(:,k); end
-        clear bg_mun msk_zn
+%         % Fill in resps with no observations using template
+%         for k=1:K1, zn(msk_allmiss,k) = bg_mun(:,k); end
+%         clear bg_mun msk_zn
         
         % Reshape back
         zn  = reshape(zn,[df(1:3) K1]);
@@ -373,10 +373,10 @@ for n=1:nd
         set(0, 'CurrentFigure', fg);   
 
         % Affine parameters    
-        q    = spm_imatrix(Mr);            
-        q    = q([1 2 6]);
-        q(3) = 180/pi*q(3);
-        q    = abs(q);
+        q      = spm_imatrix(Mr);            
+        q      = q(1:6);
+        q(4:6) = 180/pi*q(4:6);
+        q      = abs(q);
         sp = subplot(nr_par,nd,n);
         cla(sp); % clear subplot
         hold on
