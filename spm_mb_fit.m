@@ -209,6 +209,8 @@ Objective = [];
 te        = 0;
 if do_updt_template, te = spm_mb_shape('TemplateEnergy',mu,sett); end
 
+E  = inf(1,3);
+oE = E;
 if do_updt_aff    
 %------------------
 % Update affine only
@@ -218,8 +220,6 @@ spm_mb_show('Speak','Affine',sett);
 
 sett.gen.samp = numel(sz); % coarse-to-fine sampling of observed data
 
-E  = inf(1,3);
-oE = E;
 for it=1:nit_aff
 
     t = tic; % Start timer
