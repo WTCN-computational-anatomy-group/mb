@@ -239,6 +239,9 @@ Np = numel(unique(ix_pop_mri));
 ix_mri1 = ix_mri2(ix_pop_mri == ix_init);
 ix_mri2 = ix_mri2(ix_pop_mri ~= ix_init);
 
+% ix_mri1 = [ix_mri1 ix_mri2];
+% ix_mri2 = [];
+
 end
 %==========================================================================
 

@@ -169,9 +169,6 @@ end
 if ~isfield(sett.gen,'samp')
     sett.gen.samp = 3;
 end
-if ~isfield(sett.gen,'samp_mx')
-    sett.gen.samp_mx = 1;
-end
 
 %------------------
 % .labels (label related)
@@ -227,6 +224,9 @@ end
 if ~isfield(sett.model,'vx')    
     sett.model.vx = 1;    
 end
+if ~isfield(sett.model,'tol')    
+    sett.model.tol = 1e-4;    
+end
 
 %------------------
 % .nit (iteration related)
@@ -250,7 +250,7 @@ if ~isfield(sett.nit,'init')
 end
 if ~isfield(sett.nit,'init_mu')
     % The number of template update iterations
-    sett.nit.init_mu = 2;
+    sett.nit.init_mu = 3;
 end
 if ~isfield(sett.nit,'miss')   
     sett.nit.gmm_miss = 32;
@@ -259,7 +259,7 @@ if ~isfield(sett.nit,'zm')
     % The number of iterations, for updating all model parameters, at each zoom
     % level. The final zoom level uses sett.nit.zm iterations, while
     % earlier zoom levels use sett.nit.zm + zoom_level.
-    sett.nit.zm = 3;
+    sett.nit.zm = 4;
 end
 
 %------------------

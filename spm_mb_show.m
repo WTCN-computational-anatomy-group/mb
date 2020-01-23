@@ -7,6 +7,7 @@ function varargout = spm_mb_show(varargin)
 % FORMAT spm_mb_show('All',dat,mu,Objective,N,sett)
 % FORMAT spm_mb_show('IntensityPrior',dat,sett,p)
 % FORMAT spm_mb_show('Model',mu,Objective,N,sett)
+% FORMAT spm_mb_show('PrintProgress',it,E,oE,t,done,sett)
 % FORMAT spm_mb_show('Subjects',dat,mu,sett,p,show_extras)
 % FORMAT spm_mb_show('Tissues',im,do_softmax,num_montage,perm,fig_nam)
 % FORMAT spm_mb_show('Speak',nam,sett,varargin)
@@ -28,7 +29,9 @@ switch id
     case 'IntensityPrior'
         [varargout{1:nargout}] = IntensityPrior(varargin{:});         
     case 'Model'
-        [varargout{1:nargout}] = Model(varargin{:});          
+        [varargout{1:nargout}] = Model(varargin{:});  
+    case 'PrintProgress'
+        [varargout{1:nargout}] = PrintProgress(varargin{:});  
     case 'Subjects'
         [varargout{1:nargout}] = Subjects(varargin{:});         
     case 'Tissues'
@@ -166,12 +169,12 @@ switch nam
         fprintf('%s\n',s1)
         fprintf('%s\n',s0)
         fprintf('%s\n\n',s1)
-    case 'InitAff'
-        fprintf('Optimising parameters at largest zoom level (nit = %i)\n',nit)
-    case 'Iter'
+    case 'Affine'
+        fprintf('\nOptimising affine at largest zoom level (max nit = %i)\n',nit)
+    case 'AffineDiffeo'
         nzm = varargin{1}; 
         
-        fprintf('Optimising parameters at decreasing zoom levels (nzm = %i)\n',nzm)        
+        fprintf('\nOptimising affine+diffeo at decreasing zoom levels (nzm = %i)\n',nzm)        
     case 'Start'
         N = varargin{1};
         K = varargin{2};        
@@ -180,7 +183,7 @@ switch nam
         s1 = sprintf('%s',repmat('=',[1 numel(s0)]));
         fprintf('%s\n',s1)
         fprintf('%s\n',s0)
-        fprintf('%s\n\n',s1)
+        fprintf('%s\n',s1)
     otherwise
         error('Unknown input!')
 end
@@ -492,6 +495,57 @@ for n=1:nd
     end
 end
 drawnow
+end
+%==========================================================================
+
+%==========================================================================
+% PrintProgress()
+function PrintProgress(it,E,oE,t,done,sett)
+
+% Parse function settings
+print2screen = sett.show.print2screen;
+tol          = sett.model.tol;
+
+if ~print2screen, return; end
+
+% Iteration
+s = '';
+if numel(it) == 1
+    s = sprintf('%sit=%2i  ',s,it);
+else
+    s = sprintf('%szm=%2i  ',s,it(1));
+    s = sprintf('%sit=%2i  ',s,it(2));
+end
+s = sprintf('%s| ',s);
+
+% Objective function
+d           = diff(fliplr([oE(end) E]));
+pm          = blanks(numel(d));
+pm(d >  0)  = '+';
+pm(d <  0)  = '-';
+pm(d == 0)  = '=';
+
+for i=1:numel(E)
+    s = sprintf('%sE%i=%0.2f (%s)  ',s,i,E(i),pm(i));
+end
+s = sprintf('%s| ',s);
+
+% Convergence
+if done == 0 || ~isfinite(done)
+    s = sprintf('%sn/a%s ',s,blanks(10));
+else
+    s = sprintf('%soE-E=%0.6f ',s,done);
+end
+s = sprintf('%s| ',s);
+
+% Time and done
+if done ~= 0 && isfinite(done) && done < tol
+    s = sprintf('%st=%0.1f s | done!\n',s,t);
+else
+    s = sprintf('%st=%0.1f s\n',s,t);
+end
+
+fprintf(s);
 end
 %==========================================================================
 
