@@ -173,7 +173,7 @@ spm_mb_show('All',dat,mu,[],N,sett);
 Objective = [];
 te        = 0;
 if updt_mu, te = spm_mb_shape('TemplateEnergy',mu,sett); end
-E         = inf(1,sum([updt_mu updt_intpr updt_aff])); % For tracking objfun
+E         = inf(1,sum([updt_mu, updt_intpr, updt_aff])); % For tracking objfun
 oE        = E;
 
 if updt_aff    
@@ -243,7 +243,7 @@ end
 
 spm_mb_show('Speak','AffineDiffeo',sett,numel(sz)); 
 
-E  = [E(1) inf(1,sum([(updt_aff + updt_diff)*updt_mu (updt_aff + updt_diff)*updt_intpr updt_aff updt_diff]) - 1)]; % For tracking objfun
+E  = [E(1) inf(1,sum([(updt_aff + updt_diff)*updt_mu, (updt_aff + updt_diff)*updt_intpr, updt_aff, updt_diff]) - 1)]; % For tracking objfun
 oE = E;
 
 for zm=numel(sz):-1:1 % loop over zoom levels
