@@ -542,7 +542,7 @@ s = sprintf('%s| ',s);
 
 % Time and done
 if done ~= 0 && isfinite(done) && done < tol
-    s = sprintf('%st=%0.1f s | done!\n',s,t);
+    s = sprintf('%st=%0.1f s | converged!\n',s,t);
 else
     s = sprintf('%st=%0.1f s\n',s,t);
 end
