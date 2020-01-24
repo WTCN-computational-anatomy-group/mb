@@ -638,7 +638,7 @@ groupwise = sett.model.groupwise;
 
 % Update the affine parameters
 if ~isempty(B)
-    for n=1:numel(dat)
+    for n=1:numel(dat) % PARFOR
         dat(n) = UpdateAffinesSub(dat(n),mu,sett);
     end
 
@@ -666,7 +666,7 @@ g  = spm_field('vel2mom', mu, mu_settings);
 M  = size(mu,4);
 H  = zeros([sett.var.d M*(M+1)/2],'single');
 H0 = AppearanceHessian(mu,accel);
-for n=1:numel(dat)
+for n=1:numel(dat) % PARFOR
     [gn,Hn,dat(n)] = UpdateMeanSub(dat(n),mu,H0,sett);
     g              = g + gn;
     H              = H + Hn;
@@ -716,7 +716,7 @@ s_settings  = sett.shoot.s_settings;
 
 w  = zeros(sett.var.d,'single');
 gf = zeros(size(mu),'single');
-for n=1:numel(dat)
+for n=1:numel(dat) % PARFOR
     [gn,wn,dat(n)] = UpdateSimpleMeanSub(dat(n),mu,sett);
     gf             = gf + gn;
     w              = w  + wn;
@@ -743,7 +743,7 @@ if size(G,3) == 1
     % Data is 2D -> add some regularisation
     H0(:,:,:,3) = H0(:,:,:,3) + mean(reshape(H0(:,:,:,[1 2]),[],1));
 end
-for n=1:numel(dat)
+for n=1:numel(dat) % PARFOR
     dat(n) = UpdateVelocitiesSub(dat(n),mu,G,H0,sett);
 end
 end
@@ -760,7 +760,7 @@ v_settings = sett.var.v_settings;
 if groupwise
     % Total initial velocity should be zero (Khan & Beg)
     avg_v = single(0);
-    for n=1:numel(dat)
+    for n=1:numel(dat) % PARFOR
         avg_v = avg_v + spm_mb_io('GetData',dat(n).v); % For mean correcting initial velocities
     end
     avg_v = avg_v/numel(dat);
@@ -770,7 +770,7 @@ else
     d     = spm_mb_io('GetSize',dat(1).v);
 end
 kernel = Shoot(d,v_settings);
-for n=1:numel(dat)
+for n=1:numel(dat) % PARFOR
     dat(n) = UpdateWarpsSub(dat(n),avg_v,sett,kernel);
 end
 end
@@ -783,7 +783,7 @@ function dat = VelocityEnergy(dat,sett)
 % Parse function settings
 v_settings = sett.var.v_settings;
 
-for n=1:numel(dat)
+for n=1:numel(dat) % PARFOR
     v           = spm_mb_io('GetData',dat(n).v);
     u0          = spm_diffeo('vel2mom', v, v_settings); % Initial momentum
     dat(n).E(2) = 0.5*sum(u0(:).*v(:));                 % Prior term
@@ -809,7 +809,7 @@ z     = single(reshape(d./d0,[1 1 1 3]));
 Mzoom = oMmu\Mmu;
 y     = reshape(reshape(Identity(d),[prod(d),3])*Mzoom(1:3,1:3)' + Mzoom(1:3,4)',[d 3]);
 if nargout > 1, mu = spm_diffeo('pullc',mu,y); end % only resize template if updating it
-for n=1:numel(dat)
+for n=1:numel(dat) % PARFOR
     v          = spm_mb_io('GetData',dat(n).v);
     v          = spm_diffeo('pullc',v,y).*z;
     dat(n).v   = ResizeFile(dat(n).v  ,d,Mmu);
