@@ -190,14 +190,14 @@ if ~isfield(sett,'model')
     sett.model = struct;
 end
 if ~isfield(sett.model,'crop_mu')
-    sett.model.crop_mu  = true;
+    sett.model.crop_mu = false;
 end
 if ~isfield(sett.model,'groupwise')
     sett.model.groupwise = false;
 end
 if ~isfield(sett.model,'init_mu_dm')
     % Minimum dimensions of template
-    sett.model.init_mu_dm = 8;    
+    sett.model.init_mu_dm = 16;    
 end
 if ~isfield(sett.model,'ix_init_pop')
     % Index of population to use for initialising, then more than one
