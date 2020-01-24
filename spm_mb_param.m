@@ -181,6 +181,9 @@ end
 if ~isfield(sett.labels,'w')    
     sett.labels.w  = 0.99;
 end
+if ~isfield(sett.labels,'use_initgmm')    
+    sett.labels.use_initgmm  = true;
+end
 
 %------------------
 % .model (model related)

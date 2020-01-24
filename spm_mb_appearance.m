@@ -1237,13 +1237,14 @@ function dat = InitGMM(dat,sett)
 % bias field model. These parameters are estimated by this function.
 
 % Parse function settings
-dmu    = sett.dmu;
-K      = sett.model.K;
-Mmu    = sett.Mmu;     
-fwhm   = sett.bf.fwhm;
-reg    = sett.bf.reg;
-fignam = sett.show.figname_gmm;
-figs   = sett.show.figs;
+dmu     = sett.dmu;
+K       = sett.model.K;
+Mmu     = sett.Mmu;     
+fwhm    = sett.bf.fwhm;
+reg     = sett.bf.reg;
+fignam  = sett.show.figname_gmm;
+figs    = sett.show.figs;
+use_lab = sett.labels.use_initgmm;
 
 % Parameters
 tol     = 1e-4;  % Convergence tolerance
@@ -1373,7 +1374,7 @@ for n=1:N % Loop over subjects
         
         % Deal with (possible) labels
         l1 = spm_mb_appearance('GetLabels',dat(n1),sett);            
-        if size(l1,1) > 1
+        if use_lab && size(l1,1) > 1
             labels_given = true;
             
             l1      = reshape(l1,[df K1]);
