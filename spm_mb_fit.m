@@ -192,7 +192,7 @@ for it0=1:nit_aff
     
     if updt_mu
         % UPDATE: mean    
-        for it1=1:nit_mu  
+        for it1=1:max(nit_mu - 1,1)
             [mu,dat] = spm_mb_shape('UpdateMean',dat, mu, sett); oE(i) = E(i);
             E(i)     = sum(sum(cat(2,dat.E),2),1) + te; % Cost function after previos update         
             if updt_mu, te = spm_mb_shape('TemplateEnergy',mu,sett); end  
@@ -243,7 +243,7 @@ end
 
 spm_mb_show('Speak','AffineDiffeo',sett,numel(sz)); 
 
-E  = [E(1) inf(1,sum([2*updt_mu 2*updt_intpr updt_aff updt_diff]) - 1)]; % For tracking objfun
+E  = [E(1) inf(1,sum([(updt_aff + updt_diff)*updt_mu (updt_aff + updt_diff)*updt_intpr updt_aff updt_diff]) - 1)]; % For tracking objfun
 oE = E;
 
 for zm=numel(sz):-1:1 % loop over zoom levels
@@ -254,14 +254,14 @@ for zm=numel(sz):-1:1 % loop over zoom levels
         mu = spm_mb_shape('ShrinkTemplate',mu0,Mmu,sett);
     end    
         
-    nit_zm = nit_zm0 + (zm - 1);
+    nit_zm = nit_zm0 + (zm - 1); % use nit_zm0 only for zm = 1
     for it0=1:nit_zm
 
         t = tic; % Start timer
         i = 1;   % For tracking objfun
         
-        if updt_mu
-            if ~(it0 == 1 && zm == numel(sz))
+        if updt_diff && updt_mu
+            if ~(it0 == 1 && zm == numel(sz)) || ~updt_aff
                 % UPDATE: mean    
                 for it1=1:nit_mu  
                     [mu,dat] = spm_mb_shape('UpdateMean',dat, mu, sett); oE(i) = E(i);
@@ -280,7 +280,7 @@ for zm=numel(sz):-1:1 % loop over zoom levels
             break;
         end    
     
-        if do_gmm && updt_intpr
+        if updt_diff && do_gmm && updt_intpr
             % UPDATE: intensity prior
             dat  = spm_mb_appearance('UpdatePrior',dat, mu, sett); oE(i) = E(i);
             E(i) = sum(sum(cat(2,dat.E),2),1) + te; i = i + 1; % Cost function after previos update    
@@ -292,9 +292,9 @@ for zm=numel(sz):-1:1 % loop over zoom levels
             E(i) = sum(sum(cat(2,dat.E),2),1) + te; i = i + 1; % Cost function after previos update
         end
         
-        if updt_mu
+        if updt_aff && updt_mu
             % UPDATE: mean    
-            for it1=1:nit_mu  
+            for it1=1:max(nit_mu - 1,1) % one less iteration for affine than diffeo
                 [mu,dat] = spm_mb_shape('UpdateMean',dat, mu, sett); oE(i) = E(i);
                 E(i)     = sum(sum(cat(2,dat.E),2),1) + te; % Cost function after previos update         
                 if updt_mu, te = spm_mb_shape('TemplateEnergy',mu,sett); end  
@@ -302,7 +302,7 @@ for zm=numel(sz):-1:1 % loop over zoom levels
             i = i + 1;
         end
         
-        if do_gmm && updt_intpr
+        if updt_aff && do_gmm && updt_intpr
             % UPDATE: intensity prior
             dat  = spm_mb_appearance('UpdatePrior',dat, mu, sett); oE(i) = E(i);
             E(i) = sum(sum(cat(2,dat.E),2),1) + te; i = i + 1; % Cost function after previos update    
