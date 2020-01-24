@@ -366,7 +366,7 @@ for n=1:nd
         if isfield(dat,'mog') && any(do_bf == true)
             % Show bias field
             ShowIm(fn(:,:,:,c),ax,nr_bf,nd,n,fig_name_bf,false,is_ct);
-            ShowIm(bf(:,:,:,c),ax,nr_bf,nd,n + nd,fig_name_bf,false,is_ct);            
+            ShowIm(bf(:,:,:,c),ax,nr_bf,nd,n + nd,fig_name_bf,false);            
             ShowIm(bf(:,:,:,c).*fn(:,:,:,c),ax,nr_bf,nd,n + 2*nd,fig_name_bf,false,is_ct);
         end
 
