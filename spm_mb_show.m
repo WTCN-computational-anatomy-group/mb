@@ -519,14 +519,16 @@ end
 s = sprintf('%s| ',s);
 
 % Objective function
-d           = diff(fliplr([oE(end) E]));
+d           = diff([oE(end) E]);
 pm          = blanks(numel(d));
 pm(d >  0)  = '+';
 pm(d <  0)  = '-';
 pm(d == 0)  = '=';
 
 for i=1:numel(E)
-    s = sprintf('%sE%i=%0.2f (%s)  ',s,i,E(i),pm(i));
+    if isfinite(E(i)), s = sprintf('%sE%i=%0.2f (%s)  ',s,i,E(i),pm(i));
+    else,              s = sprintf('%sE%i=n/a%s (%s)  ',s,i,blanks(7),' ');
+    end
 end
 s = sprintf('%s| ',s);
 

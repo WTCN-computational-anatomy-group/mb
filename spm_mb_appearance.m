@@ -893,9 +893,6 @@ end
 function dat = UpdatePrior(dat, mu, sett, add_po_observation)
 if nargin < 4, add_po_observation = false; end
 
-if ~sett.do.updt_int,      return; end
-if ~isfield(dat(1),'mog'), return; end
-
 % Parse function settings
 mg_ix = sett.model.mg_ix;
 

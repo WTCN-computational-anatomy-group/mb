@@ -577,11 +577,8 @@ end
 function dat = UpdateAffines(dat,mu,sett)
 
 % Parse function settings
-B           = sett.registr.B;
-do_updt_aff = sett.do.updt_aff;
-groupwise   = sett.model.groupwise;
-
-if ~do_updt_aff, return; end
+B         = sett.registr.B;
+groupwise = sett.model.groupwise;
 
 % Update the affine parameters
 if ~isempty(B)
@@ -605,12 +602,9 @@ end
 function [mu,dat] = UpdateMean(dat, mu, sett)
 
 % Parse function settings
-accel            = sett.gen.accel;
-do_updt_template = sett.do.updt_template;
-mu_settings      = sett.var.mu_settings;
-s_settings       = sett.shoot.s_settings;
-
-if ~do_updt_template, return; end
+accel       = sett.gen.accel;
+mu_settings = sett.var.mu_settings;
+s_settings  = sett.shoot.s_settings;
 
 g  = spm_field('vel2mom', mu, mu_settings);
 M  = size(mu,4);
@@ -631,12 +625,9 @@ end
 function dat = UpdateSimpleAffines(dat,mu,sett)
 
 % Parse function settings
-accel       = sett.gen.accel;
-B           = sett.registr.B;
-do_updt_aff = sett.do.updt_aff;
-groupwise   = sett.model.groupwise;
-
-if ~do_updt_aff, return; end
+accel     = sett.gen.accel;
+B         = sett.registr.B;
+groupwise = sett.model.groupwise;
 
 % Update the affine parameters
 G  = spm_diffeo('grad',mu);
@@ -688,10 +679,7 @@ end
 function dat = UpdateVelocities(dat,mu,sett)
 
 % Parse function settings
-accel       = sett.gen.accel;
-do_updt_vel = sett.do.updt_vel;
-
-if ~do_updt_vel, return; end
+accel = sett.gen.accel;
 
 G  = spm_diffeo('grad',mu);
 H0 = VelocityHessian(mu,G,accel);
