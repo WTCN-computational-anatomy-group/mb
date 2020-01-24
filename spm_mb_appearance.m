@@ -1713,6 +1713,9 @@ for it=1:nit
     end
 end
 
+% Set NaNs to zero
+dc(~isfinite(dc)) = 0;
+
 if verbose > 0
     % Visualise
     f  = findobj('Type', 'Figure', 'Name', fignam);
