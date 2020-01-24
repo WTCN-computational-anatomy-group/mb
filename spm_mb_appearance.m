@@ -1324,7 +1324,9 @@ clear r x1 x2 x3
 F = cell(1,N); % holds imaging data
 L = cell(1,N); % holds possible label data
 for n=1:N, L{n} = zeros([K1 1],'single'); end
-labels_present = false;
+
+labels_given = false;
+
 for n=1:N % Loop over subjects
     
     fn    = NaN([C Nvx],'single');    
@@ -1372,7 +1374,7 @@ for n=1:N % Loop over subjects
         % Deal with (possible) labels
         l1 = spm_mb_appearance('GetLabels',dat(n1),sett);            
         if size(l1,1) > 1
-            labels_present = true;
+            labels_given = true;
             
             l1      = reshape(l1,[df K1]);
             l1      = spm_diffeo('pull',l1,yf);
@@ -1424,7 +1426,7 @@ end
 % Init GMM parameters
 gam = ones(1,K1)./K1;
 
-if labels_present
+if labels_given
     mu = rand(C,K1).*(mx + mn); 
 else
     mu = zeros(C,K1);
