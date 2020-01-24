@@ -13,6 +13,7 @@ function varargout = spm_mb_shape(varargin)
 % FORMAT a1            = spm_mb_shape('Pull1',a0,psi,bg,r)
 % FORMAT [f1,w1]       = spm_mb_shape('Push1',f,psi,d,r,bg)
 % FORMAT [dat,mu]      = spm_mb_shape('PropagateTemplate',dat,mu,sz,sett)
+% FORMAT dat           = spm_mb_shape('RigidAlignTemplate',dat,model,sett)
 % FORMAT sd            = spm_mb_shape('SampDens',Mmu,Mn)
 % FORMAT mu1           = spm_mb_shape('ShrinkTemplate',mu,oMmu,sett)
 % FORMAT P             = spm_mb_shape('Softmax',mu,dr)
@@ -58,6 +59,8 @@ switch id
         [varargout{1:nargout}] = Push1(varargin{:});    
     case 'PropagateTemplate'
         [varargout{1:nargout}] = PropagateTemplate(varargin{:});            
+    case 'RigidAlignTemplate'
+        [varargout{1:nargout}] = RigidAlignTemplate(varargin{:});         
     case 'SampDens'
         [varargout{1:nargout}] = SampDens(varargin{:});
     case 'ShrinkTemplate'
@@ -438,7 +441,7 @@ nit_init_mu = sett.nit.init_mu;
 % Partion CT and MR images
 [ix_ct,ix_mri1,ix_mri2] = spm_mb_io('GetCTandMRI',dat,sett);
 
-if ~isempty(ix_ct) || ~isempty(ix_mri2)    
+if ~isempty(ix_mri1) && (~isempty(ix_ct) || ~isempty(ix_mri2))
     
     sett.gen.samp = numel(sz); % coarse-to-fine sampling of observed data
     
@@ -461,6 +464,59 @@ if ~isempty(ix_ct) || ~isempty(ix_mri2)
         end
     end
 end
+end
+%==========================================================================
+
+%==========================================================================
+% RigidAlignTemplate()
+function dat = RigidAlignTemplate(dat,model,sett)
+
+% Write softmaxed template
+pth_mu    = model.shape.template;
+
+pth_mu_sm = '/scratch/Results/diffeo-segment/20200120-K11-T1w/mu_softmax_spm_mb.nii';
+
+% Load softmaxed template
+Vmu   = spm_vol(pth_mu_sm);
+mu_sm = spm_load_priors8(Vmu);    
+
+N = numel(dat);
+for n=1:N % loop over subjects
+    % Image params
+    Vn = spm_vol(dat(n).f(1).dat.fname);
+    Vn = Vn(1);
+    Mn = dat(n).f(1).mat;
+    
+    % Register atlas to image to get get R (so that Mmu\R*Mf)    
+    c             = (Vn.dim+1)/2;
+    Vn.mat(1:3,4) = -Mn(1:3,1:3)*c(:);
+    [Affine1,ll1] = spm_maff8(Vn,8,(0+1)*16,mu_sm,[],'mni'); % Closer to rigid
+    Affine1       = Affine1*(Vn.mat/Mn);
+
+    % Run using the origin from the header
+    Vn.mat        = Mn;
+    [Affine2,ll2] = spm_maff8(Vn,8,(0+1)*16,mu_sm,[],'mni'); % Closer to rigid
+
+    % Pick the result with the best fit
+    if ll1>ll2, R = Affine1; else R  = Affine2; end
+
+    % Fit final
+    R = spm_maff8(dat(n).f(1).dat.fname,8,32,mu_sm,R,'mni');
+    R = spm_maff8(dat(n).f(1).dat.fname,8,1,mu_sm,R,'mni');
+
+    % Get best fit in Lie space
+    e  = eig(R);
+    if isreal(e) && any(e<=0), disp('Possible problem!'); disp(eig(R)); end
+    B1 = reshape(sett.registr.B,[16 size(sett.registr.B,3)]);    
+    q  = B1\reshape(real(logm(R)),[16 1]);
+
+    % Update rigid parameters
+    dat(n).q = q;
+end
+
+% Delete softmaxed template
+delete(pth_mu_sm);
+
 end
 %==========================================================================
 

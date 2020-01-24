@@ -3,7 +3,7 @@ function varargout = spm_mb_param(varargin)
 %
 % Functions for settings and parameters related.
 %
-% FORMAT [sett,template_given,appear_given] = spm_mb_param('SetFit',model,sett)
+% FORMAT [template_given,appear_given,sett] = spm_mb_param('SetFit',model,sett)
 % FORMAT sett                               = spm_mb_param('Settings')
 % FORMAT sz                                 = spm_mb_param('ZoomSettings',d, Mmu, v_settings, mu_settings, n)
 %
@@ -32,7 +32,7 @@ end
 
 %==========================================================================
 % SetFit()
-function [sett,template_given,appear_given] = SetFit(model,sett)
+function [template_given,appear_given,sett] = SetFit(model,sett)
 
 template_given = (isfield(model,'shape') && isfield(model.shape,'template'));
 appear_given   = isfield(model,'appear');

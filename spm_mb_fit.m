@@ -56,15 +56,15 @@ updt_aff     = sett.do.updt_aff;
 
 spm_mb_show('Clear',sett); % Clear figures
 
-NumSubj = numel(data); % Total number of subjects
+N = numel(data); % Total number of subjects
 
 %------------------
 % Decide what to learn
 %------------------
 
-[sett,template_given] = spm_mb_param('SetFit',model,sett);
-updt_intpr            = sett.do.updt_int;
-updt_mu               = sett.do.updt_template;
+[template_given,~,sett] = spm_mb_param('SetFit',model,sett);
+updt_intpr              = sett.do.updt_int;
+updt_mu                 = sett.do.updt_template;
 
 %------------------
 % Init dat
@@ -128,43 +128,9 @@ sett.var = spm_mb_io('CopyFields',sz(end), sett.var);
 
 dat = spm_mb_shape('InitDef',dat,sett);
 
-%------------------
-% Initial alignment of mean
-%------------------
-
 if template_given  
-    % TODO: Refactor into its own function and remove hardcoding
-    for n=1:NumSubj
-        % Image params
-        Vf = spm_vol(dat(n).f(1).dat.fname);
-        Mn = dat(n).f(1).mat;
-
-        % Register atlas to image to get get R (so that Mmu\R*Mf)
-        mu               = spm_load_priors8(spm_vol('/scratch/Results/diffeo-segment/20200120-K11-T1w/mu_softmax_spm_mb.nii'));    
-        c                = (Vf(1).dim+1)/2;
-        Vf(1).mat(1:3,4) = -Mn(1:3,1:3)*c(:);
-        [Affine1,ll1]    = spm_maff8(Vf(1),8,(0+1)*16,mu,[],'mni'); % Closer to rigid
-        Affine1          = Affine1*(Vf(1).mat/Mn);
-
-        % Run using the origin from the header
-        Vf(1).mat     = Mn;
-        [Affine2,ll2] = spm_maff8(Vf(1),8,(0+1)*16,mu,[],'mni'); % Closer to rigid
-
-        % Pick the result with the best fit
-        if ll1>ll2, R  = Affine1; else R  = Affine2; end
-
-        % Fit final
-        R = spm_maff8(dat(n).f(1).dat.fname,8,32,mu,R,'mni');
-        R = spm_maff8(dat(n).f(1).dat.fname,8,1,mu,R,'mni');
-        
-        e  = eig(R);
-        if isreal(e) && any(e<=0), disp('Possible problem!'); disp(eig(R)); end
-        B1 = reshape(sett.registr.B,[16 size(sett.registr.B,3)]);
-        % B1 = reshape(B,[16 size(B,3)]);
-        q  = B1\reshape(real(logm(R)),[16 1]);
-        
-        dat(n).q = q;
-    end
+    % Align template by a quick, rough rigid registration
+    dat = spm_mb_shape('RigidAlignTemplate',dat,sett);
 end
 
 %------------------
@@ -173,7 +139,7 @@ end
 
 [dat,sett] = spm_mb_appearance('Init',dat,model,K,sett);
 
-spm_mb_show('Speak','Start',sett,NumSubj,K);
+spm_mb_show('Speak','Start',sett,N,K);
 
 %------------------
 % Init template
@@ -187,7 +153,7 @@ else
     mu = zeros([sett.var.d K],'single');
     
     % Show stuff
-    spm_mb_show('All',dat,mu,[],NumSubj,sett);
+    spm_mb_show('All',dat,mu,[],N,sett);
 
     % Init template with one population then use that template to init GMM
     % parameters of other populations
@@ -198,7 +164,7 @@ end
 spm_mb_io('SaveTemplate',dat,mu,sett);
         
 % Show stuff
-spm_mb_show('All',dat,mu,[],NumSubj,sett);
+spm_mb_show('All',dat,mu,[],N,sett);
 
 %------------------
 % Start algorithm
@@ -256,7 +222,7 @@ for it0=1:nit_aff
     spm_mb_show('PrintProgress',it0,E,oE,toc(t),done,sett);  
     
     % If 2D, show stuff    
-    if dmu(3) == 1, spm_mb_show('All',dat,mu,Objective,NumSubj,sett); end
+    if dmu(3) == 1, spm_mb_show('All',dat,mu,Objective,N,sett); end
 end            
 
 if write_ws && (updt_mu || updt_intpr)
@@ -268,7 +234,7 @@ end
 spm_mb_io('SaveTemplate',dat,mu,sett);  
     
 % Show stuff
-spm_mb_show('All',dat,mu,Objective,NumSubj,sett);
+spm_mb_show('All',dat,mu,Objective,N,sett);
 end
 
 %------------------
@@ -356,12 +322,12 @@ for zm=numel(sz):-1:1 % loop over zoom levels
         spm_mb_show('PrintProgress',[zm it0],E,oE,toc(t),done,sett);
         
         % If 2D, show stuff
-        if dmu(3) == 1, spm_mb_show('All',dat,mu,Objective,NumSubj,sett); end 
+        if dmu(3) == 1, spm_mb_show('All',dat,mu,Objective,N,sett); end 
     end              
     if print2screen, fprintf('\n'); end
     
     % Show stuff
-    spm_mb_show('All',dat,mu,Objective,NumSubj,sett);             
+    spm_mb_show('All',dat,mu,Objective,N,sett);             
     
     if zm > 1
         oMmu     = sett.var.Mmu;

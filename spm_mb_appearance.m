@@ -227,25 +227,20 @@ end
 function [dat,sett] = Init(dat,model,K,sett)
 
 % Parse function settings
-do_gmm  = sett.do.gmm;
-ix_init = sett.model.ix_init_pop;
-mg_ix   = sett.model.mg_ix;
-fwhm    = sett.bf.fwhm;
-reg     = sett.bf.reg;
-
+do_gmm = sett.do.gmm;
+mg_ix  = sett.model.mg_ix;
+fwhm   = sett.bf.fwhm;
+reg    = sett.bf.reg;
 
 if ~do_gmm, return; end
 
 % Get parameters
-p_ix = spm_mb_appearance('GetPopulationIdx',dat);
-Np   = numel(p_ix);
-N    = numel(dat);
-Kmg  = numel(mg_ix);
-K1   = K + 1;
+N   = numel(dat);
+Kmg = numel(mg_ix);
+K1  = K + 1;
 
 % What model parameters were given?
-appear_given   = isfield(model,'appear');
-template_given = (isfield(model,'shape') && isfield(model.shape,'template'));
+[template_given,appear_given] = spm_mb_param('SetFit',model,sett);
 if appear_given
     % Set mg_ix to mg_ix that was used when learning intensity model
     if isfield(model.appear,'mg_ix'), mg_ix = model.appear.mg_ix;
@@ -256,13 +251,12 @@ end
 
 % Lower bound struct
 lb  = struct('sum', NaN, 'X', [], 'XB', [], 'Z', [], 'P', [], 'MU', [], ...
-                 'A', [], 'pr_v', [], 'pr_bf',[]);
+             'A', [], 'pr_v', [], 'pr_bf',[]);
              
-% Get template
 if template_given
-    mu = spm_mb_io('GetData',model.shape.template);                    
-    
     % Build a weigthed mean (w_mu) that can be used to initi bias field DC scaling
+    mu = spm_mb_io('GetData',model.shape.template);                    
+        
     w_mu = spm_mb_shape('TemplateK1',mu,4);
     w_mu = exp(w_mu);
     w_mu = sum(sum(sum(w_mu,1),2),3);
@@ -275,7 +269,11 @@ else
 end
 
 if appear_given && template_given    
-             
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    
+    % TODO
+    %------------------------------------------------------------     
+    
+    % TODO
     pr = model.appear.pr;
     dc = w_mu.*pr.m;    
     dc = sum(dc,2); 
@@ -318,85 +316,95 @@ if appear_given && template_given
         dat(n).mog = mog;                        
     end
 else
-    
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    
+    % TODO
+    %------------------------------------------------------------
+
+    % TODO
     [ix_ct,ix_mri1,ix_mri2] = spm_mb_io('GetCTandMRI',dat,sett);
 
-    if ~isempty(ix_ct)
-        % Init CT subjects    
-        Nct = numel(ix_ct);
-        mx  = 3000;
-        mu  = zeros([1 K1]);
-        Sig = diag((mx/K1).^2).*ones([1,1,K1]);
+    if ~isempty(ix_ct) && (isempty(ix_mri1) && isempty(ix_mri2))
+        % TODO
+        
+        dat(ix_ct) = InitGMM(dat(ix_ct),sett);
+    else
+        % TODO
+        
+        if ~isempty(ix_ct)
+            % Init CT subjects    
+            Nct = numel(ix_ct);
+            mx  = 3000;
+            mu  = zeros([1 K1]);
+            Sig = diag((mx/K1).^2).*ones([1,1,K1]);
 
-        % Compute precision
-        W                    = zeros(size(Sig));
-        for k=1:K1, W(:,:,k) = inv(Sig(:,:,k)); end
+            % Compute precision
+            W                    = zeros(size(Sig));
+            for k=1:K1, W(:,:,k) = inv(Sig(:,:,k)); end
 
-        b  = zeros(1,K1) + 0.01;
-        nu = ones(1,K1);
+            b  = zeros(1,K1) + 0.01;
+            nu = ones(1,K1);
 
-        po       = struct('m',mu,'b',b,'W',W,'n',nu);      
-        mog.po   = po;
-        mog.pr   = po;
-        mog.lb   = lb;
-        mog.mg_w = ones([1 K1]);
-
-        for n=1:Nct   
-            n1          = ix_ct(n);        
-            dat(n1).mog = mog;
-        end
-    end
-
-    % Run on all MRI subjects
-    dat(ix_mri1) = InitGMM(dat(ix_mri1),sett);
-
-    if ~isempty(ix_mri2)
-        Nmri = numel(ix_mri2);
-
-        b  = zeros(1,K1) + 0.01;
-        nu = ones(1,K1);
-
-        for n=1:Nmri   
-
-            n1    = ix_mri2(n);       
-            [df,C] = spm_mb_io('GetSize',dat(n1).f);
-
-            po       = struct('m',ones(C,K1),'b',b,'W',repmat(eye(C),[1 1 K1])/C,'n',C*nu);      
+            po       = struct('m',mu,'b',b,'W',W,'n',nu);      
             mog.po   = po;
             mog.pr   = po;
             mog.lb   = lb;
             mog.mg_w = ones([1 K1]);
 
-            dat(n1).mog = mog;        
-
-            fn = spm_mb_io('GetData',dat(n1).f);
-            fn = reshape(fn,[prod(df(1:3)) C]);
-            fn = spm_mb_appearance('Mask',fn,dat(n1).is_ct);
-
-            % Make mean close to val
-            val = 1e3*ones(1,C);                        
-            dc  = zeros(1,C);
-            for c=1:C
-                msk   = isfinite(fn(:,c));
-                dc(c) = val(c)./mean(fn(msk,c));
+            for n=1:Nct   
+                n1          = ix_ct(n);        
+                dat(n1).mog = mog;
             end
-            dc = log(dc);
+        end
 
+        % Run on all MRI subjects
+        dat(ix_mri1) = InitGMM(dat(ix_mri1),sett);
 
-            % Get bias field parameterisation struct
-            chan         = spm_mb_appearance('BiasFieldStruct',dat(n1),C,df,reg,fwhm,dc);
-            dat(n1).bf.T = {chan(:).T};
-        end    
+        if ~isempty(ix_mri2)
+            % TODO
+            
+            Nmri = numel(ix_mri2);
+
+            b  = zeros(1,K1) + 0.01;
+            nu = ones(1,K1);
+
+            for n=1:Nmri   
+
+                n1    = ix_mri2(n);       
+                [df,C] = spm_mb_io('GetSize',dat(n1).f);
+
+                po       = struct('m',ones(C,K1),'b',b,'W',repmat(eye(C),[1 1 K1])/C,'n',C*nu);      
+                mog.po   = po;
+                mog.pr   = po;
+                mog.lb   = lb;
+                mog.mg_w = ones([1 K1]);
+
+                dat(n1).mog = mog;        
+
+                fn = spm_mb_io('GetData',dat(n1).f);
+                fn = reshape(fn,[prod(df(1:3)) C]);
+                fn = spm_mb_appearance('Mask',fn,dat(n1).is_ct);
+
+                % Make mean close to val
+                val = 1e3*ones(1,C);                        
+                dc  = zeros(1,C);
+                for c=1:C
+                    msk   = isfinite(fn(:,c));
+                    dc(c) = val(c)./mean(fn(msk,c));
+                end
+                dc = log(dc);
+
+                % Get bias field parameterisation struct
+                chan         = spm_mb_appearance('BiasFieldStruct',dat(n1),C,df,reg,fwhm,dc);
+                dat(n1).bf.T = {chan(:).T};
+            end    
+        end
     end
 end
 
-if K1 < Kmg
-    
-    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    
-    % Modify posteriors and priors for when using multiple Gaussians per
-    % tissue
-    %------------------------------------------------------------
-    
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    
+% Modify posteriors and priors, if using multiple Gaussians per tissue
+%------------------------------------------------------------
+if K1 < Kmg            
     for n=1:N              
         is_ct = dat(n).is_ct;
         
@@ -423,26 +431,6 @@ if K1 < Kmg
         dat(n).mog.mg_w   = ones(1,Kmg)./arrayfun(@(x) sum(x == mg_ix), mg_ix);
     end
 end
-
-% % Init over populations
-% for p=1:Np
-%     datn = dat(p_ix{p});
-%     
-%     % Load prior if given
-%     if appear_given, pr = model.appear.pr(num2str(datn(1).ix_pop));
-%     else,            pr = [];
-%     end
-%     
-%     % If init population (given by sett.model.ix_init_pop), should InitGMM
-%     % function be used to initialise GMM parameters and bias field scaling?
-%     % Not used if CT, multi-channel data, or template given.
-%     if datn(1).ix_pop == ix_init, use_initgmm = ~template_given && N > 1;
-%     else,                         use_initgmm = false;
-%     end
-%     
-%     % Do init for population(s) defined by p_ix
-%     dat(p_ix{p}) = InitPopulation(datn,mu,pr,K,use_initgmm,w_mu,mg_ix,sett);
-% end
 end
 %==========================================================================
 
@@ -1354,11 +1342,11 @@ for n=1:N % Loop over subjects
         % Parameters
         n1      = pop_ix{c}(n);
         [df,C1] = spm_mb_io('GetSize',dat(n1).f);
-%         is_ct   = dat(n1).is_ct;  
+        is_ct   = dat(n1).is_ct;  
         
         % Get image data
         f1 = spm_mb_io('GetData',dat(n1).f);        
-%         if any(is_ct == true), f1(f1 < -1020 | f1 > 3000) = 0; end
+        if any(is_ct == true), f1(f1 < -1020 | f1 > 3000) = 0; end
         
         % Move template space sample points to subject space        
         Mn = dat(n1).Mat;  
@@ -1370,17 +1358,16 @@ for n=1:N % Loop over subjects
         % Get sample of image(s)        
         f1 = spm_diffeo('pull',f1,yf);        
         f1 = reshape(f1,[Nvx C1]);          
+        
+        if ~is_ct
+            % Set leq to zero as NaN
+            f1(f1 <= 0) = NaN;
+        end
+    
         for c1=1:C1
             fn(cnt_c,:) = f1(:,c1);  
             cnt_c       = cnt_c + 1;
         end
-        
-%         r  = randperm(prod(df(1:3)),Nvx);
-%         f1 = reshape(f1,[prod(df(1:3)) C1]);
-%         for c1=1:C1
-%             fn(cnt_c,:) = f1(r,c1);  
-%             cnt_c       = cnt_c + 1;
-%         end
         
         % Deal with (possible) labels
         l1 = spm_mb_appearance('GetLabels',dat(n1),sett);            
@@ -1406,10 +1393,7 @@ for n=1:N % Loop over subjects
         L{n}              = L{n}./cnt_l;
         clear cnt_l
     end 
-    
-    % Set leq to zero as NaN
-    fn(fn <= 0) = NaN;
-    
+        
     % Add to F array
     F{n} = fn;     
 end
@@ -1417,11 +1401,14 @@ clear fn d1 mask l1 yf ymu
 
 % Init bias field DC component
 dc = zeros(C,N);
+mn = zeros(C,1);
 mx = zeros(C,1);
 for n=1:N % Loop over subjects
-    fn      = F{n};
-    mx      = max(mx,max(fn,[],2,'omitnan'));    
-    dc(:,n) = -log(mean(fn,2,'omitnan'));
+    fn         = F{n};
+    mn         = min(mn,min(fn,[],2,'omitnan'));    
+    mx         = max(mx,max(fn,[],2,'omitnan'));
+    fn(mn<0,:) = NaN; % For CT so to not optimise dc
+    dc(:,n)    = -log(mean(fn,2,'omitnan'));
 end
             
 % Make DC component zero mean, across N
@@ -1438,17 +1425,17 @@ end
 gam = ones(1,K1)./K1;
 
 if labels_present
-    mu = rand(C,K1).*mx; 
+    mu = rand(C,K1).*(mx + mn); 
 else
     mu = zeros(C,K1);
     for c=1:C
-        rng     = linspace(0,mx(c),K1);
+        rng     = linspace(mn(c),mx(c),K1);
         rng     = -sum(rng<0):sum(rng>=0) - 1;
         mu(c,:) = rng'*mx(c)/(1.0*K1);
     end    
 end
 
-Sig = diag((mx/(2*K1)).^2).*ones([1,1,K1]);
+Sig = diag(((mx + mn)/(2*K1)).^2).*ones([1,1,K1]);
 
 % Compute precision
 prec = zeros(size(Sig));
@@ -1494,7 +1481,7 @@ for it=1:nit
         nr  = floor(sqrt(2*C));
         nc  = ceil(2*C/nr);  
         for c=1:C        
-            x = linspace(0,mx(c),1000);
+            x = linspace(mn(c),mx(c),1000);
             p = 0;            
             subplot(nr,nc,c);        
             hold on
