@@ -228,7 +228,7 @@ for it0=1:nit_aff
         % UPDATE: mean    
         for it1=1:nit_mu  
             [mu,dat] = spm_mb_shape('UpdateMean',dat, mu, sett); oE(i) = E(i);
-            E(i)     = sum(sum(cat(2,dat.E),2),1) + te; % Cost function after rigid update         
+            E(i)     = sum(sum(cat(2,dat.E),2),1) + te; % Cost function after previos update         
             if updt_mu, te = spm_mb_shape('TemplateEnergy',mu,sett); end  
         end
         i = i + 1;
@@ -245,12 +245,12 @@ for it0=1:nit_aff
     if do_gmm && updt_intpr
         % UPDATE: intensity prior
         dat  = spm_mb_appearance('UpdatePrior',dat, mu, sett); oE(i) = E(i);
-        E(i) = sum(sum(cat(2,dat.E),2),1) + te;  i = i + 1; % Cost function after mean update
+        E(i) = sum(sum(cat(2,dat.E),2),1) + te;  i = i + 1; % Cost function after previos update
     end
         
     % UPDATE: rigid
     dat  = spm_mb_shape('UpdateSimpleAffines',dat,mu,sett); oE(i) = E(i);       
-    E(i) = sum(sum(cat(2,dat.E),2),1) + te; % Cost function after intensity prior update                    
+    E(i) = sum(sum(cat(2,dat.E),2),1) + te; % Cost function after previos update                    
     
     % Print to command window
     spm_mb_show('PrintProgress',it0,E,oE,toc(t),done,sett);  
@@ -279,6 +279,7 @@ spm_mb_show('Speak','AffineDiffeo',sett,numel(sz));
 
 E  = [E(1) inf(1,sum([2*updt_mu 2*updt_intpr updt_aff updt_diff]) - 1)]; % For tracking objfun
 oE = E;
+
 for zm=numel(sz):-1:1 % loop over zoom levels
     
     sett.gen.samp = zm; % coarse-to-fine sampling of observed data
@@ -298,7 +299,7 @@ for zm=numel(sz):-1:1 % loop over zoom levels
                 % UPDATE: mean    
                 for it1=1:nit_mu  
                     [mu,dat] = spm_mb_shape('UpdateMean',dat, mu, sett); oE(i) = E(i);
-                    E(i)     = sum(sum(cat(2,dat.E),2),1) + te; % Cost function after diffeo update         
+                    E(i)     = sum(sum(cat(2,dat.E),2),1) + te; % Cost function after previos update         
                     if updt_mu, te = spm_mb_shape('TemplateEnergy',mu,sett); end  
                 end            
             end        
@@ -316,20 +317,20 @@ for zm=numel(sz):-1:1 % loop over zoom levels
         if do_gmm && updt_intpr
             % UPDATE: intensity prior
             dat  = spm_mb_appearance('UpdatePrior',dat, mu, sett); oE(i) = E(i);
-            E(i) = sum(sum(cat(2,dat.E),2),1) + te; i = i + 1; % Cost function after mean update    
+            E(i) = sum(sum(cat(2,dat.E),2),1) + te; i = i + 1; % Cost function after previos update    
         end
         
         if updt_aff  
             % UPDATE: rigid
             dat  = spm_mb_shape('UpdateAffines',dat,mu,sett); oE(i) = E(i);
-            E(i) = sum(sum(cat(2,dat.E),2),1) + te; i = i + 1; % Cost function after intensity prior update
+            E(i) = sum(sum(cat(2,dat.E),2),1) + te; i = i + 1; % Cost function after previos update
         end
         
         if updt_mu
             % UPDATE: mean    
             for it1=1:nit_mu  
                 [mu,dat] = spm_mb_shape('UpdateMean',dat, mu, sett); oE(i) = E(i);
-                E(i)     = sum(sum(cat(2,dat.E),2),1) + te; % Cost function after rigid update         
+                E(i)     = sum(sum(cat(2,dat.E),2),1) + te; % Cost function after previos update         
                 if updt_mu, te = spm_mb_shape('TemplateEnergy',mu,sett); end  
             end
             i = i + 1;
@@ -338,13 +339,13 @@ for zm=numel(sz):-1:1 % loop over zoom levels
         if do_gmm && updt_intpr
             % UPDATE: intensity prior
             dat  = spm_mb_appearance('UpdatePrior',dat, mu, sett); oE(i) = E(i);
-            E(i) = sum(sum(cat(2,dat.E),2),1) + te; i = i + 1; % Cost function after mean update    
+            E(i) = sum(sum(cat(2,dat.E),2),1) + te; i = i + 1; % Cost function after previos update    
         end
         
         if updt_diff
             % UPDATE: diffeo        
             dat  = spm_mb_shape('UpdateVelocities',dat,mu,sett); oE(i) = E(i);                     
-            E(i) = sum(sum(cat(2,dat.E),2),1) + te; % Cost function after intensity prior update      
+            E(i) = sum(sum(cat(2,dat.E),2),1) + te; % Cost function after previos update      
             dat  = spm_mb_shape('VelocityEnergy',dat,sett);                                
 
             % Shoot new deformations
