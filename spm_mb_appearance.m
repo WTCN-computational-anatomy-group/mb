@@ -1383,10 +1383,18 @@ vxmu         = sqrt(sum(Mmu(1:3,1:3).^2));
 sk           = max([1 1 1],round(sampmu*[1 1 1]./vxmu));
 sk(dmu == 1) = 1; % defines sampling grid
 
-% Number of voxels to sample
-Nvx        = min(round(prod(dmu(1:3))/N), round(prod(dmu(1:3)./sk))); 
-r          = randperm(prod(dmu(1:3)),Nvx);
-[x1,x2,x3] = ind2sub(dmu(1:3),r(:)); % voxel indicies in template space
+% Number of voxels to sample, and what indices (defined in template space)
+crp_prct = 0.2; % to skip sampling to many air voxels, which are usually in the outer parts of the images
+dmu_crp  = ceil((1 - 2*crp_prct)*dmu);
+diff_mu  = ceil((dmu - dmu_crp)/2);
+Nvx      = min(round(prod(dmu_crp(1:3))/N), round(prod(dmu_crp(1:3)./sk)));
+r        = randperm(prod(dmu_crp(1:3)),Nvx);
+
+% Voxel indicies in template space
+[x1,x2,x3] = ind2sub(dmu(1:3),r(:)); % use full template dimensions
+x1         = x1 + diff_mu(1);        % then 'crop' according to 'crp_prct'
+x2         = x2 + diff_mu(2);
+x3         = x3 + diff_mu(3);
 ymu        = cat(2,single(x1),single(x2),single(x3),ones([Nvx 1],'single')); 
 clear r x1 x2 x3
 
