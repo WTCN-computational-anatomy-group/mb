@@ -1385,10 +1385,10 @@ sk           = max([1 1 1],round(sampmu*[1 1 1]./vxmu));
 sk(dmu == 1) = 1; % defines sampling grid
 
 % Number of voxels to sample, and what indices (defined in template space)
-crp_prct = 0.2; % to skip sampling to many air voxels, which are usually in the outer parts of the images
+crp_prct = 0.3; % to skip sampling to many air voxels, which are usually in the outer parts of the images
 dmu_crp  = ceil((1 - 2*crp_prct)*dmu);
 diff_mu  = ceil((dmu - dmu_crp)/2);
-Nvx      = min(round(prod(dmu_crp(1:3))/N), round(prod(dmu_crp(1:3)./sk)));
+Nvx      = min(round(prod(dmu(1:3))/N), round(prod(dmu(1:3)./sk)));
 r        = randperm(prod(dmu_crp(1:3)),Nvx);
 
 % Voxel indicies in template space
