@@ -1883,8 +1883,8 @@ for n=1:N
         po = struct('m',m,'b',b,'W',W,'n',nu);    
 
         mog.po      = po;
-%         mog.pr      = po;
-        mog.pr      = struct('m',repmat(mean(m,2),[1 K1]),'b',b,'W',repmat(mnico/C1,[1 1 K1]),'n',nu); % uninformative prior
+        mog.pr      = po;
+%         mog.pr      = struct('m',repmat(mean(m,2),[1 K1]),'b',b,'W',repmat(mnico/C1,[1 1 K1]),'n',nu); % uninformative prior
         mog.lb      = lb;
         mog.mg_w    = ones([1 K1]);
         dat(n1).mog = mog;
