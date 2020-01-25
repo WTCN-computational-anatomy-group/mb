@@ -135,6 +135,9 @@ end
 if ~sett.do.gmm
     sett.do.updt_int = false;
 end
+if ~isfield(sett.do,'updt_prop')
+    sett.do.updt_prop = true;
+end
 if ~isfield(sett.do,'updt_template')
     sett.do.updt_template = true;
 end
