@@ -1817,9 +1817,9 @@ if verbose > 0
             dcn(~isfinite(dcn)) = 0;   
         
             xn  = fnc.*exp(dcn);
-            x   = min(xn):20:max(xn);
+            x   = min(xn):max(xn);
             h   = hist(xn,x);
-            h   = h/sum(h)/20;
+            h   = h/sum(h);
             plot(x,h,'k.','MarkerSize',1);
             hold on
         end
