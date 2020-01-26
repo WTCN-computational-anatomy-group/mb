@@ -398,6 +398,13 @@ for n=1:N
     if numel(dat(n).do_bf) < C 
         dat(n).do_bf = repmat(dat(n).do_bf,[1 C]); 
     end
+
+    % Do rescale with bf dc
+    if isstruct(data(n)) && isfield(data(n),'do_dc') && ~isempty(data(n).do_dc)
+        dat(n).do_dc = data(n).do_dc;
+    else
+        dat(n).do_dc = true;        
+    end
     
     % Intensity prior index
     if isstruct(data(n)) && isfield(data(n),'ix_pop') && ~isempty(data(n).ix_pop)

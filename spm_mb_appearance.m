@@ -280,17 +280,22 @@ if appear_given && template_given
     
     for n=1:N
         [df,C] = spm_mb_io('GetSize',dat(n).f);
-    
+        do_dc  = dat(n).do_dc;
+        
         % Load image data
         fn = spm_mb_io('GetData',dat(n).f);
         fn = reshape(fn,[prod(df(1:3)) C]);
         fn = spm_mb_appearance('Mask',fn,dat(n).is_ct);
         
-        for c=1:C
-            msk   = isfinite(fn(:,c));
-            dc(c) = dc(c)./mean(fn(msk,c));
+        if do_dc
+            for c=1:C
+                msk   = isfinite(fn(:,c));
+                dc(c) = dc(c)./mean(fn(msk,c));
+            end
+            dc = log(dc);
+        else
+            dc = zeros([1 C]);
         end
-        dc = log(dc);
         
         if any(dat(n).do_bf == true)
             % Get bias field parameterisation struct
@@ -409,6 +414,7 @@ else
 
                 n1     = ix_mri2(n);       
                 [df,C] = spm_mb_io('GetSize',dat(n1).f);
+                do_dc  = dat(n1).do_dc;
 
                 po       = struct('m',ones(C,K1),'b',b,'W',repmat(eye(C),[1 1 K1])/C,'n',C*nu);      
                 mog.po   = po;
@@ -422,14 +428,19 @@ else
                 fn = reshape(fn,[prod(df(1:3)) C]);
                 fn = spm_mb_appearance('Mask',fn,dat(n1).is_ct);
 
+                
                 % Set bias field dc scaling
-                dc = ones(1,C);
-                for c=1:C
-                    msk   = isfinite(fn(:,c));
-                    dc(c) = dc(c)./mean(fn(msk,c));
+                if do_dc
+                    dc = ones(1,C);
+                    for c=1:C
+                        msk   = isfinite(fn(:,c));
+                        dc(c) = dc(c)./mean(fn(msk,c));
+                    end
+                    dc = -log(dc);
+                else
+                    dc = zeros(1,C);
                 end
-                dc = -log(dc);
-
+                
                 % Get bias field parameterisation struct
                 chan         = spm_mb_appearance('BiasFieldStruct',dat(n1),C,df,reg,fwhm,dc);
                 dat(n1).bf.T = {chan(:).T};
