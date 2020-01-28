@@ -115,7 +115,9 @@ else
     ICO   = sparse(1:length(ICO),1:length(ICO),ICO,length(ICO),length(ICO));
 end
     
-samp      = max([1 1 1],round(samp*[1 1 1]./vx));
+if any(samp > 1), samp = max([1 1 1],round(samp*[1 1 1]./vx));
+else,             samp = [1 1 1];
+end
 [x0,y0,~] = ndgrid(single(1:samp(1):df(1)),single(1:samp(2):df(2)),1);
 z0        = single(1:samp(3):df(3));
 
