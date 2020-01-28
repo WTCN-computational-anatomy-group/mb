@@ -458,7 +458,7 @@ end
 
 if do_updt_template
     % Shape related
-    f                    = fullfile(dir_res ,'mu_log_spm_mb.nii');
+    f                    = fullfile('mu_spm_mb.nii');
     model.shape.template = f;
 end
 
@@ -539,13 +539,13 @@ end
 if ~isempty(mu) && do_updt_template
     if write_mu(1)
         % Log
-        f        = fullfile(dir_res ,'mu_log_spm_mb.nii');
+        f        = fullfile(dir_res ,'mu_spm_mb.nii');
         fa       = file_array(f,size(mu),'float32',0);
         Nmu      = nifti;
         Nmu.dat  = fa;
         Nmu.mat  = Mmu;
         Nmu.mat0 = Mmu;
-        Nmu.descrip = 'Mean parameters (log)';
+        Nmu.descrip = 'Template';
         create(Nmu);
         Nmu.dat(:,:,:,:) = mu;
     end
@@ -561,7 +561,7 @@ if ~isempty(mu) && do_updt_template
         Nmu.dat  = fa;
         Nmu.mat  = Mmu;
         Nmu.mat0 = Mmu;
-        Nmu.descrip = 'Mean parameters (softmax)';
+        Nmu.descrip = 'Template (softmax)';
         create(Nmu);
         Nmu.dat(:,:,:,:) = mu;
     end
