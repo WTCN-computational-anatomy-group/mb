@@ -471,10 +471,28 @@ end
 % RigidAlignTemplate()
 function dat = RigidAlignTemplate(dat,model,sett)
 
-% Write softmaxed template
-pth_mu    = model.shape.template;
+% Parse function settings
+dir_res = sett.write.dir_res;
+Mmu     = sett.Mmu;
 
-pth_mu_sm = '/scratch/Results/diffeo-segment/20200120-K11-T1w/mu_softmax_spm_mb.nii';
+% Get template
+pth_mu = model.shape.template;
+mu_sm  = spm_mb_io('GetData',pth_mu);
+
+% Softmax   
+mu_sm = spm_mb_shape('TemplateK1',mu_sm,4);
+mu_sm = exp(mu_sm);    
+
+% Write softmaxed template
+pth_mu_sm        = fullfile(dir_res ,'mu_softmax_spm_mb.nii');        
+fa               = file_array(pth_mu_sm,size(mu_sm),'float32',0);
+Nmu              = nifti;
+Nmu.dat          = fa;
+Nmu.mat          = Mmu;
+Nmu.mat0         = Mmu;
+Nmu.descrip      = 'Mean parameters (softmax)';
+create(Nmu);
+Nmu.dat(:,:,:,:) = mu_sm;
 
 % Load softmaxed template
 Vmu   = spm_vol(pth_mu_sm);
