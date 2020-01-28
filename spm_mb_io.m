@@ -480,6 +480,28 @@ if do_updt_int && do_gmm
     end
 end
 
+% Add Git SHA to model
+folder_repo  = fileparts(mfilename('fullpath'));
+cmd          = ['cd ' folder_repo ' ; git rev-parse HEAD'];
+[status,sha] = system(cmd);
+if status == 0
+    % Store GIT ID (SHA) in model struct
+    model.info.git_sha = sha;
+else
+    % Not able to retrieve SHA
+    model.info.git_sha = 'unavailable';
+end
+
+% Add filenames of images used to build template
+fnames = {};
+for n=1:numel(dat)
+    if isa(dat(n).f(1),'nifti')
+        [~,nam,ext]     = fileparts(dat(n).f(1).dat.fname);
+        fnames{end + 1} = [nam ext];
+    end    
+end
+model.info.fnames = char(fnames);
+
 if write_model && (do_updt_template || do_updt_int)
     % Save model
     save(fullfile(dir_res,'model_spm_mb.mat'),'model')
