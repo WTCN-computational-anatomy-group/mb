@@ -1,15 +1,16 @@
-function [dat,model,sett] = spm_mb_fit(data,varargin)
+function [dat,mu,sett,model] = spm_mb_fit(data,varargin)
 % Multi-Brain - Groupwise normalisation and segmentation of images
 %
-% FORMAT [dat,model,sett] = spm_mb_fit(data,varargin)
+% FORMAT [dat,mu,sett,model] = spm_mb_fit(data,varargin)
 %
 % INPUT
 % data - input subjects data (see spm_mb_io('InitDat',data,sett))
 %
 % OUTPUT
 % dat                 - struct of length N storing each subject's information (see spm_mb_io('InitDat',data,sett))
-% model (inputParser) - struct storing shape and appearance model (see spm_mb_io('MakeModel',dat,model,sett))
+% mu                  - array with template data
 % sett  (inputParser) - struct storing final algorithm settings (see spm_mb_param('Settings'))
+% model (inputParser) - struct storing shape and appearance model (see spm_mb_io('MakeModel',dat,model,sett))
 %
 %__________________________________________________________________________
 %
@@ -19,11 +20,11 @@ function [dat,model,sett] = spm_mb_fit(data,varargin)
 % Parse input
 p              = inputParser;
 p.FunctionName = 'spm_mb_fit';
-p.addParameter('model', struct(), @isstruct);
-p.addParameter('sett',  struct(), @isstruct);
+p.addParameter('PthModel', '',       @ischar);
+p.addParameter('sett',     struct(), @isstruct);
 p.parse(varargin{:});
-model = p.Results.model;
-sett  = p.Results.sett;
+PthModel       = p.Results.PthModel;
+sett           = p.Results.sett;
 
 % Set boundary conditions and path
 spm_mb_io('SetBoundCond');
@@ -53,10 +54,17 @@ print2screen = sett.show.print2screen;
 tol          = sett.model.tol;
 updt_diff    = sett.do.updt_vel;
 updt_aff     = sett.do.updt_aff;
+samp_min     = sett.gen.samp_min;
 
 spm_mb_show('Clear',sett); % Clear figures
 
 N = numel(data); % Total number of subjects
+
+%------------------
+% Load model (if given)
+%------------------
+
+model = spm_mb_io('LoadModel',PthModel,sett);
 
 %------------------
 % Decide what to learn
@@ -83,9 +91,6 @@ if ~do_gmm, [~,K] = spm_mb_io('GetSize',dat(1).f); end
 if template_given
     [~,K]        = spm_mb_io('GetSize',model.shape.template);
     sett.model.K = K;
-end
-if isscalar(sett.model.mg_ix)
-    sett.model.mg_ix = repelem(1:K + 1,sett.model.mg_ix);
 end
 
 %------------------
@@ -130,7 +135,7 @@ dat = spm_mb_shape('InitDef',dat,sett);
 
 if template_given  
     % Align template by a quick, rough rigid registration
-    dat = spm_mb_shape('RigidAlignTemplate',dat,sett);
+    dat = spm_mb_shape('RigidAlignTemplate',dat,model,sett);
 end
 
 %------------------
@@ -190,42 +195,50 @@ for it0=1:nit_aff
     t = tic; % Start timer
     i = 1;   % For tracking objfun
     
+    if ~(updt_mu && it0 == 1)
+        % UPDATE: rigid
+        dat  = spm_mb_shape('UpdateSimpleAffines',dat,mu,sett); oE(i) = E(i);       
+        E(i) = sum(sum(cat(2,dat.E),2),1) + te; % Cost function after previous update         
+    end
+    i = i + 1;
+    
     if updt_mu
         % UPDATE: mean    
         for it1=1:max(nit_mu - 1,1)
             [mu,dat] = spm_mb_shape('UpdateMean',dat, mu, sett); oE(i) = E(i);
-            E(i)     = sum(sum(cat(2,dat.E),2),1) + te; % Cost function after previos update         
+            E(i)     = sum(sum(cat(2,dat.E),2),1) + te; % Cost function after previous update         
             if updt_mu, te = spm_mb_shape('TemplateEnergy',mu,sett); end  
         end
         i = i + 1;
     end
-             
-    % Check convergence
-    Objective = [Objective; E(1)]; 
-    done      = (oE(1) - E(1))/E(1);
-    if it0 > 1 && (done < tol || it0 == nit_aff) % Finished rigid alignment        
-        spm_mb_show('PrintProgress',it0,E,oE,toc(t),done,sett); % Print to command window 
-        break;
-    end                 
-
+                               
     if do_gmm && updt_intpr
         % UPDATE: intensity prior
         dat  = spm_mb_appearance('UpdatePrior',dat, mu, sett); oE(i) = E(i);
-        E(i) = sum(sum(cat(2,dat.E),2),1) + te;  i = i + 1; % Cost function after previos update
+        E(i) = sum(sum(cat(2,dat.E),2),1) + te; % Cost function after previous update
     end
-        
-    % UPDATE: rigid
-    dat  = spm_mb_shape('UpdateSimpleAffines',dat,mu,sett); oE(i) = E(i);       
-    E(i) = sum(sum(cat(2,dat.E),2),1) + te; % Cost function after previos update                    
+    
+    % Check convergence
+    ix_done   = min(numel(E),2);
+    Objective = [Objective, E]; 
+    done      = abs(oE(ix_done) - E(ix_done))/abs(E(ix_done));
     
     % Print to command window
     spm_mb_show('PrintProgress',it0,E,oE,toc(t),done,sett);  
     
     % If 2D, show stuff    
     if dmu(3) == 1, spm_mb_show('All',dat,mu,Objective,N,sett); end
+        
+    if do_gmm && it0 == 1
+        % Introduce multiple Gaussians per tissue
+        [dat,sett] = spm_mb_appearance('IntroduceMG',dat,sett);
+    end
+    
+    % Finished rigid alignment?
+    if done < tol, break; end        
 end            
 
-if write_ws && (updt_mu || updt_intpr)
+if write_ws
     % Save workspace (except template - saved as nifti separately) 
     save(fullfile(dir_res,'fit_spm_mb.mat'), '-regexp', '^(?!(mu)$).');
 end          
@@ -248,7 +261,7 @@ oE = E;
 
 for zm=numel(sz):-1:1 % loop over zoom levels
     
-    sett.gen.samp = zm; % coarse-to-fine sampling of observed data
+    sett.gen.samp = max(zm,samp_min); % coarse-to-fine sampling of observed data
     
     if template_given && ~updt_mu
         mu = spm_mb_shape('ShrinkTemplate',mu0,Mmu,sett);
@@ -259,70 +272,68 @@ for zm=numel(sz):-1:1 % loop over zoom levels
 
         t = tic; % Start timer
         i = 1;   % For tracking objfun
-        
-        if updt_diff && updt_mu
-            if ~(it0 == 1 && zm == numel(sz)) || ~updt_aff
-                % UPDATE: mean    
-                for it1=1:nit_mu  
-                    [mu,dat] = spm_mb_shape('UpdateMean',dat, mu, sett); oE(i) = E(i);
-                    E(i)     = sum(sum(cat(2,dat.E),2),1) + te; % Cost function after previos update         
-                    if updt_mu, te = spm_mb_shape('TemplateEnergy',mu,sett); end  
-                end            
-            end        
-            i = i + 1;
-        end
                         
-        % Check convergence
-        Objective = [Objective; E(1)]; 
-        done      = (oE(1) - E(1))/E(1);
-        if it0 > 1 && (done < tol || it0 == nit_zm) % Finished diffeo alignment            
-            spm_mb_show('PrintProgress',[zm it0],E,oE,toc(t),done,sett); % Print to command window
-            break;
-        end    
-    
-        if updt_diff && do_gmm && updt_intpr
-            % UPDATE: intensity prior
-            dat  = spm_mb_appearance('UpdatePrior',dat, mu, sett); oE(i) = E(i);
-            E(i) = sum(sum(cat(2,dat.E),2),1) + te; i = i + 1; % Cost function after previos update    
-        end
-        
-        if updt_aff  
-            % UPDATE: rigid
-            dat  = spm_mb_shape('UpdateAffines',dat,mu,sett); oE(i) = E(i);
-            E(i) = sum(sum(cat(2,dat.E),2),1) + te; i = i + 1; % Cost function after previos update
-        end
-        
-        if updt_aff && updt_mu
-            % UPDATE: mean    
-            for it1=1:max(nit_mu - 1,1) % one less iteration for affine than diffeo
-                [mu,dat] = spm_mb_shape('UpdateMean',dat, mu, sett); oE(i) = E(i);
-                E(i)     = sum(sum(cat(2,dat.E),2),1) + te; % Cost function after previos update         
-                if updt_mu, te = spm_mb_shape('TemplateEnergy',mu,sett); end  
-            end
-            i = i + 1;
-        end
-        
-        if updt_aff && do_gmm && updt_intpr
-            % UPDATE: intensity prior
-            dat  = spm_mb_appearance('UpdatePrior',dat, mu, sett); oE(i) = E(i);
-            E(i) = sum(sum(cat(2,dat.E),2),1) + te; i = i + 1; % Cost function after previos update    
-        end
-        
         if updt_diff
             % UPDATE: diffeo        
             dat  = spm_mb_shape('UpdateVelocities',dat,mu,sett); oE(i) = E(i);                     
-            E(i) = sum(sum(cat(2,dat.E),2),1) + te; % Cost function after previos update      
+            E(i) = sum(sum(cat(2,dat.E),2),1) + te; i = i + 1; % Cost function after previous update      
             dat  = spm_mb_shape('VelocityEnergy',dat,sett);                                
 
             % Shoot new deformations
             dat = spm_mb_shape('UpdateWarps',dat,sett);        
         end
         
-        % Print to command window
+        if updt_diff && updt_mu            
+            % UPDATE: mean    
+            for it1=1:nit_mu  
+                [mu,dat] = spm_mb_shape('UpdateMean',dat, mu, sett); oE(i) = E(i);
+                E(i)     = sum(sum(cat(2,dat.E),2),1) + te; % Cost function after previous update         
+                if updt_mu, te = spm_mb_shape('TemplateEnergy',mu,sett); end  
+            end             
+            i = i + 1; 
+        end
+                            
+        if updt_diff && do_gmm && updt_intpr
+            % UPDATE: intensity prior
+            dat  = spm_mb_appearance('UpdatePrior',dat, mu, sett); oE(i) = E(i);
+            E(i) = sum(sum(cat(2,dat.E),2),1) + te; i = i + 1;  % Cost function after previous update    
+        end                
+        
+        if updt_aff  
+            % UPDATE: rigid
+            dat  = spm_mb_shape('UpdateAffines',dat,mu,sett); oE(i) = E(i);
+            E(i) = sum(sum(cat(2,dat.E),2),1) + te; i = i + 1; % Cost function after previous update
+        end
+
+        if updt_aff && updt_mu
+            % UPDATE: mean    
+            for it1=1:max(nit_mu - 1,1) % one less iteration for affine than diffeo
+                [mu,dat] = spm_mb_shape('UpdateMean',dat, mu, sett); oE(i) = E(i);
+                E(i)     = sum(sum(cat(2,dat.E),2),1) + te; % Cost function after previous update         
+                if updt_mu, te = spm_mb_shape('TemplateEnergy',mu,sett); end  
+            end
+            i = i + 1;
+        end
+
+        if updt_aff && do_gmm && updt_intpr
+            % UPDATE: intensity prior
+            dat  = spm_mb_appearance('UpdatePrior',dat, mu, sett); oE(i) = E(i);
+            E(i) = sum(sum(cat(2,dat.E),2),1) + te; % Cost function after previous update    
+        end
+        
+        % Check convergence
+        ix_done   = 2;
+        Objective = [Objective, E]; 
+        done      = abs(oE(ix_done) - E(ix_done))/abs(E(ix_done));
+        
+        % Print to command window        
         spm_mb_show('PrintProgress',[zm it0],E,oE,toc(t),done,sett);
         
         % If 2D, show stuff
-        if dmu(3) == 1, spm_mb_show('All',dat,mu,Objective,N,sett); end 
+        if dmu(3) == 1, spm_mb_show('All',dat,mu,Objective,N,sett); end         
+       
+        % Finished diffeo alignment?
+        if done < tol, break; end    
     end              
     if print2screen, fprintf('\n'); end
     
@@ -338,7 +349,7 @@ for zm=numel(sz):-1:1 % loop over zoom levels
         dat      = spm_mb_shape('UpdateWarps',dat,sett);    % Shoot new deformations        
     end
     
-    if write_ws && (updt_mu || updt_intpr)
+    if write_ws
         % Save workspace (except template - saved as nifti separately) 
         save(fullfile(dir_res,'fit_spm_mb.mat'), '-regexp', '^(?!(mu)$).');
     end                                           

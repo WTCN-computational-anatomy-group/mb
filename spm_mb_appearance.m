@@ -9,6 +9,7 @@ function varargout = spm_mb_appearance(varargin)
 % FORMAT [nvx_obs,msk_allmiss] = spm_mb_appearance('GetNumObsVox',f,is_ct,ax)
 % FORMAT p_ix       = spm_mb_appearance('GetPopulationIdx',dat)
 % FORMAT [dat,sett] = spm_mb_appearance('Init',dat,model,K,sett)
+% FORMAT [dat,sett] = spm_mb_appearance('IntroduceMG',dat,sett)
 % FORMAT fn         = spm_mb_appearance('Mask',fn,is_ct)
 % FORMAT zn         = spm_mb_appearance('Responsibility',m,b,W,n,fn,mu,msk_chn)
 % FORMAT [zn,datn]  = spm_mb_appearance('Update',datn,mun0,sett)
@@ -32,9 +33,11 @@ switch id
     case 'GetNumVoxObserved'
         [varargout{1:nargout}] = GetNumObsVox(varargin{:});           
     case 'GetPopulationIdx'
-        [varargout{1:nargout}] = GetPopulationIdx(varargin{:});           
+        [varargout{1:nargout}] = GetPopulationIdx(varargin{:});               
     case 'Init'
         [varargout{1:nargout}] = Init(varargin{:});              
+    case 'IntroduceMG'
+        [varargout{1:nargout}] = IntroduceMG(varargin{:});                  
     case 'Mask'
         [varargout{1:nargout}] = Mask(varargin{:});                     
     case 'Responsibility'
@@ -236,9 +239,13 @@ reg    = sett.bf.reg;
 
 if ~do_gmm, return; end
 
+if isscalar(mg_ix)
+    mg_ix            = repelem(1:K + 1,mg_ix);
+    sett.model.mg_ix = mg_ix;
+end
+
 % Get parameters
 N   = numel(dat);
-Kmg = numel(mg_ix);
 K1  = K + 1;
 
 % What model parameters were given?
@@ -248,12 +255,17 @@ if appear_given
     if isfield(model.appear,'mg_ix'), mg_ix = model.appear.mg_ix;
     else,                             mg_ix = 1:K + 1;
     end
-    sett.model.mg_ix = mg_ix;
+    sett.model.mg_ix       = mg_ix;
+    sett.model.mg_ix_intro = mg_ix;
+    
+    Kmg  = numel(mg_ix);
+    mg_w = ones(1,Kmg)./arrayfun(@(x) sum(x == mg_ix), mg_ix);
+else
+    mg_w = ones([1 K1]);
 end
 
 % Lower bound struct
-lb  = struct('sum', NaN, 'X', [], 'XB', [], 'Z', [], 'P', [], 'MU', [], ...
-             'A', [], 'pr_v', [], 'pr_bf',[]);
+lb  = struct('sum', NaN, 'X', [], 'XB', [], 'Z', [], 'P', [], 'MU', [], 'A', []);
     
 mu   = [];
 w_mu = 1;
@@ -319,7 +331,7 @@ if appear_given && template_given
         mog.po   = po;
         mog.pr   = pr;
         mog.lb   = lb;
-        mog.mg_w = ones([1 K1]);
+        mog.mg_w = mg_w;
    
         dat(n).mog = mog;                        
     end
@@ -391,7 +403,7 @@ else
                 mog.po   = po;  
                 mog.pr   = po;
                 mog.lb   = lb;
-                mog.mg_w = ones([1 K1]);
+                mog.mg_w = mg_w;
 
                 dat(n).mog = mog;
             end
@@ -422,7 +434,7 @@ else
                 mog.po   = po;
                 mog.pr   = po;
                 mog.lb   = lb;
-                mog.mg_w = ones([1 K1]);
+                mog.mg_w = mg_w;
 
                 dat(n1).mog = mog;        
 
@@ -466,7 +478,7 @@ else
             mog.po   = po;
             mog.pr   = po;
             mog.lb   = lb;
-            mog.mg_w = ones([1 K1]);
+            mog.mg_w = mg_w;
 
             for n=1:Nct   
                 n1          = ix_ct(n);        
@@ -483,10 +495,29 @@ else
         end
     end
 end
+end
+%==========================================================================
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    
+%==========================================================================
+% IntroduceMG()
+function [dat,sett] = IntroduceMG(dat,sett)
 % Modify posteriors and priors, if using multiple Gaussians per tissue
-%------------------------------------------------------------
+
+% Parse function settings
+mg_ix  = sett.model.mg_ix_intro;
+
+K1 = numel(dat(1).mog.po.n);
+K  = K1 - 1;
+if isscalar(mg_ix)
+    mg_ix = repelem(1:K + 1,mg_ix);        
+end
+sett.model.mg_ix = mg_ix;
+
+% Get parameters
+N   = numel(dat);
+Kmg = numel(mg_ix);
+K1  = K + 1;
+
 if K1 < Kmg            
     for n=1:N              
         is_ct = dat(n).is_ct;
@@ -514,6 +545,7 @@ if K1 < Kmg
         dat(n).mog.mg_w   = ones(1,Kmg)./arrayfun(@(x) sum(x == mg_ix), mg_ix);
     end
 end
+
 end
 %==========================================================================
 
@@ -666,10 +698,16 @@ mun = mun(:,mg_ix);
 % Bias field related
 if any(do_bf == true) 
     chan       = BiasFieldStruct(datn,C,df,reg,fwhm,[],datn.bf.T,samp);
-    [bf,pr_bf] = BiasField(chan,d);
+    [bf,llpbf] = BiasField(chan,d);
     bffn       = bf.*fn;
 else
     bffn       = fn;
+end
+
+if isempty(lb.XB)
+    % Make sure bias field part of lower bound is correct    
+    lxb            = scl_samp*LowerBound('ln(|bf|)',bf,msk_vx) + sum(llpbf);
+    lb.XB(end + 1) = lxb;
 end
 
 % Format for spm_gmm
@@ -683,17 +721,17 @@ for it_appear=1:nit_appear
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Update GMM and get responsibilities (zn)
     %------------------------------------------------------------
-    
+        
     [zn,mog,~,lb,mg_w] = spm_gmm_lib('loop',bffn,scl_samp,{{m,b},{W,n}},{'LogProp', mun}, ...
-                                   'GaussPrior',   {m0,b0,W0,n0}, ...
-                                   'Missing',      msk_chn, ...
-                                   'LowerBound',   lb, ...
-                                   'IterMax',      nit_gmm, ...
-                                   'Tolerance',    tol_gmm, ...
-                                   'SubIterMax',   nit_gmm_miss, ...
-                                   'SubTolerance', tol_gmm, ...
-                                   'Verbose',      [0 0], ...
-                                   'MultGaussPi',  {mg_ix,mg_w});
+                                     'GaussPrior',   {m0,b0,W0,n0}, ...
+                                     'Missing',      msk_chn, ...
+                                     'LowerBound',   lb, ...
+                                     'IterMax',      nit_gmm, ...
+                                     'Tolerance',    tol_gmm, ...
+                                     'SubIterMax',   nit_gmm_miss, ...
+                                     'SubTolerance', tol_gmm, ...
+                                     'Verbose',      [0 0], ...
+                                     'MultGaussPi',  {mg_ix,mg_w});
     m = mog.MU;
     b = mog.b;
     W = mog.V;
@@ -711,22 +749,13 @@ for it_appear=1:nit_appear
     %------------------------------------------------------------
 
     if do_updt_bf && any(do_bf == true)        
-
-        % Make sure to use the latest responsibilties         
-        zn = Responsibility(m,b,W,n,bffn,ReWeightMu(mun,log(mg_w)),msk_chn);
-
-        % Recompute parts of objective function that depends on bf
-        lx  = LowerBound('ln(P(X|Z))',bffn,zn,msk_chn,{m,b},{W,n},scl_samp);
-        lxb = scl_samp*LowerBound('ln(|bf|)',bf,msk_vx);                     
-
+                    
         for it_bf=1:nit_bf
 
             % Update bias field parameters for each channel separately
             for c=1:C % Loop over channels
 
-                if ~datn.do_bf(c)
-                    continue; 
-                end
+                if ~datn.do_bf(c), continue; end
 
                 % Compute gradient and Hessian (in image space)
                 gr_im = zeros(d(1:3),'single');
@@ -804,17 +833,17 @@ for it_appear=1:nit_appear
                 % Line-search
                 armijo = scal_bf;        
                 oT     = chan(c).T;  
-                opr_bf = pr_bf;
-                olxb   = lxb;   
-                olx    = lx;
-
+                ollpbf = llpbf;                
+                olx    = lb.X(end);
+                olxb   = lb.XB(end);
+                
                 for ls=1:nit_lsbf
 
                     % Update bias-field parameters
                     chan(c).T = chan(c).T - armijo*Update;
 
                     % Compute new bias-field (only for channel c)
-                    [bf,pr_bf] = BiasField(chan,d,bf,c,opr_bf);                        
+                    [bf,llpbf] = BiasField(chan,d,bf,c,ollpbf);                        
                     bffn       = bf.*fn;
                     bffn       = spm_gmm_lib('obs2cell', bffn, code_image, true);
                     
@@ -822,28 +851,28 @@ for it_appear=1:nit_appear
                     zn = Responsibility(m,b,W,n,bffn,ReWeightMu(mun,log(mg_w)),msk_chn);
 
                     % Compute new lower bound
-                    lx  = LowerBound('ln(P(X|Z))',bffn,zn,msk_chn,{m,b},{W,n},scl_samp);            
-                    lxb = scl_samp*LowerBound('ln(|bf|)',bf,msk_vx);
-
+                    lx  = LowerBound('ln(P(X|Z))',bffn,zn,msk_chn,{m,b},{W,n},scl_samp);          
+                    lxb = scl_samp*LowerBound('ln(|bf|)',bf,msk_vx) + sum(llpbf);
+                    
                     % Check new lower bound
-                    if  ((lx + lxb + sum(pr_bf)) - (olx + olxb + sum(opr_bf)))/abs(lx + lxb + sum(pr_bf)) > -eps('single')*10
+                    if  ((lx + lxb) - (olx + olxb))/abs(lx + lxb) > -eps('single')*10
                         % Converged
-%                         fprintf('it2=%i\tc=%i\tls=%i\tarmijo=%0.7f\tnl=%0.7f\tgain=%0.7f :o)\n',it_bf,c,ls,armijo,lx + lxb + sum(pr_bf),lx + lxb + sum(pr_bf) - olx + olxb + sum(opr_bf));
-                        lb.XB(end + 1) = lxb;
-                        lb.X(end  + 1) = lx;
+                        %fprintf('it2=%i\tc=%i\tls=%i\tarmijo=%0.7f\tnl=%0.7f\tgain=%0.7f :o)\n',it_bf,c,ls,armijo,lx + lxb,lx + lxb - olx + olxb);
+                        lb.X(end  + 1) = lx;                        
+                        lb.XB(end + 1) = lxb; % bias field part of lower bound                        
                         break;
                     else                                
                         armijo    = armijo*0.5;
                         chan(c).T = oT;
                         if ls == nit_lsbf   
                             % Did not converge -> reset
-%                             fprintf('it2=%i\tc=%i\tls=%i :o(\n',it_bf,c,ls);
-                            lx    = olx;
-                            lxb   = olxb;
-                            bf    = BiasField(chan,d,bf,c,opr_bf);    
+                            %fprintf('it2=%i\tc=%i\tls=%i :o(\n',it_bf,c,ls);                            
+%                             lx    = olx;
+%                             lxb   = olxb;
+                            llpbf = ollpbf;
+                            bf    = BiasField(chan,d,bf,c,ollpbf);    
                             bffn  = bf.*fn;
-                            bffn  = spm_gmm_lib('obs2cell', bffn, code_image, true);
-                            pr_bf = opr_bf;
+                            bffn  = spm_gmm_lib('obs2cell', bffn, code_image, true);                            
                             if nit_appear == 1 || nit_bf > 1
                                 % Recompute responsibilities
                                 zn = Responsibility(m,b,W,n,bffn,ReWeightMu(mun,log(mg_w)),msk_chn);
@@ -857,10 +886,6 @@ for it_appear=1:nit_appear
 
         % Update datn     
         datn.bf.T = {chan(:).T};
-        datn.E(3) = -sum(pr_bf); % global objective function is negative log-likelihood..
-        
-        % Ensure correct lower bound
-        lb.pr_bf(end + 1) = -datn.E(3);
     end
 end
 clear fn bf mun
@@ -1866,8 +1891,7 @@ end
 %------------------------------------------------------------
 
 % Lower bound struct
-lb  = struct('sum', NaN, 'X', [], 'XB', [], 'Z', [], 'P', [], 'MU', [], ...
-             'A', [], 'pr_v', [], 'pr_bf',[]);
+lb  = struct('sum', NaN, 'X', [], 'XB', [], 'Z', [], 'P', [], 'MU', [], 'A', []);
          
 % Set GMM and bias field parameters for all subjects
 for n=1:N
@@ -2081,6 +2105,23 @@ if ~isempty(T)
     t  = B1*t1*B2';
 else
     t  = zeros(size(B1,1),size(B2,1));
+end
+end
+%==========================================================================
+
+%==========================================================================
+% SumLowerBound()
+function lb = SumLowerBound(lb)
+
+if ~isfinite(lb.sum(1)), return; end
+
+fields = fieldnames(lb);
+lb.sum(end+1) = 0;
+for i=1:numel(fields)
+    field = fields{i};
+    if ~any(strcmpi(field, {'sum' 'last'})) && ~isempty(lb.(field)) && ~isnan(lb.(field)(end))
+        lb.sum(end) = lb.sum(end) + sum(lb.(field)(:,end));
+    end
 end
 end
 %==========================================================================

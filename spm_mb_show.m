@@ -139,7 +139,7 @@ else
     title(nam);
     subplot(2,1,2); 
 end
-plot(Objective,'.-');        
+plot(Objective,'k-','LineWidth',2);        
 title('Negative log-likelihood')
 drawnow
 end
@@ -152,7 +152,7 @@ function Speak(nam,sett,varargin)
 % Parse function settings
 do_updt_int      = sett.do.updt_int && sett.do.gmm;
 do_updt_template = sett.do.updt_template;
-mg_ix            = sett.model.mg_ix;
+mg_ix            = sett.model.mg_ix_intro;
 nit              = sett.nit.init;
 print2screen     = sett.show.print2screen;
 
@@ -519,7 +519,7 @@ end
 s = sprintf('%s| ',s);
 
 % Objective function
-d           = diff([oE(end) E]);
+d           = diff([oE(1) E]);
 pm          = blanks(numel(d));
 pm(d >  0)  = '+';
 pm(d <  0)  = '-';
@@ -534,14 +534,14 @@ s = sprintf('%s| ',s);
 
 % Convergence
 if done == 0 || ~isfinite(done)
-    s = sprintf('%sn/a%s ',s,blanks(10));
+    s = sprintf('%sn/a%s ',s,blanks(12));
 else
-    s = sprintf('%soE-E=%0.6f ',s,done);
+    s = sprintf('%s|oE-E|=%0.6f ',s,abs(done));
 end
 s = sprintf('%s| ',s);
 
 % Time and done
-if done ~= 0 && isfinite(done) && done < tol
+if done ~= 0 && isfinite(done) && done < tol && it(end) > 1
     s = sprintf('%st=%0.1f s | converged!\n',s,t);
 else
     s = sprintf('%st=%0.1f s\n',s,t);

@@ -456,13 +456,6 @@ if ~isempty(ix_mri1) && (~isempty(ix_ct) || ~isempty(ix_mri2))
             dat([ix_mri1 ix_mri2])      = spm_mb_appearance('UpdatePrior',dat([ix_mri1 ix_mri2]), mu, sett);
         end
     end
-    
-    if isempty(ix_mri2) && ~isempty(ix_ct)
-        for it=1:nit_init_mu
-            [mu,dat([ix_mri1 ix_ct])] = spm_mb_shape('UpdateMean',dat([ix_mri1 ix_ct]), mu, sett);
-            dat([ix_mri1 ix_ct])      = spm_mb_appearance('UpdatePrior',dat([ix_mri1 ix_ct]), mu, sett);
-        end
-    end
 end
 end
 %==========================================================================
@@ -478,6 +471,8 @@ Mmu     = sett.Mmu;
 % Get template
 pth_mu = model.shape.template;
 mu_sm  = spm_mb_io('GetData',pth_mu);
+
+if size(mu_sm,3) == 1, return; end
 
 % Softmax   
 mu_sm = spm_mb_shape('TemplateK1',mu_sm,4);
@@ -805,11 +800,6 @@ for n=1:numel(dat) % PARFOR
     v           = spm_mb_io('GetData',dat(n).v);
     u0          = spm_diffeo('vel2mom', v, v_settings); % Initial momentum
     dat(n).E(2) = 0.5*sum(u0(:).*v(:));                 % Prior term
-    
-    if isfield(dat(n),'mog')
-        % Ensure correct lower bound
-        dat(n).mog.lb.pr_v(end + 1) = -dat(n).E(2);
-    end
 end
 end
 %==========================================================================
@@ -1284,7 +1274,7 @@ end
 
 %==========================================================================
 % UpdateMeanSub()
-function [g,H,datn] = UpdateMeanSub(datn,mu,H0,sett)
+function [g,H,datn] = UpdateMeanSub(datn,mu,H,sett)
 
 % Parse function settings
 accel = sett.gen.accel;
@@ -1307,7 +1297,7 @@ mu  = Pull1(mu,psi,mu_bg);
     % If there are problems, then revert to the slow
     % way.
     [g,w] = Push1(Softmax(mu,4) - f,psi,d,1,mu_bg);
-    H     = w.*H0;
+    H     = w.*H;
 % end
 end
 %==========================================================================

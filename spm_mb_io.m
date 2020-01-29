@@ -12,6 +12,7 @@ function varargout = spm_mb_io(varargin)
 % FORMAT [d,M]             = spm_mb_io('GetSize',fin)
 % FORMAT s                 = spm_mb_io('GetScale',fin,sett);
 % FORMAT dat               = spm_mb_io('InitDat',data,sett)
+% FORMAT model             = spm_mb_io('LoadModel',PthModel,sett)
 % FORMAT model             = spm_mb_io('MakeModel',dat,model,sett)
 % FORMAT [psi,fpth]        = spm_mb_io('SavePsiSub',datn,sett) 
 % FORMAT                     spm_mb_io('SaveTemplate',dat,mu,sett)
@@ -48,6 +49,8 @@ switch id
         [varargout{1:nargout}] = GetScale(varargin{:});
     case 'InitDat' 
         [varargout{1:nargout}] = InitDat(varargin{:});
+    case 'LoadModel' 
+        [varargout{1:nargout}] = LoadModel(varargin{:});        
     case 'MakeModel' 
         [varargout{1:nargout}] = MakeModel(varargin{:});        
     case 'SavePsiSub' 
@@ -367,7 +370,7 @@ for n=1:N
     dat(n).q     = zeros(6,1);    
     dat(n).v     = [];    
     dat(n).psi   = [];    
-    dat(n).E     = [0 0 0]; % Px Pv Pbf
+    dat(n).E     = [0 0]; % Px Pv
     dat(n).bf    = [];   
        
     if do_gmm
@@ -440,6 +443,32 @@ end
 %==========================================================================
 
 %==========================================================================
+% LoadModel()
+function model = LoadModel(PthModel,sett)
+
+% Parse function settings
+appear_ix = sett.model.appear_ix;
+
+model = struct;
+if isempty(PthModel), return; end
+if isfile(PthModel)
+    var   = load(PthModel,'model');
+    model = var.model;
+    
+    if isfield(model,'shape') && isfield(model.shape,'template')
+        % Make sure path to template is correct
+        model.shape.template = fullfile(fileparts(PthModel),model.shape.template);
+    end
+    
+    if isfield(model,'appear') && isfield(model.appear,'pr')
+        % Pick appearance prior
+        model.appear.pr = model.appear.pr(num2str(min(appear_ix,model.appear.pr.Count)));
+    end
+end
+end
+%==========================================================================
+
+%==========================================================================
 % MakeModel()
 function model = MakeModel(dat,model,sett)
 
@@ -459,7 +488,7 @@ end
 if do_updt_template
     % Shape related
     f                    = fullfile('mu_spm_mb.nii');
-    model.shape.template = f;
+    model.shape.template = f; % Store path to template
 end
 
 if do_updt_int && do_gmm

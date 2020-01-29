@@ -170,6 +170,9 @@ end
 if ~isfield(sett.gen,'samp')
     sett.gen.samp = 3;
 end
+if ~isfield(sett.gen,'samp_min')
+    sett.gen.samp_min = 1;
+end
 
 %------------------
 % .labels (label related)
@@ -217,6 +220,8 @@ if ~isfield(sett.model,'mg_ix')
     % For using multiple Gaussians per tissue (as in spm_preproc8)
     sett.model.mg_ix = 1;
 end
+sett.model.mg_ix_intro = sett.model.mg_ix;
+sett.model.mg_ix       = 1;
 if ~isfield(sett.model,'mu_bg')
     % For dealing with template FOV being smaller than subject image's. If
     % empty pullc/pushc are used when warping template, which is the
@@ -230,6 +235,9 @@ if ~isfield(sett.model,'vx')
 end
 if ~isfield(sett.model,'tol')    
     sett.model.tol = 1e-4;    
+end
+if ~isfield(sett.model,'appear_ix')    
+    sett.model.appear_ix = 1;    
 end
 
 %------------------
@@ -263,7 +271,7 @@ if ~isfield(sett.nit,'zm')
     % The number of iterations, for updating all model parameters, at each zoom
     % level. The final zoom level uses sett.nit.zm iterations, while
     % earlier zoom levels use sett.nit.zm + zoom_level.
-    sett.nit.zm = 4;
+    sett.nit.zm = 3;
 end
 
 %------------------

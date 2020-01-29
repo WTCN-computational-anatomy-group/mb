@@ -1,4 +1,4 @@
-function res = spm_mb_output(dat,model,sett)
+function res = spm_mb_output(dat,mu,sett)
 %__________________________________________________________________________
 %
 % Write output from groupwise normalisation and segmentation of images.
@@ -10,9 +10,6 @@ function res = spm_mb_output(dat,model,sett)
 N   = numel(dat);
 cl  = cell(N,1);
 res = struct('bf',cl,'im',cl,'imc',cl,'c',cl,'y',cl,'iy',cl,'wim',cl,'wimc',cl,'wc',cl,'mwc',cl,'lab',cl,'wlab',cl,'v',cl);
-
-% Get template
-mu = spm_mb_io('GetData',model.shape.template);
 
 for n=1:N % Loop over subjects
     res(n) = ProcessSubject(dat(n),res(n),mu,n,sett);
