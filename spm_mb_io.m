@@ -531,7 +531,7 @@ for n=1:numel(dat)
 end
 model.info.fnames = char(fnames);
 
-if write_model && (do_updt_template || do_updt_int)
+if write_model
     % Save model
     save(fullfile(dir_res,'model_spm_mb.mat'),'model')
 end
