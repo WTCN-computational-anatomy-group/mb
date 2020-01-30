@@ -184,12 +184,14 @@ end
 if write_vel
     % Write initial velocity
     descrip = 'Velocity';
-    nam     = ['vel_' namn '.nii'];
-    fpth    = fullfile(dir_res,nam);
-    v       = spm_mb_io('GetData',datn.v);
-    spm_mb_io('WriteNii',fpth,v,Mmu,descrip);
+    nam     = ['v_' namn '.nii'];
+    fpth    = fullfile(dir_res,nam);    
+    if ~isfile(fpth)
+        v       = spm_mb_io('GetData',datn.v);
+        spm_mb_io('WriteNii',fpth,v,Mmu,descrip);        
+        clear v
+    end
     resn.v  = fpth;
-    clear v
 end
 
 if write_aff
@@ -372,20 +374,10 @@ if any(write_df == true) || any(reshape(write_tc(:,[2 3]),[],1) == true) ||  any
     % For imporved push - subsampling density in each dimension
     sd = spm_mb_shape('SampDens',Mmu,Mn);
 
-    % Get forward deformation
+    % Get forward deformation (pulls template into subject space)
     psi = spm_mb_shape('Compose',psi0,spm_mb_shape('Affine',df,Mmu\Mr*Mn));
-
     if df(3) == 1, psi(:,:,:,3) = 1; end % 2D
-
-    if write_df(1)
-        % Write forward deformation
-        descrip   = 'Forward deformation';
-        nam       = ['y_' namn '.nii'];
-        fpth      = fullfile(dir_res,nam);
-        spm_mb_io('WriteNii',fpth,psi,Mn,descrip);
-        resn.y = fpth;
-    end
-
+    
     if isfield(datn,'mog') && any(write_im(:,3) == true)
         % Write normalised image
         descrip = 'Normalised image (';
@@ -464,6 +456,16 @@ if any(write_df == true) || any(reshape(write_tc(:,[2 3]),[],1) == true) ||  any
         clear labels
     end
 
+    if write_df(1)
+        % Write forward deformation  (pulls template into subject space, use push to go other way)
+        psi       = reshape(psi,[df 1 3]);
+        descrip   = 'Forward deformation';
+        nam       = ['y_' namn '.nii'];
+        fpth      = fullfile(dir_res,nam);
+        spm_mb_io('WriteNii',fpth,psi,Mn,descrip);
+        resn.y = fpth;
+    end
+    
     if write_df(2)
         % Get inverse deformation (correct?)
         psi = spm_diffeo('invdef',psi0,dmu(1:3),eye(4),eye(4));
@@ -479,7 +481,7 @@ if any(write_df == true) || any(reshape(write_tc(:,[2 3]),[],1) == true) ||  any
         resn.iy = fpth;
     end
 end
-if clean_def && isa(datn.psi,'nifti') && isfile(datn.psi.dat.fname), delete(datn.psi.dat.fname); end
-if clean_vel && isa(datn.v,'nifti') && isfile(datn.v.dat.fname),     delete(datn.v.dat.fname);   end
+if clean_def  && isa(datn.psi,'nifti') && isfile(datn.psi.dat.fname),          delete(datn.psi.dat.fname); end
+if ~write_vel && clean_vel && isa(datn.v,'nifti') && isfile(datn.v.dat.fname), delete(datn.v.dat.fname);   end
 end
 %==========================================================================
