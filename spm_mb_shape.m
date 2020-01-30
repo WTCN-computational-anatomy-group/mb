@@ -38,43 +38,43 @@ if nargin == 0
 end
 id = varargin{1};
 varargin = varargin(2:end);
-switch id    
+switch id
     case 'Affine'
-        [varargout{1:nargout}] = Affine(varargin{:});     
+        [varargout{1:nargout}] = Affine(varargin{:});
     case 'AffineBases'
-        [varargout{1:nargout}] = AffineBases(varargin{:});           
+        [varargout{1:nargout}] = AffineBases(varargin{:});
     case 'Compose'
         [varargout{1:nargout}] = Compose(varargin{:});
     case 'Identity'
         [varargout{1:nargout}] = Identity(varargin{:});
     case 'InitDef'
-        [varargout{1:nargout}] = InitDef(varargin{:});           
+        [varargout{1:nargout}] = InitDef(varargin{:});
     case 'LSE'
-        [varargout{1:nargout}] = LSE(varargin{:});      
+        [varargout{1:nargout}] = LSE(varargin{:});
     case 'MuValOutsideFOV'
-        [varargout{1:nargout}] = MuValOutsideFOV(varargin{:});          
+        [varargout{1:nargout}] = MuValOutsideFOV(varargin{:});
     case 'Pull1'
         [varargout{1:nargout}] = Pull1(varargin{:});
     case 'Push1'
-        [varargout{1:nargout}] = Push1(varargin{:});    
+        [varargout{1:nargout}] = Push1(varargin{:});
     case 'PropagateTemplate'
-        [varargout{1:nargout}] = PropagateTemplate(varargin{:});            
+        [varargout{1:nargout}] = PropagateTemplate(varargin{:});
     case 'RigidAlignTemplate'
-        [varargout{1:nargout}] = RigidAlignTemplate(varargin{:});         
+        [varargout{1:nargout}] = RigidAlignTemplate(varargin{:});
     case 'SampDens'
         [varargout{1:nargout}] = SampDens(varargin{:});
     case 'ShrinkTemplate'
         [varargout{1:nargout}] = ShrinkTemplate(varargin{:});
     case 'Softmax'
-        [varargout{1:nargout}] = Softmax(varargin{:});       
+        [varargout{1:nargout}] = Softmax(varargin{:});
     case 'SpecifyMean'
-        [varargout{1:nargout}] = SpecifyMean(varargin{:});               
+        [varargout{1:nargout}] = SpecifyMean(varargin{:});
     case 'TemplateEnergy'
-        [varargout{1:nargout}] = TemplateEnergy(varargin{:});    
+        [varargout{1:nargout}] = TemplateEnergy(varargin{:});
     case 'TemplateK1'
-        [varargout{1:nargout}] = TemplateK1(varargin{:});          
+        [varargout{1:nargout}] = TemplateK1(varargin{:});
     case 'UpdateAffines'
-        [varargout{1:nargout}] = UpdateAffines(varargin{:});                   
+        [varargout{1:nargout}] = UpdateAffines(varargin{:});
     case 'UpdateMean'
         [varargout{1:nargout}] = UpdateMean(varargin{:});
     case 'UpdateSimpleAffines'
@@ -84,11 +84,11 @@ switch id
     case 'UpdateVelocities'
         [varargout{1:nargout}] = UpdateVelocities(varargin{:});
     case 'UpdateWarps'
-        [varargout{1:nargout}] = UpdateWarps(varargin{:});  
+        [varargout{1:nargout}] = UpdateWarps(varargin{:});
     case 'ZoomVolumes'
-        [varargout{1:nargout}] = ZoomVolumes(varargin{:});        
+        [varargout{1:nargout}] = ZoomVolumes(varargin{:});
     case 'VelocityEnergy'
-        [varargout{1:nargout}] = VelocityEnergy(varargin{:});              
+        [varargout{1:nargout}] = VelocityEnergy(varargin{:});
     otherwise
         help spm_mb_shape
         error('Unknown function %s. Type ''help spm_mb_shape'' for help.', id)
@@ -119,7 +119,7 @@ if g.dim==0
     B        = zeros(4,4,0);
 elseif g.dim==2
     switch g.code
-    case 'T' 
+    case 'T'
         B        = zeros(4,4,2);
         B(1,4,1) =  1;
         B(2,4,2) =  1;
@@ -127,7 +127,7 @@ elseif g.dim==2
         B        = zeros(4,4,1);
         B(1,2,1) =  1;
         B(2,1,1) = -1;
-    case 'SE' 
+    case 'SE'
         B        = zeros(4,4,3);
         B(1,4,1) =  1;
         B(2,4,2) =  1;
@@ -138,12 +138,12 @@ elseif g.dim==2
     end
 elseif g.dim==3
     switch g.code
-    case 'T' 
+    case 'T'
         B        = zeros(4,4,3);
         B(1,4,1) =  1;
         B(2,4,2) =  1;
         B(3,4,3) =  1;
-    case 'SO' 
+    case 'SO'
         B        = zeros(4,4,3);
         B(1,2,1) =  1;
         B(2,1,1) = -1;
@@ -151,7 +151,7 @@ elseif g.dim==3
         B(3,1,2) = -1;
         B(2,3,3) =  1;
         B(3,2,3) = -1;
-    case 'SE' 
+    case 'SE'
         B        = zeros(4,4,6);
         B(1,4,1) =  1;
         B(2,4,2) =  1;
@@ -207,7 +207,7 @@ for n=1:numel(dat)
             if isempty(dir_res), dir_res = pth; end
             vname       = fullfile(dir_res,['v_' nam '.nii']);
             pname       = fullfile(dir_res,['psi_' nam '.nii']);
-            
+
             fa       = file_array(vname,[d(1:3) 1 3],'float32',0);
             nii      = nifti;
             nii.dat  = fa;
@@ -290,7 +290,7 @@ function a1 = Pull1(a0,psi,bg,r)
 if nargin<3, bg = []; end
 if nargin<4, r  = [1 1 1]; end
 
-if ~isempty(bg) 
+if ~isempty(bg)
     % For dealing with template FOV being smaller than subject FOV
     d    = size(a0);
     K    = d(4);
@@ -301,7 +301,7 @@ if ~isempty(bg)
     msk1 = ~msk1;
     % bottom native FOV not covered by template
     msk2 = psi(:,:,:,3)<1;
-end     
+end
 
 if isempty(a0)
     a1 = a0;
@@ -309,23 +309,23 @@ elseif isempty(psi)
     a1 = a0;
 else
     if r==1
-        if isempty(bg) 
-            a1 = spm_diffeo('pullc',a0,psi); 
+        if isempty(bg)
+            a1 = spm_diffeo('pullc',a0,psi);
         else
-            a1 = spm_diffeo('pull',a0,psi); 
-            
+            a1 = spm_diffeo('pull',a0,psi);
+
             % Deal with template FOV being smaller than subject FOV
             a1(repmat(msk1,[1 1 1 K])) = reshape(bg(1,:).*ones([nnz(msk1) K]),[],1); % native FOV not covered by template
             a1(repmat(msk2,[1 1 1 K])) = reshape(bg(2,:).*ones([nnz(msk2) K]),[],1); % bottom native FOV not covered by template
-        end        
+        end
         return
     end
     d  = [size(a0) 1 1];
     if d(3)>1, zrange = Range(r(3)); else, zrange = 0; end
     if d(2)>1, yrange = Range(r(2)); else, yrange = 0; end
     if d(1)>1, xrange = Range(r(1)); else, xrange = 0; end
-    dp = size(psi); 
-    id = Identity(dp(1:3));     
+    dp = size(psi);
+    id = Identity(dp(1:3));
     a1 = zeros([size(psi,1),size(psi,2),size(psi,3),size(a0,4)],'single');
     for l=1:d(4)
         tmp = single(0);
@@ -343,7 +343,7 @@ else
         end
         a1(:,:,:,l) = tmp/(numel(zrange)*numel(yrange)*numel(xrange));
     end
-    
+
     % Deal with template FOV being smaller than subject FOV
     a1(repmat(msk1,[1 1 1 K])) = reshape(bg(1,:).*ones([nnz(msk1) K]),[],1); % native FOV not covered by template
     a1(repmat(msk2,[1 1 1 K])) = reshape(bg(2,:).*ones([nnz(msk2) K]),[],1); % bottom native FOV not covered by template
@@ -361,7 +361,7 @@ function [f1,w1] = Push1(f,psi,d,r,bg)
 % psi - Spatial transform
 % d   - dimensions of output (default: size of f)
 % r   - subsampling density in each dimension (default: [1 1 1])
-% bg  - Indicates whether push/pushc should be used 
+% bg  - Indicates whether push/pushc should be used
 %
 % f1  - "Pushed" image
 %
@@ -396,7 +396,7 @@ if ~isempty(psi)
     if d(3)>1, zrange = Range(r(3)); else, zrange = 0; end
     if d(2)>1, yrange = Range(r(2)); else, yrange = 0; end
     if d(1)>1, xrange = Range(r(1)); else, xrange = 0; end
-    
+
     dp    = size(psi);
     id    = Identity(dp(1:3));
     f1    = single(0);
@@ -442,14 +442,14 @@ nit_init_mu = sett.nit.init_mu;
 [ix_ct,ix_mri1,ix_mri2] = spm_mb_io('GetCTandMRI',dat,sett);
 
 if ~isempty(ix_mri1) && (~isempty(ix_ct) || ~isempty(ix_mri2))
-    
+
     sett.gen.samp = numel(sz); % coarse-to-fine sampling of observed data
-    
+
     for it=1:nit_init_mu
         [mu,dat(ix_mri1)] = spm_mb_shape('UpdateMean',dat(ix_mri1), mu, sett);
         dat(ix_mri1)      = spm_mb_appearance('UpdatePrior',dat(ix_mri1), mu, sett);
     end
-    
+
     if ~isempty(ix_mri2)
         for it=1:nit_init_mu
             [mu,dat([ix_mri1 ix_mri2])] = spm_mb_shape('UpdateMean',dat([ix_mri1 ix_mri2]), mu, sett);
@@ -474,12 +474,12 @@ mu_sm  = spm_mb_io('GetData',pth_mu);
 
 if size(mu_sm,3) == 1, return; end
 
-% Softmax   
+% Softmax
 mu_sm = spm_mb_shape('TemplateK1',mu_sm,4);
-mu_sm = exp(mu_sm);    
+mu_sm = exp(mu_sm);
 
 % Write softmaxed template
-pth_mu_sm        = fullfile(dir_res ,'mu_softmax_spm_mb.nii');        
+pth_mu_sm        = fullfile(dir_res ,'mu_softmax_spm_mb.nii');
 fa               = file_array(pth_mu_sm,size(mu_sm),'float32',0);
 Nmu              = nifti;
 Nmu.dat          = fa;
@@ -491,7 +491,7 @@ Nmu.dat(:,:,:,:) = mu_sm;
 
 % Load softmaxed template
 Vmu   = spm_vol(pth_mu_sm);
-mu_sm = spm_load_priors8(Vmu);    
+mu_sm = spm_load_priors8(Vmu);
 
 N = numel(dat);
 for n=1:N % loop over subjects
@@ -499,8 +499,8 @@ for n=1:N % loop over subjects
     Vn = spm_vol(dat(n).f(1).dat.fname);
     Vn = Vn(1);
     Mn = dat(n).f(1).mat;
-    
-    % Register atlas to image to get get R (so that Mmu\R*Mf)    
+
+    % Register atlas to image to get get R (so that Mmu\R*Mf)
     c             = (Vn.dim+1)/2;
     Vn.mat(1:3,4) = -Mn(1:3,1:3)*c(:);
     [Affine1,ll1] = spm_maff8(Vn,8,(0+1)*16,mu_sm,[],'mni'); % Closer to rigid
@@ -520,7 +520,7 @@ for n=1:N % loop over subjects
     % Get best fit in Lie space
     e  = eig(R);
     if isreal(e) && any(e<=0), disp('Possible problem!'); disp(eig(R)); end
-    B1 = reshape(sett.registr.B,[16 size(sett.registr.B,3)]);    
+    B1 = reshape(sett.registr.B,[16 size(sett.registr.B,3)]);
     q  = B1\reshape(real(logm(R)),[16 1]);
 
     % Update rigid parameters
@@ -584,7 +584,7 @@ crop_mu = sett.model.crop_mu;
 dims = zeros(numel(dat),3);
 Mat0 = zeros(4,4,numel(dat));
 for n=1:numel(dat)
-    dims(n,:)   = spm_mb_io('GetSize',dat(n).f)';    
+    dims(n,:)   = spm_mb_io('GetSize',dat(n).f)';
     Mat0(:,:,n) = dat(n).Mat;
 end
 
@@ -596,7 +596,7 @@ if numel(vx) == 1
     vx = vx.*ones([1 3]);
 end
 vxmu = sqrt(sum(Mmu(1:3,1:3).^2));
-samp = vxmu./vx;   
+samp = vxmu./vx;
 D    = diag([samp 1]);
 Mmu  = Mmu/D;
 d    = floor(D(1:3,1:3)*d')';
@@ -608,7 +608,7 @@ if unique(dims(:,3),'rows') == 1
     bb      = sort(bb);
     bb(1,:) = max(bb(1,:),[1 1 1]);
     bb(2,:) = min(bb(2,:),d(1:3));
-    
+
     d(1:3) = diff(bb) + 1;
     Mmu    = Mmu*spm_matrix((bb(1,:)-1));
 end
@@ -685,7 +685,7 @@ for n=1:numel(dat) % PARFOR
     H              = H + Hn;
 end
 clear H0 gn Hn
-mu = mu - spm_field(H, g, [mu_settings s_settings]); 
+mu = mu - spm_field(H, g, [mu_settings s_settings]);
 end
 %==========================================================================
 
@@ -833,7 +833,7 @@ end
 %
 %==========================================================================
 
-%========================================================================== 
+%==========================================================================
 % AffineHessian()
 function [H,g] = AffineHessian(mu,G,a,w,accel)
 d  = [size(mu,1),size(mu,2),size(mu,3)];
@@ -857,7 +857,7 @@ for i=1:d(3)
     end
 end
 end
-%========================================================================== 
+%==========================================================================
 
 %==========================================================================
 % AppearanceHessian()
@@ -1079,7 +1079,7 @@ function varargout = Shoot(v0,kernel,args)
 %              - [8] - linear elasticity lambda
 %
 % kernel     - structure encoding Greens function
-% 
+%
 % This code generates inverse deformations from
 % initial velocity fields by gedesic shooting.  See the work of Miller,
 % Younes and others.
@@ -1168,12 +1168,12 @@ for t=2:abs(T)
     u1(:,:,:,2) = Jdp(:,:,:,1,2).*u(:,:,:,1) + Jdp(:,:,:,2,2).*u(:,:,:,2) + Jdp(:,:,:,3,2).*u(:,:,:,3);
     u1(:,:,:,3) = Jdp(:,:,:,1,3).*u(:,:,:,1) + Jdp(:,:,:,2,3).*u(:,:,:,2) + Jdp(:,:,:,3,3).*u(:,:,:,3);
     clear Jdp
-    
+
     u = spm_diffeo('pushc',u1,id+v/T);
 
     % v_t \gets L^g u_t
-    v = spm_shoot_greens(u,kernel.F,kernel.v_settings); % Convolve with Greens function of L    
-    
+    v = spm_shoot_greens(u,kernel.F,kernel.v_settings); % Convolve with Greens function of L
+
     if size(v,3)==1, v(:,:,:,3) = 0; end
 
     % $\psi \gets \psi \circ (id - \tfrac{1}{T} v)$
