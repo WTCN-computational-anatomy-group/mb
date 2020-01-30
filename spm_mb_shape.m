@@ -511,7 +511,11 @@ for n=1:N % loop over subjects
     [Affine2,ll2] = spm_maff8(Vn,8,(0+1)*16,mu_sm,[],'mni'); % Closer to rigid
 
     % Pick the result with the best fit
-    if ll1>ll2, R = Affine1; else R  = Affine2; end
+    if ll1>ll2
+        R = Affine1;
+    else
+        R = Affine2;
+    end
 
     % Fit final
     R = spm_maff8(dat(n).f(1).dat.fname,8,32,mu_sm,R,'mni');
@@ -667,6 +671,91 @@ end
 %==========================================================================
 
 %==========================================================================
+% UpdateAffinesSub()
+function datn = UpdateAffinesSub(datn,mu,sett)
+% This could be made more efficient.
+
+% Parse function settings
+accel = sett.gen.accel;
+B     = sett.registr.B;
+d     = sett.var.d;
+Mmu   = sett.var.Mmu;
+mu_bg = sett.model.mu_bg;
+scal  = sett.optim.scal_q;
+
+df   = spm_mb_io('GetSize',datn.f);
+q    = double(datn.q);
+Mn   = datn.Mat;
+[Mr,dM3] = spm_dexpm(q,B);
+dM   = zeros(12,size(B,3));
+for m=1:size(B,3)
+    tmp     = Mmu\dM3(:,:,m)*Mn;
+    dM(:,m) = reshape(tmp(1:3,:),12,1);
+end
+
+psi1 = spm_mb_io('GetData',datn.psi);
+psi0 = Affine(df,Mmu\Mr*Mn);
+J    = spm_diffeo('jacobian',psi1);
+J    = reshape(Pull1(reshape(J,[d 3*3]),psi0),[df 3 3]);
+psi  = Compose(psi1,psi0);
+clear psi0  psi1
+
+mu1  = Pull1(mu,psi,mu_bg);
+[f,datn] = spm_mb_io('GetClasses',datn,mu1,sett);
+M    = size(mu,4);
+G    = zeros([df M 3],'single');
+for m=1:M
+    [~,Gm{1},Gm{2},Gm{3}] = spm_diffeo('bsplins',mu(:,:,:,m),psi,[1 1 1  0 0 0]);
+    for i1=1:3
+        tmp = single(0);
+        for j1=1:3
+            tmp = tmp + J(:,:,:,j1,i1).*Gm{j1};
+        end
+        tmp(~isfinite(tmp)) = 0;
+        G(:,:,:,m,i1) = tmp;
+    end
+    clear Gm
+end
+clear J mu
+
+msk       = all(isfinite(f),4);
+a         = Mask(f - Softmax(mu1,4),msk);
+[H,g]     = AffineHessian(mu1,G,a,single(msk),accel);
+g         = double(dM'*g);
+H         = dM'*H*dM;
+H         = H + eye(numel(q))*(norm(H)*1e-6 + 0.1);
+q         = q + scal*(H\g);
+datn.q    = q;
+end
+%==========================================================================
+
+%==========================================================================
+% AffineHessian()
+function [H,g] = AffineHessian(mu,G,a,w,accel)
+d  = [size(mu,1),size(mu,2),size(mu,3)];
+I  = Horder(3);
+H  = zeros(12,12);
+g  = zeros(12, 1);
+[x{1:4}] = ndgrid(1:d(1),1:d(2),1,1);
+for i=1:d(3)
+    x{3} = x{3}*0+i;
+    gv   = reshape(sum(a(:,:,i,:).*G(:,:,i,:,:),4),[d(1:2) 1 3]);
+    Hv   = w(:,:,i).*VelocityHessian(mu(:,:,i,:),G(:,:,i,:,:),accel);
+    for i1=1:12
+        k1g   = rem(i1-1,3)+1;
+        k1x   = floor((i1-1)/3)+1;
+        g(i1) = g(i1) + sum(sum(sum(x{k1x}.*gv(:,:,:,k1g))));
+        for i2=1:12
+            k2g      = rem(i2-1,3)+1;
+            k2x      = floor((i2-1)/3)+1;
+            H(i1,i2) = H(i1,i2) + sum(sum(sum(x{k1x}.*Hv(:,:,:,I(k1g,k2g)).*x{k2x})));
+        end
+    end
+end
+end
+%==========================================================================
+
+%==========================================================================
 % UpdateMean()
 function [mu,dat] = UpdateMean(dat, mu, sett)
 
@@ -676,16 +765,71 @@ mu_settings = sett.var.mu_settings;
 s_settings  = sett.shoot.s_settings;
 
 g  = spm_field('vel2mom', mu, mu_settings);
-M  = size(mu,4);
-H  = zeros([sett.var.d M*(M+1)/2],'single');
-H0 = AppearanceHessian(mu,accel);
+w  = zeros(sett.var.d,'single');
 for n=1:numel(dat) % PARFOR
-    [gn,Hn,dat(n)] = UpdateMeanSub(dat(n),mu,H0,sett);
+    [gn,wn,dat(n)] = UpdateMeanSub(dat(n),mu,sett);
     g              = g + gn;
-    H              = H + Hn;
+    w              = w + wn;
 end
-clear H0 gn Hn
+clear gn wn
+H  = AppearanceHessian(mu,accel,w);
 mu = mu - spm_field(H, g, [mu_settings s_settings]);
+end
+%==========================================================================
+
+%==========================================================================
+% UpdateMeanSub()
+function [g,w,datn] = UpdateMeanSub(datn,mu,sett)
+
+% Parse function settings
+B      = sett.registr.B;
+d      = sett.var.d;
+Mmu    = sett.var.Mmu;
+mu_bg  = sett.model.mu_bg;
+
+df  = spm_mb_io('GetSize',datn.f);
+q   = double(datn.q);
+Mn  = datn.Mat;
+psi = Compose(spm_mb_io('GetData',datn.psi),Affine(df, Mmu\spm_dexpm(q,B)*Mn));
+mu  = Pull1(mu,psi,mu_bg);
+[f,datn] = spm_mb_io('GetClasses',datn,mu,sett);
+
+% Fast approximation for computing weights that enter
+% into computations for Hessian.
+% If there are problems, then revert to the slow
+% way of computing the Hessian.
+% H   = Push1(AppearanceHessian(mu,accel),psi,d);
+[g,w] = Push1(Softmax(mu,4) - f,psi,d,1,mu_bg);
+end
+%==========================================================================
+
+%==========================================================================
+% AppearanceHessian()
+function H = AppearanceHessian(mu,accel,w)
+M  = size(mu,4);
+d  = [size(mu,1) size(mu,2) size(mu,3)];
+if accel>0, s  = Softmax(mu,4); end
+Ab = 0.5*(eye(M)-1/(M+1)); % See Bohning's paper
+I  = Horder(M);
+H  = zeros([d (M*(M+1))/2],'single');
+for m1=1:M
+    for m2=m1:M
+        if accel==0
+            tmp = Ab(m1,m2)*ones(d,'single');
+        else
+            if m2~=m1
+                tmp = accel*(-s(:,:,:,m1).*s(:,:,:,m2))           + (1-accel)*Ab(m1,m2);
+            else
+                tmp = accel*(max(s(:,:,:,m1).*(1-s(:,:,:,m1)),0)) + (1-accel)*Ab(m1,m2);
+            end
+        end
+        if nargin>=3
+            H(:,:,:,I(m1,m2)) = tmp.*w;
+        else
+            H(:,:,:,I(m1,m2)) = tmp;
+        end
+    end
+end
 end
 %==========================================================================
 
@@ -719,6 +863,69 @@ end
 %==========================================================================
 
 %==========================================================================
+% UpdateSimpleAffinesSub()
+function datn = UpdateSimpleAffinesSub(datn,mu,G,H0,sett)
+
+% Parse function settings
+B    = sett.registr.B;
+d    = sett.var.d;
+Mmu  = sett.var.Mmu;
+mu_bg = sett.model.mu_bg;
+scal = sett.optim.scal_q;
+
+df   = spm_mb_io('GetSize',datn.f);
+q    = double(datn.q);
+Mn   = datn.Mat;
+[Mr,dM3] = spm_dexpm(q,B);
+dM   = zeros(12,size(B,3));
+for m=1:size(B,3)
+    tmp     = Mmu\dM3(:,:,m)*Mmu;
+    dM(:,m) = reshape(tmp(1:3,:),12,1);
+end
+
+psi      = Affine(df,Mmu\Mr*Mn);
+mu1      = Pull1(mu,psi,mu_bg);
+[f,datn] = spm_mb_io('GetClasses',datn,mu1,sett);
+
+[a,w] = Push1(f - Softmax(mu1,4),psi,d,1,mu_bg);
+clear mu1 psi f
+
+[H,g]     = SimpleAffineHessian(mu,G,H0,a,w);
+g         = double(dM'*g);
+H         = dM'*H*dM;
+H         = H + eye(numel(q))*(norm(H)*1e-6 + 0.1);
+q         = q + scal*(H\g);
+datn.q    = q;
+end
+%==========================================================================
+
+%==========================================================================
+% SimpleAffineHessian()
+function [H,g] = SimpleAffineHessian(mu,G,H0,a,w)
+d  = [size(mu,1),size(mu,2),size(mu,3)];
+I  = Horder(3);
+H  = zeros(12,12);
+g  = zeros(12, 1);
+[x{1:4}] = ndgrid(1:d(1),1:d(2),1,1);
+for i=1:d(3)
+    x{3} = x{3}*0+i;
+    gv   = reshape(sum(a(:,:,i,:).*G(:,:,i,:,:),4),[d(1:2) 1 3]);
+    Hv   = w(:,:,i).*H0(:,:,i,:);
+    for i1=1:12
+        k1g   = rem(i1-1,3)+1;
+        k1x   = floor((i1-1)/3)+1;
+        g(i1) = g(i1) + sum(sum(sum(x{k1x}.*gv(:,:,:,k1g))));
+        for i2=1:12
+            k2g      = rem(i2-1,3)+1;
+            k2x      = floor((i2-1)/3)+1;
+            H(i1,i2) = H(i1,i2) + sum(sum(sum(x{k1x}.*Hv(:,:,:,I(k1g,k2g)).*x{k2x})));
+        end
+    end
+end
+end
+%==========================================================================
+
+%==========================================================================
 % UpdateSimpleMean()
 function [mu,dat] = UpdateSimpleMean(dat, mu, sett)
 
@@ -734,12 +941,33 @@ for n=1:numel(dat) % PARFOR
     gf             = gf + gn;
     w              = w  + wn;
 end
+clear gn wn
 for it=1:ceil(4+2*log2(numel(dat)))
-    H  = w.*AppearanceHessian(mu,accel);
+    H  = AppearanceHessian(mu,accel,w);
     g  = w.*Softmax(mu,4) - gf;
     g  = g  + spm_field('vel2mom', mu, mu_settings);
     mu = mu - spm_field(H, g, [mu_settings s_settings]);
 end
+end
+%==========================================================================
+
+%==========================================================================
+% UpdateSimpleMeanSub()
+function [g,w,datn] = UpdateSimpleMeanSub(datn,mu,sett)
+
+% Parse function settings
+B     = sett.registr.B;
+d     = sett.var.d;
+Mmu   = sett.var.Mmu;
+mu_bg = sett.model.mu_bg;
+
+df    = spm_mb_io('GetSize',datn.f);
+q     = double(datn.q);
+Mn    = datn.Mat;
+psi   = Compose(spm_mb_io('GetData',datn.psi),Affine(df,Mmu\spm_dexpm(q,B)*Mn));
+mu    = Pull1(mu,psi,mu_bg);
+[f,datn] = spm_mb_io('GetClasses',datn,mu,sett);
+[g,w] = Push1(f,psi,d,1,mu_bg);
 end
 %==========================================================================
 
@@ -759,6 +987,100 @@ end
 for n=1:numel(dat) % PARFOR
     dat(n) = UpdateVelocitiesSub(dat(n),mu,G,H0,sett);
 end
+end
+%==========================================================================
+
+%==========================================================================
+% UpdateVelocitiesSub()
+function datn = UpdateVelocitiesSub(datn,mu,G,H0,sett)
+
+% Parse function settings
+B          = sett.registr.B;
+d          = sett.var.d;
+Mmu        = sett.var.Mmu;
+mu_bg      = sett.model.mu_bg;
+s_settings = sett.shoot.s_settings;
+scal       = sett.optim.scal_v;
+v_settings = sett.var.v_settings;
+
+v         = spm_mb_io('GetData',datn.v);
+q         = datn.q;
+Mn        = datn.Mat;
+Mr        = spm_dexpm(q,B);
+Mat       = Mmu\Mr*Mn;
+df        = spm_mb_io('GetSize',datn.f);
+psi       = Compose(spm_mb_io('GetData',datn.psi),Affine(df,Mat));
+mu        = Pull1(mu,psi);
+[f,datn]  = spm_mb_io('GetClasses',datn,mu,sett);
+[a,w]     = Push1(f - Softmax(mu,4),psi,d,1,mu_bg);
+clear psi f mu
+
+g         = reshape(sum(a.*G,4),[d 3]);
+H         = w.*H0;
+clear a w
+
+u0        = spm_diffeo('vel2mom', v, v_settings);                          % Initial momentum
+% datn.E(2) = 0.5*sum(u0(:).*v(:));                                          % Prior term
+v         = v - scal*spm_diffeo('fmg',H, g + u0, [v_settings s_settings]); % Gauss-Newton update
+
+if d(3)==1, v(:,:,:,3) = 0; end % If 2D
+if v_settings(1)==0             % Mean displacement should be 0
+    avg = mean(mean(mean(v,1),2),3);
+    v   = v - avg;
+end
+datn.v = spm_mb_io('SetData',datn.v,v);
+end
+%==========================================================================
+
+%==========================================================================
+% VelocityHessian()
+function H = VelocityHessian(mu,G,accel)
+d  = [size(mu,1),size(mu,2),size(mu,3)];
+M  = size(mu,4);
+if accel>0, s  = Softmax(mu,4); end
+Ab = 0.5*(eye(M)-1/(M+1)); % See Bohning's paper
+H1 = zeros(d,'single');
+H2 = H1;
+H3 = H1;
+H4 = H1;
+H5 = H1;
+H6 = H1;
+for m1=1:M
+    Gm11 = G(:,:,:,m1,1);
+    Gm12 = G(:,:,:,m1,2);
+    Gm13 = G(:,:,:,m1,3);
+    if accel==0
+        tmp = Ab(m1,m1);
+    else
+        sm1 = s(:,:,:,m1);
+        tmp = (max(sm1.*(1-sm1),0))*accel + (1-accel)*Ab(m1,m1);
+    end
+    H1 = H1 + tmp.*Gm11.*Gm11;
+    H2 = H2 + tmp.*Gm12.*Gm12;
+    H3 = H3 + tmp.*Gm13.*Gm13;
+    H4 = H4 + tmp.*Gm11.*Gm12;
+    H5 = H5 + tmp.*Gm11.*Gm13;
+    H6 = H6 + tmp.*Gm12.*Gm13;
+    for m2=(m1+1):M
+        if accel==0
+            tmp = Ab(m1,m2);
+        else
+            sm2 = s(:,:,:,m2);
+            tmp = (-sm1.*sm2)*accel + (1-accel)*Ab(m1,m2);
+        end
+        Gm21 = G(:,:,:,m2,1);
+        Gm22 = G(:,:,:,m2,2);
+        Gm23 = G(:,:,:,m2,3);
+        H1 = H1 + 2*tmp.*Gm11.*Gm21;
+        H2 = H2 + 2*tmp.*Gm12.*Gm22;
+        H3 = H3 + 2*tmp.*Gm13.*Gm23;
+        H4 = H4 + tmp.*(Gm11.*Gm22 + Gm21.*Gm12);
+        H5 = H5 + tmp.*(Gm11.*Gm23 + Gm21.*Gm13);
+        H6 = H6 + tmp.*(Gm12.*Gm23 + Gm22.*Gm13);
+    end
+end
+clear Gm11 Gm12 Gm13 Gm21 Gm22 Gm23 sm1 sm2 tmp
+H = cat(4, H1, H2, H3, H4, H5, H6);
 end
 %==========================================================================
 
@@ -786,6 +1108,19 @@ kernel = Shoot(d,v_settings);
 for n=1:numel(dat) % PARFOR
     dat(n) = UpdateWarpsSub(dat(n),avg_v,sett,kernel);
 end
+end
+%==========================================================================
+
+%==========================================================================
+% UpdateWarpsSub()
+function datn = UpdateWarpsSub(datn,avg_v,sett,kernel)
+v        = spm_mb_io('GetData',datn.v);
+if ~isempty(avg_v)
+    v    = v - avg_v;
+end
+datn.v   = spm_mb_io('SetData',datn.v,v);
+psi1     = Shoot(v, kernel, sett.shoot.args); % Geodesic shooting
+datn.psi = spm_mb_io('SetData',datn.psi,psi1);
 end
 %==========================================================================
 
@@ -831,58 +1166,6 @@ end
 %
 % Utility functions
 %
-%==========================================================================
-
-%==========================================================================
-% AffineHessian()
-function [H,g] = AffineHessian(mu,G,a,w,accel)
-d  = [size(mu,1),size(mu,2),size(mu,3)];
-I  = Horder(3);
-H  = zeros(12,12);
-g  = zeros(12, 1);
-[x{1:4}] = ndgrid(1:d(1),1:d(2),1,1);
-for i=1:d(3)
-    x{3} = x{3}*0+i;
-    gv   = reshape(sum(a(:,:,i,:).*G(:,:,i,:,:),4),[d(1:2) 1 3]);
-    Hv   = w(:,:,i).*VelocityHessian(mu(:,:,i,:),G(:,:,i,:,:),accel);
-    for i1=1:12
-        k1g   = rem(i1-1,3)+1;
-        k1x   = floor((i1-1)/3)+1;
-        g(i1) = g(i1) + sum(sum(sum(x{k1x}.*gv(:,:,:,k1g))));
-        for i2=1:12
-            k2g      = rem(i2-1,3)+1;
-            k2x      = floor((i2-1)/3)+1;
-            H(i1,i2) = H(i1,i2) + sum(sum(sum(x{k1x}.*Hv(:,:,:,I(k1g,k2g)).*x{k2x})));
-        end
-    end
-end
-end
-%==========================================================================
-
-%==========================================================================
-% AppearanceHessian()
-function H = AppearanceHessian(mu,accel)
-M  = size(mu,4);
-d  = [size(mu,1) size(mu,2) size(mu,3)];
-if accel>0, s  = Softmax(mu,4); end
-Ab = 0.5*(eye(M)-1/(M+1)); % See Bohning's paper
-I  = Horder(M);
-H  = zeros([d (M*(M+1))/2],'single');
-for m1=1:M
-    for m2=m1:M
-        if accel==0
-            tmp = Ab(m1,m2)*ones(d,'single');
-        else
-            if m2~=m1
-                tmp = accel*(-s(:,:,:,m1).*s(:,:,:,m2))           + (1-accel)*Ab(m1,m2);
-            else
-                tmp = accel*(max(s(:,:,:,m1).*(1-s(:,:,:,m1)),0)) + (1-accel)*Ab(m1,m2);
-            end
-        end
-        H(:,:,:,I(m1,m2)) = tmp;
-    end
-end
-end
 %==========================================================================
 
 %==========================================================================
@@ -1112,7 +1395,7 @@ function varargout = Shoot(v0,kernel,args)
 if nargin==2
     if numel(v0)>5
         d = [size(v0) 1];
-        d = v0(1:3);
+        d = d(1:3);
     else
         d = v0;
     end
@@ -1187,281 +1470,14 @@ varargout{2} = v;
 end
 %==========================================================================
 
-%==========================================================================
-% SimpleAffineHessian()
-function [H,g] = SimpleAffineHessian(mu,G,H0,a,w)
-d  = [size(mu,1),size(mu,2),size(mu,3)];
-I  = Horder(3);
-H  = zeros(12,12);
-g  = zeros(12, 1);
-[x{1:4}] = ndgrid(1:d(1),1:d(2),1,1);
-for i=1:d(3)
-    x{3} = x{3}*0+i;
-    gv   = reshape(sum(a(:,:,i,:).*G(:,:,i,:,:),4),[d(1:2) 1 3]);
-    Hv   = w(:,:,i).*H0(:,:,i,:);
-    for i1=1:12
-        k1g   = rem(i1-1,3)+1;
-        k1x   = floor((i1-1)/3)+1;
-        g(i1) = g(i1) + sum(sum(sum(x{k1x}.*gv(:,:,:,k1g))));
-        for i2=1:12
-            k2g      = rem(i2-1,3)+1;
-            k2x      = floor((i2-1)/3)+1;
-            H(i1,i2) = H(i1,i2) + sum(sum(sum(x{k1x}.*Hv(:,:,:,I(k1g,k2g)).*x{k2x})));
-        end
-    end
-end
-end
-%==========================================================================
 
-%==========================================================================
-% UpdateAffinesSub()
-function datn = UpdateAffinesSub(datn,mu,sett)
-% This could be made more efficient.
 
-% Parse function settings
-accel = sett.gen.accel;
-B     = sett.registr.B;
-d     = sett.var.d;
-Mmu   = sett.var.Mmu;
-mu_bg = sett.model.mu_bg;
-scal  = sett.optim.scal_q;
 
-df   = spm_mb_io('GetSize',datn.f);
-q    = double(datn.q);
-Mn   = datn.Mat;
-[Mr,dM3] = spm_dexpm(q,B);
-dM   = zeros(12,size(B,3));
-for m=1:size(B,3)
-    tmp     = Mmu\dM3(:,:,m)*Mn;
-    dM(:,m) = reshape(tmp(1:3,:),12,1);
-end
 
-psi1 = spm_mb_io('GetData',datn.psi);
-psi0 = Affine(df,Mmu\Mr*Mn);
-J    = spm_diffeo('jacobian',psi1);
-J    = reshape(Pull1(reshape(J,[d 3*3]),psi0),[df 3 3]);
-psi  = Compose(psi1,psi0);
-clear psi0  psi1
 
-mu1  = Pull1(mu,psi,mu_bg);
-[f,datn] = spm_mb_io('GetClasses',datn,mu1,sett);
-M    = size(mu,4);
-G    = zeros([df M 3],'single');
-for m=1:M
-    [~,Gm{1},Gm{2},Gm{3}] = spm_diffeo('bsplins',mu(:,:,:,m),psi,[1 1 1  0 0 0]);
-    for i1=1:3
-        tmp = single(0);
-        for j1=1:3
-            tmp = tmp + J(:,:,:,j1,i1).*Gm{j1};
-        end
-        tmp(~isfinite(tmp)) = 0;
-        G(:,:,:,m,i1) = tmp;
-    end
-    clear Gm
-end
-clear J mu
 
-msk       = all(isfinite(f),4);
-a         = Mask(f - Softmax(mu1,4),msk);
-[H,g]     = AffineHessian(mu1,G,a,single(msk),accel);
-g         = double(dM'*g);
-H         = dM'*H*dM;
-H         = H + eye(numel(q))*(norm(H)*1e-6 + 0.1);
-q         = q + scal*(H\g);
-datn.q    = q;
-end
-%==========================================================================
 
-%==========================================================================
-% UpdateMeanSub()
-function [g,H,datn] = UpdateMeanSub(datn,mu,H,sett)
 
-% Parse function settings
-accel = sett.gen.accel;
-B     = sett.registr.B;
-d     = sett.var.d;
-Mmu   = sett.var.Mmu;
-mu_bg = sett.model.mu_bg;
 
-df  = spm_mb_io('GetSize',datn.f);
-q   = double(datn.q);
-Mn  = datn.Mat;
-psi = Compose(spm_mb_io('GetData',datn.psi),Affine(df, Mmu\spm_dexpm(q,B)*Mn));
-mu  = Pull1(mu,psi,mu_bg);
-[f,datn] = spm_mb_io('GetClasses',datn,mu,sett);
-% if isempty(H0)
-%     g     = Push1(Softmax(mu,4) - f,psi,d);
-%     H     = Push1(AppearanceHessian(mu,accel),psi,d);
-% else
-    % Faster approximation - but might be unstable
-    % If there are problems, then revert to the slow
-    % way.
-    [g,w] = Push1(Softmax(mu,4) - f,psi,d,1,mu_bg);
-    H     = w.*H;
-% end
-end
-%==========================================================================
 
-%==========================================================================
-% UpdateSimpleAffinesSub()
-function datn = UpdateSimpleAffinesSub(datn,mu,G,H0,sett)
 
-% Parse function settings
-B    = sett.registr.B;
-d    = sett.var.d;
-Mmu  = sett.var.Mmu;
-mu_bg = sett.model.mu_bg;
-scal = sett.optim.scal_q;
-
-df   = spm_mb_io('GetSize',datn.f);
-q    = double(datn.q);
-Mn   = datn.Mat;
-[Mr,dM3] = spm_dexpm(q,B);
-dM   = zeros(12,size(B,3));
-for m=1:size(B,3)
-    tmp     = Mmu\dM3(:,:,m)*Mmu;
-    dM(:,m) = reshape(tmp(1:3,:),12,1);
-end
-
-psi      = Affine(df,Mmu\Mr*Mn);
-mu1      = Pull1(mu,psi,mu_bg);
-[f,datn] = spm_mb_io('GetClasses',datn,mu1,sett);
-
-[a,w] = Push1(f - Softmax(mu1,4),psi,d,1,mu_bg);
-clear mu1 psi f
-
-[H,g]     = SimpleAffineHessian(mu,G,H0,a,w);
-g         = double(dM'*g);
-H         = dM'*H*dM;
-H         = H + eye(numel(q))*(norm(H)*1e-6 + 0.1);
-q         = q + scal*(H\g);
-datn.q    = q;
-end
-%==========================================================================
-
-%==========================================================================
-% UpdateSimpleMeanSub()
-function [g,w,datn] = UpdateSimpleMeanSub(datn,mu,sett)
-
-% Parse function settings
-B     = sett.registr.B;
-d     = sett.var.d;
-Mmu   = sett.var.Mmu;
-mu_bg = sett.model.mu_bg;
-
-df    = spm_mb_io('GetSize',datn.f);
-q     = double(datn.q);
-Mn    = datn.Mat;
-psi   = Compose(spm_mb_io('GetData',datn.psi),Affine(df,Mmu\spm_dexpm(q,B)*Mn));
-mu    = Pull1(mu,psi,mu_bg);
-[f,datn] = spm_mb_io('GetClasses',datn,mu,sett);
-[g,w] = Push1(f,psi,d,1,mu_bg);
-end
-%==========================================================================
-
-%==========================================================================
-% UpdateVelocitiesSub()
-function datn = UpdateVelocitiesSub(datn,mu,G,H0,sett)
-
-% Parse function settings
-B          = sett.registr.B;
-d          = sett.var.d;
-Mmu        = sett.var.Mmu;
-mu_bg      = sett.model.mu_bg;
-s_settings = sett.shoot.s_settings;
-scal       = sett.optim.scal_v;
-v_settings = sett.var.v_settings;
-
-v         = spm_mb_io('GetData',datn.v);
-q         = datn.q;
-Mn        = datn.Mat;
-Mr        = spm_dexpm(q,B);
-Mat       = Mmu\Mr*Mn;
-df        = spm_mb_io('GetSize',datn.f);
-psi       = Compose(spm_mb_io('GetData',datn.psi),Affine(df,Mat));
-mu        = Pull1(mu,psi);
-[f,datn]  = spm_mb_io('GetClasses',datn,mu,sett);
-[a,w]     = Push1(f - Softmax(mu,4),psi,d,1,mu_bg);
-clear psi f mu
-
-g         = reshape(sum(a.*G,4),[d 3]);
-H         = w.*H0;
-clear a w
-
-u0        = spm_diffeo('vel2mom', v, v_settings);                          % Initial momentum
-% datn.E(2) = 0.5*sum(u0(:).*v(:));                                          % Prior term
-v         = v - scal*spm_diffeo('fmg',H, g + u0, [v_settings s_settings]); % Gauss-Newton update
-
-if d(3)==1, v(:,:,:,3) = 0; end % If 2D
-if v_settings(1)==0             % Mean displacement should be 0
-    avg = mean(mean(mean(v,1),2),3);
-    v   = v - avg;
-end
-datn.v = spm_mb_io('SetData',datn.v,v);
-end
-%==========================================================================
-
-%==========================================================================
-% UpdateWarpsSub()
-function datn = UpdateWarpsSub(datn,avg_v,sett,kernel)
-v        = spm_mb_io('GetData',datn.v);
-if ~isempty(avg_v)
-    v    = v - avg_v;
-end
-datn.v   = spm_mb_io('SetData',datn.v,v);
-psi1     = Shoot(v, kernel, sett.shoot.args); % Geodesic shooting
-datn.psi = spm_mb_io('SetData',datn.psi,psi1);
-end
-%==========================================================================
-
-%==========================================================================
-% VelocityHessian()
-function H = VelocityHessian(mu,G,accel)
-d  = [size(mu,1),size(mu,2),size(mu,3)];
-M  = size(mu,4);
-if accel>0, s  = Softmax(mu,4); end
-Ab = 0.5*(eye(M)-1/(M+1)); % See Bohning's paper
-H1 = zeros(d,'single');
-H2 = H1;
-H3 = H1;
-H4 = H1;
-H5 = H1;
-H6 = H1;
-for m1=1:M
-    Gm11 = G(:,:,:,m1,1);
-    Gm12 = G(:,:,:,m1,2);
-    Gm13 = G(:,:,:,m1,3);
-    if accel==0
-        tmp = Ab(m1,m1);
-    else
-        sm1 = s(:,:,:,m1);
-        tmp = (max(sm1.*(1-sm1),0))*accel + (1-accel)*Ab(m1,m1);
-    end
-    H1 = H1 + tmp.*Gm11.*Gm11;
-    H2 = H2 + tmp.*Gm12.*Gm12;
-    H3 = H3 + tmp.*Gm13.*Gm13;
-    H4 = H4 + tmp.*Gm11.*Gm12;
-    H5 = H5 + tmp.*Gm11.*Gm13;
-    H6 = H6 + tmp.*Gm12.*Gm13;
-    for m2=(m1+1):M
-        if accel==0
-            tmp = Ab(m1,m2);
-        else
-            sm2 = s(:,:,:,m2);
-            tmp = (-sm1.*sm2)*accel + (1-accel)*Ab(m1,m2);
-        end
-        Gm21 = G(:,:,:,m2,1);
-        Gm22 = G(:,:,:,m2,2);
-        Gm23 = G(:,:,:,m2,3);
-        H1 = H1 + 2*tmp.*Gm11.*Gm21;
-        H2 = H2 + 2*tmp.*Gm12.*Gm22;
-        H3 = H3 + 2*tmp.*Gm13.*Gm23;
-        H4 = H4 + tmp.*(Gm11.*Gm22 + Gm21.*Gm12);
-        H5 = H5 + tmp.*(Gm11.*Gm23 + Gm21.*Gm13);
-        H6 = H6 + tmp.*(Gm12.*Gm23 + Gm22.*Gm13);
-    end
-end
-clear Gm11 Gm12 Gm13 Gm21 Gm22 Gm23 sm1 sm2 tmp
-H = cat(4, H1, H2, H3, H4, H5, H6);
-end
-%==========================================================================
