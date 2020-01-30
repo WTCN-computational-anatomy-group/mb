@@ -14,10 +14,10 @@ function varargout = spm_mb_io(varargin)
 % FORMAT dat               = spm_mb_io('InitDat',data,sett)
 % FORMAT model             = spm_mb_io('LoadModel',PthModel,sett)
 % FORMAT model             = spm_mb_io('MakeModel',dat,model,sett)
-% FORMAT [psi,fpth]        = spm_mb_io('SavePsiSub',datn,sett) 
+% FORMAT [psi,fpth]        = spm_mb_io('SavePsiSub',datn,sett)
 % FORMAT                     spm_mb_io('SaveTemplate',dat,mu,sett)
 % FORMAT                     spm_mb_io('SetBoundCond')
-% FORMAT fout              = spm_mb_io('SetData',fin,f) 
+% FORMAT fout              = spm_mb_io('SetData',fin,f)
 % FORMAT                     spm_mb_io('SetPath')
 % FORMAT                     spm_mb_io('WriteNii',f,img,Mmu,descrip);
 %
@@ -34,11 +34,11 @@ switch id
     case 'CopyFields'
         [varargout{1:nargout}] = CopyFields(varargin{:});
     case 'CropLearnedTemplate'
-        [varargout{1:nargout}] = CropLearnedTemplate(varargin{:});        
+        [varargout{1:nargout}] = CropLearnedTemplate(varargin{:});
     case 'GetClasses'
         [varargout{1:nargout}] = GetClasses(varargin{:});
     case 'GetCTandMRI'
-        [varargout{1:nargout}] = GetCTandMRI(varargin{:});        
+        [varargout{1:nargout}] = GetCTandMRI(varargin{:});
     case 'GetData'
         [varargout{1:nargout}] = GetData(varargin{:});
     case 'GetMat'
@@ -47,13 +47,13 @@ switch id
         [varargout{1:nargout}] = GetSize(varargin{:});
     case 'GetScale'
         [varargout{1:nargout}] = GetScale(varargin{:});
-    case 'InitDat' 
+    case 'InitDat'
         [varargout{1:nargout}] = InitDat(varargin{:});
-    case 'LoadModel' 
-        [varargout{1:nargout}] = LoadModel(varargin{:});        
-    case 'MakeModel' 
-        [varargout{1:nargout}] = MakeModel(varargin{:});        
-    case 'SavePsiSub' 
+    case 'LoadModel'
+        [varargout{1:nargout}] = LoadModel(varargin{:});
+    case 'MakeModel'
+        [varargout{1:nargout}] = MakeModel(varargin{:});
+    case 'SavePsiSub'
         [varargout{1:nargout}] = SavePsiSub(varargin{:});
     case 'SaveTemplate'
         [varargout{1:nargout}] = SaveTemplate(varargin{:});
@@ -62,9 +62,9 @@ switch id
     case 'SetData'
         [varargout{1:nargout}] = SetData(varargin{:});
     case 'SetPath'
-        [varargout{1:nargout}] = SetPath(varargin{:});        
+        [varargout{1:nargout}] = SetPath(varargin{:});
     case 'WriteNii'
-        [varargout{1:nargout}] = WriteNii(varargin{:});            
+        [varargout{1:nargout}] = WriteNii(varargin{:});
     otherwise
         help spm_mb_io
         error('Unknown function %s. Type ''help spm_mb_io'' for help.', id)
@@ -96,36 +96,36 @@ if do
     nnam          = ['crp_' nam];
     fout          = fullfile(pth,[nnam ext]);
     copyfile(fin,fout);
-    
+
     c = [192 189 201];
     bb = [c - [90 100 180]; c + [90 120 90]]; % [l b d], [r f u]
-    
+
     V  = spm_vol(fout);
     for k=1:numel(V)
         VO = SubVol(V(k),bb);
     end
-    
+
     spm_check_registration([fout ',1']);
 else
 %     Nii       = nifti(pth);
-%     dim       = Nii.dat.dim;    
+%     dim       = Nii.dat.dim;
 %     tis_class = 1;
 %     centre_ix = [1,2; 3,2; 1,3];
-%     
+%
 %     figure(666)
 %     for i=1:3
 %         ci       = c(centre_ix(i,:));
 %         slice_ix = c(round(setdiff(1:3,centre_ix(i,:))));
-%         
+%
 %         subplot(1,3,i)
-%         if     i == 1, imagesc(Nii.dat(:,:,slice_ix,tis_class)); 
-%         elseif i == 2, imagesc(squeeze(Nii.dat(:,slice_ix,:,tis_class))); 
-%         else,          imagesc(squeeze(Nii.dat(slice_ix,:,:,tis_class))); 
+%         if     i == 1, imagesc(Nii.dat(:,:,slice_ix,tis_class));
+%         elseif i == 2, imagesc(squeeze(Nii.dat(:,slice_ix,:,tis_class)));
+%         else,          imagesc(squeeze(Nii.dat(slice_ix,:,:,tis_class)));
 %         end
-%         axis image xy               
-%         
+%         axis image xy
+%
 %         hold on
-%         plot(ci(1),ci(2),'rx'); 
+%         plot(ci(1),ci(2),'rx');
 %         bb1 = [ci(1) + mrg(i), ci(1) - mrg(i), ci(1) - mrg(i), ci(1) + mrg(i), ci(1) + mrg(i)];
 %         bb2 = [ci(2) + mrg(i), ci(2) + mrg(i), ci(2) - mrg(i), ci(2) - mrg(i), ci(2) + mrg(i)];
 %         plot(bb1, bb2, 'r-', 'LineWidth', 1);
@@ -156,18 +156,18 @@ if 0
     % Show stuff
     d  = size(mu);
     d  = [d 1 1];
-    K  = d(4);        
+    K  = d(4);
     nr = floor(sqrt(K));
-    nc = ceil(K/nr);  
-        
-    for k=1:K    
-        % Show template    
-        figure(664); subplot(nr,nc,k); imagesc(mu(:,:,ceil(d(3).*0.55),k)'); 
+    nc = ceil(K/nr);
+
+    for k=1:K
+        % Show template
+        figure(664); subplot(nr,nc,k); imagesc(mu(:,:,ceil(d(3).*0.55),k)');
         title('mu');
         axis image xy off; drawnow
-        
+
         % Show segmentation
-        figure(665); subplot(nr,nc,k); imagesc(P(:,:,ceil(d(3).*0.55),k)'); 
+        figure(665); subplot(nr,nc,k); imagesc(P(:,:,ceil(d(3).*0.55),k)');
         title('Seg')
         axis image xy off; drawnow
     end
@@ -229,10 +229,10 @@ N          = numel(dat);
 ix_ct      = [];
 ix_mri2    = [];
 ix_pop_mri = [];
-for n=1:N        
+for n=1:N
     if any(dat(n).is_ct == true)
         ix_ct = [ix_ct n];
-    else                         
+    else
         ix_pop_mri = [ix_pop_mri dat(n).ix_pop];
         ix_mri2    = [ix_mri2 n];
     end
@@ -328,8 +328,8 @@ for n=1:N
     % Init datn.f
     if iscell(F) && isnumeric(F{1})
         % Input F is numeric -> store as numeric
-        
-        if run2d            
+
+        if run2d
             % Get 2D slice from 3D data
             dat(n).f = GetSlice(F{1},run2d);
         else
@@ -337,15 +337,15 @@ for n=1:N
         end
     elseif isa(F,'nifti') || (iscell(F) && (isa(F{1},'char') || isa(F{1},'nifti')))
         % Input F is nifti (path or object) -> store as nifti
-                       
+
         if isa(F,'nifti')
             Nii      = F;
-            dat(n).f = Nii;        
-        elseif iscell(F) 
+            dat(n).f = Nii;
+        elseif iscell(F)
             if isa(F{1},'char')
                 Nii      = nifti(F{1});
-                dat(n).f = Nii;        
-            elseif isa(F{1},'nifti')                
+                dat(n).f = Nii;
+            elseif isa(F{1},'nifti')
                 Nii      = F{1};
                 C        = numel(Nii);
                 dat(n).f = nifti;
@@ -354,89 +354,89 @@ for n=1:N
                 end
             end
         end
-        
+
         if run2d
             % Get 2D slice from 3D data
             fn       = spm_mb_io('GetData',dat(n).f);
             dat(n).f = GetSlice(fn,run2d);
         end
     end
-    
+
     % Get number of channels
     [~,C] = spm_mb_io('GetSize',dat(n).f);
-    
+
     % Parameters
-    dat(n).M     = M0;    
-    dat(n).q     = zeros(6,1);    
-    dat(n).v     = [];    
-    dat(n).psi   = [];    
+    dat(n).M     = M0;
+    dat(n).q     = zeros(6,1);
+    dat(n).v     = [];
+    dat(n).psi   = [];
     dat(n).E     = [0 0]; % Px Pv
-    dat(n).bf    = [];   
-       
+    dat(n).bf    = [];
+
     if do_gmm
         dat(n).mog = [];
-        dat(n).bf  = [];                
+        dat(n).bf  = [];
     end
-                
-    % Orientation matrix (image voxel-to-world)    
+
+    % Orientation matrix (image voxel-to-world)
     dat(n).Mat = eye(4);
     if isa(F,'nifti') || (iscell(F) && (isa(F{1},'char') || isa(F{1},'nifti')))
-        dat(n).Mat = Nii(1).mat;        
+        dat(n).Mat = Nii(1).mat;
         if run2d
             vx         = sqrt(sum(dat(n).Mat(1:3,1:3).^2));
             dat(n).Mat = [diag(vx) zeros(3,1); 0 0 0 1];
         end
     end
-    
+
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Subject-level 'extras'
     %------------------------------------------------------------
-    
+
     % Do bias field (per channel)
     if isstruct(data(n)) && isfield(data(n),'do_bf') && ~isempty(data(n).do_bf)
         dat(n).do_bf = data(n).do_bf;
     else
-        dat(n).do_bf = true;        
+        dat(n).do_bf = true;
     end
-    if numel(dat(n).do_bf) < C 
-        dat(n).do_bf = repmat(dat(n).do_bf,[1 C]); 
+    if numel(dat(n).do_bf) < C
+        dat(n).do_bf = repmat(dat(n).do_bf,[1 C]);
     end
 
     % Do rescale with bf dc
     if isstruct(data(n)) && isfield(data(n),'do_dc') && ~isempty(data(n).do_dc)
         dat(n).do_dc = data(n).do_dc;
     else
-        dat(n).do_dc = true;        
+        dat(n).do_dc = true;
     end
-    
+
     % Intensity prior index
     if isstruct(data(n)) && isfield(data(n),'ix_pop') && ~isempty(data(n).ix_pop)
         dat(n).ix_pop = data(n).ix_pop;
     else
         dat(n).ix_pop = 1;
-    end    
-    
+    end
+
     % Is CT data
     if isstruct(data(n)) && isfield(data(n),'is_ct') && ~isempty(data(n).is_ct)
         dat(n).is_ct = data(n).is_ct;
     else
         dat(n).is_ct = false;
     end
-    if numel(dat(n).is_ct) < C 
-        dat(n).is_ct = repmat(dat(n).is_ct,[1 C]); 
+    if numel(dat(n).is_ct) < C
+        dat(n).is_ct = repmat(dat(n).is_ct,[1 C]);
     end
-    
+
     % Labels in a cell array as {nifti,cm_map}
     if isstruct(data(n)) && isfield(data(n),'labels') && ~isempty(data(n).labels) && ~isempty(data(n).labels{1})
         dat(n).labels = data(n).labels;
-        
+
         if run2d
             % Get 2D slice from 3D data
             labels           = spm_mb_io('GetData',dat(n).labels{1});
             dat(n).labels{1} = GetSlice(labels,run2d);
         end
     else
-        dat(n).labels = [];        
+        dat(n).labels = [];
     end
 end
 end
@@ -454,12 +454,12 @@ if isempty(PthModel), return; end
 if isfile(PthModel)
     var   = load(PthModel,'model');
     model = var.model;
-    
+
     if isfield(model,'shape') && isfield(model.shape,'template')
         % Make sure path to template is correct
         model.shape.template = fullfile(fileparts(PthModel),model.shape.template);
     end
-    
+
     if isfield(model,'appear') && isfield(model.appear,'pr')
         % Pick appearance prior
         model.appear.pr = model.appear.pr(num2str(min(appear_ix,model.appear.pr.Count)));
@@ -480,9 +480,9 @@ dir_res          = sett.write.dir_res;
 mg_ix            = sett.model.mg_ix;
 write_model      = sett.write.model;
 
-if isempty(dir_res) 
+if isempty(dir_res)
     pth     = fileparts(dat(1).f(1).dat.fname);
-    dir_res = pth; 
+    dir_res = pth;
 end
 
 if do_updt_template
@@ -497,14 +497,14 @@ if do_updt_int && do_gmm
     Npop = numel(p_ix);
 
     model.appear       = struct('pr',[],'mg_ix',[]);
-    model.appear.pr    = containers.Map;    
+    model.appear.pr    = containers.Map;
     model.appear.mg_ix = mg_ix;
     for p=1:Npop
         n      = p_ix{p}(1);
         datn   = dat(n);
         ix_pop = datn.ix_pop;
         pr     = datn.mog.pr;
-        
+
         model.appear.pr(num2str(ix_pop)) = pr;
     end
 end
@@ -527,7 +527,7 @@ for n=1:numel(dat)
     if isa(dat(n).f(1),'nifti')
         [~,nam,ext]     = fileparts(dat(n).f(1).dat.fname);
         fnames{end + 1} = [nam ext];
-    end    
+    end
 end
 model.info.fnames = char(fnames);
 
@@ -559,7 +559,7 @@ if isa(datn.psi(1),'nifti')
     [pth,nam,~] = fileparts(datn.f(1).dat.fname);
     if isempty(dir_res), dir_res = pth; end
     fpth        = fullfile(dir_res,['y_' nam '.nii']);
-    
+
     datn.psi(1).dat.fname = fpth;
     datn.psi(1).dat.dim = [d 1 3];
     datn.psi(1).mat = datn.f(1).mat0; % For working with "imported" images;
@@ -582,9 +582,9 @@ do_updt_template = sett.do.updt_template;
 Mmu              = sett.var.Mmu;
 write_mu         = sett.write.mu;
 
-if isempty(dir_res) 
+if isempty(dir_res)
     pth     = fileparts(dat(1).f(1).dat.fname);
-    dir_res = pth; 
+    dir_res = pth;
 end
 
 if ~isempty(mu) && do_updt_template
@@ -600,13 +600,13 @@ if ~isempty(mu) && do_updt_template
         create(Nmu);
         Nmu.dat(:,:,:,:) = mu;
     end
-    
-    if write_mu(2)
-        % Softmax   
-        mu = spm_mb_shape('TemplateK1',mu,4);
-        mu = exp(mu);    
 
-        f        = fullfile(dir_res ,'mu_softmax_spm_mb.nii');        
+    if write_mu(2)
+        % Softmax
+        mu = spm_mb_shape('TemplateK1',mu,4);
+        mu = exp(mu);
+
+        f        = fullfile(dir_res ,'mu_softmax_spm_mb.nii');
         fa       = file_array(f,size(mu),'float32',0);
         Nmu      = nifti;
         Nmu.dat  = fa;
@@ -735,7 +735,7 @@ ix = 1:3;
 d  = d(1:3);
 fn = reshape(fn, [d(ix ~= direction) 1 + 2*nslices C]);
 end
-%==========================================================================   
+%==========================================================================
 
 %==========================================================================
 function VO = SubVol(V,bb,prefix,deg)

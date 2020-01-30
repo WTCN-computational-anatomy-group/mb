@@ -88,14 +88,14 @@ for i=1:size(b,3)
     for i1=1:numel(ixt.wm)
         slices{ixt.wm(i1)} = slices{ixt.wm(i1)}.*bp;
     end
-    
+
     if niter2>0
         cp           = double(c(:,:,i));
         cp           = ((cp>th).*(sum(cat(3,slices{ixt.gm}),3)+sum(cat(3,slices{ixt.wm}),3)+sum(cat(3,slices{ixt.csf}),3)))>th;
-        
+
         for i1=1:numel(ixt.csf)
             slices{ixt.csf(i1)} = slices{ixt.csf(i1)}.*cp;
-        end        
+        end
     end
     tot       = zeros(size(bp))+eps;
     for k1=1:size(zn,4)
@@ -103,7 +103,7 @@ for i=1:size(b,3)
     end
     for k1=1:size(zn,4)
         zn(:,:,i,k1) = slices{k1}./tot;
-    end 
+    end
 end
 end
 %==========================================================================
@@ -111,14 +111,14 @@ end
 %==========================================================================
 % PostProcMRF()
 function zn = PostProcMRF(zn,Mn,strength,nit)
-P   = zeros(size(zn),'uint8');   
+P   = zeros(size(zn),'uint8');
 G   = ones([size(zn,4),1],'single')*strength;
 vx  = sqrt(sum(Mn(1:3,1:3).^2));
 vx2 = 1./single(vx);
-for i=1:nit      
-    spm_mrf(P,zn,G,vx2);        
-end       
-zn = single(P)/255; 
+for i=1:nit
+    spm_mrf(P,zn,G,vx2);
+end
+zn = single(P)/255;
 end
 %==========================================================================
 
@@ -149,20 +149,20 @@ write_im   = sett.write.im; % image, corrected, warped, warped corrected
 write_tc   = sett.write.tc; % native, warped, warped-mod
 write_vel  = sett.write.vel;
 write_aff  = sett.write.affine;
-    
+
 % Get parameters
 [df,C] = spm_mb_io('GetSize',datn.f);
 K      = size(mun,4);
 K1     = K + 1;
 Kmg    = numel(mg_ix);
-if isa(datn.f(1),'nifti') 
-    [pth,namn] = fileparts(datn.f(1).dat.fname);                
+if isa(datn.f(1),'nifti')
+    [pth,namn] = fileparts(datn.f(1).dat.fname);
 else
     namn  = ['n' num2str(ix)];
     pth   = '.';
-end            
+end
 Mr    = spm_dexpm(double(datn.q),B);
-Mn    = datn.Mat;                
+Mn    = datn.Mat;
 do_bf = datn.do_bf;
 is_ct = datn.is_ct;
 
@@ -173,11 +173,11 @@ s       = what(dir_res); % Get absolute path
 dir_res = s.path;
 
 % Integrate K1 and C into write settings
-if size(write_bf,1) == 1 && C  > 1, write_bf = repmat(write_bf,[C  1]); end    
-if size(write_im,1) == 1 && C  > 1, write_im = repmat(write_im,[C  1]); end   
+if size(write_bf,1) == 1 && C  > 1, write_bf = repmat(write_bf,[C  1]); end
+if size(write_im,1) == 1 && C  > 1, write_im = repmat(write_im,[C  1]); end
 if size(write_tc,1) == 1 && K1 > 1, write_tc = repmat(write_tc,[K1 1]); end
 
-if ~(all(write_bf(:) == false) && all(write_im(:) == false) && all(write_tc(:) == false) && all(write_lab(:) == false) && all(write_df(:) == false))   
+if ~(all(write_bf(:) == false) && all(write_im(:) == false) && all(write_tc(:) == false) && all(write_lab(:) == false) && all(write_df(:) == false))
     psi0 = spm_mb_io('GetData',datn.psi);
 end
 
@@ -185,9 +185,9 @@ if write_vel
     % Write initial velocity
     descrip = 'Velocity';
     nam     = ['vel_' namn '.nii'];
-    fpth    = fullfile(dir_res,nam);            
+    fpth    = fullfile(dir_res,nam);
     v       = spm_mb_io('GetData',datn.v);
-    spm_mb_io('WriteNii',fpth,v,Mmu,descrip);                            
+    spm_mb_io('WriteNii',fpth,v,Mmu,descrip);
     resn.v  = fpth;
     clear v
 end
@@ -199,16 +199,16 @@ if write_aff
     save(fpth,'Mr');
 end
 
-if isfield(datn,'mog') && (any(write_bf(:) == true) || any(write_im(:) == true) || any(write_tc(:) == true) || write_lab(1))    
+if isfield(datn,'mog') && (any(write_bf(:) == true) || any(write_im(:) == true) || any(write_tc(:) == true) || write_lab(1))
     % Input data were intensity images
     %------------------
 
     % Get subject-space template (softmaxed K + 1)
-    psi = spm_mb_shape('Compose',psi0,spm_mb_shape('Affine',df,Mmu\Mr*Mn));    
+    psi = spm_mb_shape('Compose',psi0,spm_mb_shape('Affine',df,Mmu\Mr*Mn));
     mun = spm_mb_shape('Pull1',mun,psi,mu_bg);
     clear psi
-    
-    % Make K + 1 template    
+
+    % Make K + 1 template
     mun = reshape(mun,[prod(df(1:3)) K]);
     mun = spm_mb_shape('TemplateK1',mun,2);
 
@@ -219,26 +219,26 @@ if isfield(datn,'mog') && (any(write_bf(:) == true) || any(write_im(:) == true) 
     else
         bf   = ones([1 C],'single');
     end
-    
+
     % Get image(s)
     fn      = spm_mb_io('GetData',datn.f);
     fn      = reshape(fn,[prod(df(1:3)) C]);
     fn      = spm_mb_appearance('Mask',fn,is_ct);
-    
+
     % Get labels
     labels = spm_mb_appearance('GetLabels',datn,sett);
     mun    = mun + labels;
     clear labels
-    
+
     % Integrate use of multiple Gaussians per tissue
     mg_w = datn.mog.mg_w;
     mun  = mun(:,mg_ix);
-    mun  = mun + log(mg_w);   
-        
+    mun  = mun + log(mg_w);
+
     % Format for spm_gmm
     [bffn,code_image,msk_chn] = spm_gmm_lib('obs2cell', bf.*fn);
     mun                       = spm_gmm_lib('obs2cell', mun, code_image, false);
-    
+
     % GMM posterior
     m = datn.mog.po.m;
     b = datn.mog.po.b;
@@ -246,8 +246,8 @@ if isfield(datn,'mog') && (any(write_bf(:) == true) || any(write_im(:) == true) 
     n = datn.mog.po.n;
 
     % Get responsibilities
-    zn  = spm_mb_appearance('Responsibility',m,b,W,n,bffn,mun,msk_chn); 
-    zn  = spm_gmm_lib('cell2obs', zn, code_image, msk_chn);        
+    zn  = spm_mb_appearance('Responsibility',m,b,W,n,bffn,mun,msk_chn);
+    zn  = spm_gmm_lib('cell2obs', zn, code_image, msk_chn);
     clear mun msk_chn
 
     % Get bias field modulated image data
@@ -256,37 +256,37 @@ if isfield(datn,'mog') && (any(write_bf(:) == true) || any(write_im(:) == true) 
         % Infer missing values
         code        = sum(bsxfun(@times, ~isnan(fn), 2.^(0:size(fn,2)-1)), 2);
         sample_post = do_infer > 1;
-        MU          = datn.mog.po.m;    
-        A           = bsxfun(@times, datn.mog.po.W, reshape(datn.mog.po.n, [1 1 Kmg]));            
-        fn          = spm_gmm_lib('InferMissing',fn,zn,{MU,A},code,sample_post);  
+        MU          = datn.mog.po.m;
+        A           = bsxfun(@times, datn.mog.po.W, reshape(datn.mog.po.n, [1 1 Kmg]));
+        fn          = spm_gmm_lib('InferMissing',fn,zn,{MU,A},code,sample_post);
         clear code
-    end        
-    
+    end
+
     % If using multiple Gaussians per tissue, collapse so that zn is of
     % size K1
     if Kmg > K1
         for k=1:K1, zn(:,k) = sum(zn(:,mg_ix==k),2); end
         zn(:,K1 + 1:end)    = [];
     end
-    
-    % Make 3D    
+
+    % Make 3D
     if any(do_bf == true)
         bf = reshape(bf,[df(1:3) C]);
     else
         bf = reshape(bf,[1 1 1 C]);
     end
     fn = reshape(fn,[df(1:3) C]);
-    zn = reshape(zn,[df(1:3) K1]);    
-    
+    zn = reshape(zn,[df(1:3) K1]);
+
     if mrf > 0
-        % Ad-hoc MRF clean-up of segmentation     
+        % Ad-hoc MRF clean-up of segmentation
         zn = PostProcMRF(zn,Mn,mrf,nit_mrf);
     end
-    
+
     if ~isempty(gwc_tix) && gwc_level > 0
         % Use an ad hoc brain cleanup procedure
         zn = CleanGWC(zn,gwc_tix,gwc_level);
-    end        
+    end
 
     if any(write_bf == true) && any(do_bf == true)
         % Write bias field
@@ -295,8 +295,8 @@ if isfield(datn,'mog') && (any(write_bf(:) == true) || any(write_im(:) == true) 
         for c=1:C
             if ~write_bf(c,1), continue; end
             nam  = ['bf' num2str(c) '_' namn '.nii'];
-            fpth = fullfile(dir_res,nam);            
-            spm_mb_io('WriteNii',fpth,bf(:,:,:,c),Mn,[descrip 'c=' num2str(c) ')']);                
+            fpth = fullfile(dir_res,nam);
+            spm_mb_io('WriteNii',fpth,bf(:,:,:,c),Mn,[descrip 'c=' num2str(c) ')']);
             pths{end + 1} = fpth;
         end
         resn.bf = pths;
@@ -309,7 +309,7 @@ if isfield(datn,'mog') && (any(write_bf(:) == true) || any(write_im(:) == true) 
         for c=1:C
             if ~write_im(c,1), continue; end
             nam  = ['im' num2str(c) '_' namn '.nii'];
-            fpth = fullfile(dir_res,nam);            
+            fpth = fullfile(dir_res,nam);
             spm_mb_io('WriteNii',fpth,fn(:,:,:,c)./bf(:,:,:,c),Mn,[descrip 'c=' num2str(c) ')']);
             pths{end + 1} = fpth;
         end
@@ -321,7 +321,7 @@ if isfield(datn,'mog') && (any(write_bf(:) == true) || any(write_im(:) == true) 
         for c=1:C
             if ~write_im(c,2), continue; end
             nam  = ['imc' num2str(c) '_' namn '.nii'];
-            fpth = fullfile(dir_res,nam);            
+            fpth = fullfile(dir_res,nam);
             spm_mb_io('WriteNii',fpth,fn(:,:,:,c),Mn,[descrip 'c=' num2str(c) ')']);
             pths{end + 1} = fpth;
         end
@@ -332,31 +332,31 @@ if isfield(datn,'mog') && (any(write_bf(:) == true) || any(write_im(:) == true) 
         % Write segmentations
         descrip = 'Tissue (';
         pths    = {};
-        for k=1:K1 
+        for k=1:K1
             if ~write_tc(k,1), continue; end
             nam  = ['c' num2str(k) '_' namn '.nii'];
-            fpth = fullfile(dir_res,nam);            
+            fpth = fullfile(dir_res,nam);
             spm_mb_io('WriteNii',fpth,zn(:,:,:,k),Mn,[descrip 'k=' num2str(k) ')']);
             pths{end + 1} = fpth;
-        end  
+        end
         resn.c = pths;
     end
-    
+
     if write_lab(1) && ~isempty(datn.labels) && ~isempty(datn.labels{1})
-        % Write manual labels (if present)        
-        descrip = 'Manual labels ('; 
-        pths    = {};        
+        % Write manual labels (if present)
+        descrip = 'Manual labels (';
+        pths    = {};
         labels  = spm_mb_io('GetData',datn.labels{1});
         val_lab = unique(labels);
         for k=2:numel(val_lab) % loop over label classes
             nam           = ['lab' num2str(val_lab(k)) '_' namn '.nii'];
-            fpth          = fullfile(dir_res,nam);         
-            spm_mb_io('WriteNii',fpth,single(labels == val_lab(k)),Mmu,[descrip 'k=' num2str(val_lab(k)) ')']);            
+            fpth          = fullfile(dir_res,nam);
+            spm_mb_io('WriteNii',fpth,single(labels == val_lab(k)),Mmu,[descrip 'k=' num2str(val_lab(k)) ')']);
             pths{end + 1} = fpth;
         end
         resn.lab  = pths;
         clear labels
-    end    
+    end
 else
     % Input data were segmentations
     %------------------
@@ -373,7 +373,7 @@ if any(write_df == true) || any(reshape(write_tc(:,[2 3]),[],1) == true) ||  any
     sd = spm_mb_shape('SampDens',Mmu,Mn);
 
     % Get forward deformation
-    psi = spm_mb_shape('Compose',psi0,spm_mb_shape('Affine',df,Mmu\Mr*Mn));    
+    psi = spm_mb_shape('Compose',psi0,spm_mb_shape('Affine',df,Mmu\Mr*Mn));
 
     if df(3) == 1, psi(:,:,:,3) = 1; end % 2D
 
@@ -381,10 +381,10 @@ if any(write_df == true) || any(reshape(write_tc(:,[2 3]),[],1) == true) ||  any
         % Write forward deformation
         descrip   = 'Forward deformation';
         nam       = ['y_' namn '.nii'];
-        fpth      = fullfile(dir_res,nam);            
+        fpth      = fullfile(dir_res,nam);
         spm_mb_io('WriteNii',fpth,psi,Mn,descrip);
         resn.y = fpth;
-    end  
+    end
 
     if isfield(datn,'mog') && any(write_im(:,3) == true)
         % Write normalised image
@@ -393,9 +393,9 @@ if any(write_df == true) || any(reshape(write_tc(:,[2 3]),[],1) == true) ||  any
         for c=1:C
             if ~write_im(c,3), continue; end
             nam     = ['wim' num2str(c) '_' namn '.nii'];
-            fpth    = fullfile(dir_res,nam);            
+            fpth    = fullfile(dir_res,nam);
             [img,cnt] = spm_mb_shape('Push1',fn(:,:,:,c)./bf(:,:,:,c),psi,dmu,sd);
-            spm_mb_io('WriteNii',fpth,img./(cnt + eps('single')),Mmu,[descrip 'c=' num2str(c) ')']);            
+            spm_mb_io('WriteNii',fpth,img./(cnt + eps('single')),Mmu,[descrip 'c=' num2str(c) ')']);
             pths{end + 1} = fpth;
         end
         resn.wim = pths;
@@ -408,9 +408,9 @@ if any(write_df == true) || any(reshape(write_tc(:,[2 3]),[],1) == true) ||  any
         for c=1:C
             if ~write_im(c,4), continue; end
             nam       = ['wimc' num2str(c) '_' namn '.nii'];
-            fpth      = fullfile(dir_res,nam);            
+            fpth      = fullfile(dir_res,nam);
             [img,cnt] = spm_mb_shape('Push1',fn(:,:,:,c),psi,dmu,sd);
-            spm_mb_io('WriteNii',fpth,img./(cnt + eps('single')),Mmu,[descrip 'c=' num2str(c) ')']);            
+            spm_mb_io('WriteNii',fpth,img./(cnt + eps('single')),Mmu,[descrip 'c=' num2str(c) ')']);
             pths{end + 1} = fpth;
         end
         resn.wimc = pths;
@@ -420,64 +420,64 @@ if any(write_df == true) || any(reshape(write_tc(:,[2 3]),[],1) == true) ||  any
         % Write normalised segmentations
         descrip = 'Normalised tissue (';
         pths    = {};
-        for k=1:K1           
+        for k=1:K1
             if ~write_tc(k,2), continue; end
             nam       = ['wc' num2str(k) '_' namn '.nii'];
-            fpth      = fullfile(dir_res,nam);            
+            fpth      = fullfile(dir_res,nam);
             [img,cnt] = spm_mb_shape('Push1',zn(:,:,:,k),psi,dmu,sd);
-            spm_mb_io('WriteNii',fpth,img./(cnt + eps('single')),Mmu,[descrip 'k=' num2str(k) ')']);            
+            spm_mb_io('WriteNii',fpth,img./(cnt + eps('single')),Mmu,[descrip 'k=' num2str(k) ')']);
             pths{end + 1} = fpth;
-        end    
+        end
         resn.wc = pths;
-    end  
+    end
 
     if any(write_tc(:,3) == true)
         % Write normalised modulated segmentations
         descrip = 'Normalised modulated tissue (';
         pths    = {};
-        for k=1:K1           
+        for k=1:K1
             if ~write_tc(k,3), continue; end
             nam  = ['mwc' num2str(k) '_' namn '.nii'];
             fpth = fullfile(dir_res,nam);
             img  = spm_mb_shape('Push1',zn(:,:,:,k),psi,dmu);
             img  = img*abs(det(Mn(1:3,1:3))/det(Mmu(1:3,1:3)));
-            spm_mb_io('WriteNii',fpth,img,Mmu,[descrip 'k=' num2str(k) ')']);            
+            spm_mb_io('WriteNii',fpth,img,Mmu,[descrip 'k=' num2str(k) ')']);
             pths{end + 1} = fpth;
-        end    
+        end
         resn.mwc = pths;
-    end  
-    
+    end
+
     if write_lab(2) && ~isempty(datn.labels) && ~isempty(datn.labels{1})
-        % Write normalised manual labels (if present)        
-        descrip = 'Normalised manual labels ('; 
-        pths    = {};        
+        % Write normalised manual labels (if present)
+        descrip = 'Normalised manual labels (';
+        pths    = {};
         labels  = spm_mb_io('GetData',datn.labels{1});
         val_lab = unique(labels);
         for k=2:numel(val_lab) % loop over label classes
             nam       = ['wlab' num2str(val_lab(k)) '_' namn '.nii'];
-            fpth      = fullfile(dir_res,nam);         
+            fpth      = fullfile(dir_res,nam);
             [img,cnt] = spm_mb_shape('Push1',single(labels == val_lab(k)),psi,dmu,sd);
-            spm_mb_io('WriteNii',fpth,round(img./(cnt + eps('single'))),Mmu,[descrip 'k=' num2str(val_lab(k)) ')']);            
+            spm_mb_io('WriteNii',fpth,round(img./(cnt + eps('single'))),Mmu,[descrip 'k=' num2str(val_lab(k)) ')']);
             pths{end + 1} = fpth;
         end
         resn.wlab  = pths;
         clear labels
-    end    
+    end
 
     if write_df(2)
         % Get inverse deformation (correct?)
-        psi = spm_diffeo('invdef',psi0,dmu(1:3),eye(4),eye(4));    
+        psi = spm_diffeo('invdef',psi0,dmu(1:3),eye(4),eye(4));
         %psi = spm_extrapolate_def(psi,Mmu);
         M   = inv(Mmu\Mr*Mn);
-        psi = reshape(reshape(psi,[prod(dmu) 3])*M(1:3,1:3)' + M(1:3,4)',[dmu 3]);        
+        psi = reshape(reshape(psi,[prod(dmu) 3])*M(1:3,1:3)' + M(1:3,4)',[dmu 3]);
 
         % Write inverse deformation
         descrip = 'Inverse deformation';
         nam     = ['iy_' namn '.nii'];
-        fpth    = fullfile(dir_res,nam);            
+        fpth    = fullfile(dir_res,nam);
         spm_mb_io('WriteNii',fpth,psi,Mmu,descrip);
         resn.iy = fpth;
-    end       
+    end
 end
 if clean_def && isa(datn.psi,'nifti') && isfile(datn.psi.dat.fname), delete(datn.psi.dat.fname); end
 if clean_vel && isa(datn.v,'nifti') && isfile(datn.v.dat.fname),     delete(datn.v.dat.fname);   end

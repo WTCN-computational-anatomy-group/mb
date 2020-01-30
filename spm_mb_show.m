@@ -21,23 +21,23 @@ if nargin == 0
 end
 id = varargin{1};
 varargin = varargin(2:end);
-switch id    
+switch id
     case 'All'
         [varargout{1:nargout}] = All(varargin{:});
     case 'Clear'
-        [varargout{1:nargout}] = Clear(varargin{:});        
+        [varargout{1:nargout}] = Clear(varargin{:});
     case 'IntensityPrior'
-        [varargout{1:nargout}] = IntensityPrior(varargin{:});         
+        [varargout{1:nargout}] = IntensityPrior(varargin{:});
     case 'Model'
-        [varargout{1:nargout}] = Model(varargin{:});  
+        [varargout{1:nargout}] = Model(varargin{:});
     case 'PrintProgress'
-        [varargout{1:nargout}] = PrintProgress(varargin{:});  
+        [varargout{1:nargout}] = PrintProgress(varargin{:});
     case 'Subjects'
-        [varargout{1:nargout}] = Subjects(varargin{:});         
+        [varargout{1:nargout}] = Subjects(varargin{:});
     case 'Tissues'
-        [varargout{1:nargout}] = Tissues(varargin{:});        
+        [varargout{1:nargout}] = Tissues(varargin{:});
     case 'Speak'
-        [varargout{1:nargout}] = Speak(varargin{:});                
+        [varargout{1:nargout}] = Speak(varargin{:});
     otherwise
         help spm_mb_show
         error('Unknown function %s. Type ''help spm_mb_show'' for help.', id)
@@ -52,27 +52,27 @@ function All(dat,mu,Objective,N,sett)
 % Parse function settings
 figs = sett.show.figs;
 
-if ~isempty(figs)  
+if ~isempty(figs)
     if any(strcmp(figs,'model'))
         % Template and negative loglikelihood
         Model(mu,Objective,N,sett);
     end
     if any(strcmp(figs,'normalised'))
         % Template space images
-        Subjects(dat,mu,sett,false,false); 
+        Subjects(dat,mu,sett,false,false);
     end
     if any(strcmp(figs,'segmentations')) && ~any(strcmp(figs,'parameters'))
         % Segmentations and warped template
-        Subjects(dat,mu,sett,false);    
+        Subjects(dat,mu,sett,false);
     end
     if any(strcmp(figs,'intensity'))
-        % Intensity prior fit   
+        % Intensity prior fit
         IntensityPrior(dat,sett);
     end
     if any(strcmp(figs,'parameters'))
         % Subject parameters
-        Subjects(dat,mu,sett,true);        
-    end      
+        Subjects(dat,mu,sett,true);
+    end
 end
 end
 %==========================================================================
@@ -90,12 +90,12 @@ for i=1:numel(fn)
     while true
         fnp = [fn{i} ' (p=' num2str(p) ')'];
         f   = findobj('Type', 'Figure', 'Name', fnp);
-        if ~isempty(f) 
-            clf(f); 
-            drawnow; 
-        else 
+        if ~isempty(f)
+            clf(f);
+            drawnow;
+        else
             break
-        end    
+        end
         p = p + 1;
     end
 end
@@ -108,7 +108,7 @@ function IntensityPrior(dat,sett)
     p_ix = spm_mb_appearance('GetPopulationIdx',dat);
     Np   = numel(p_ix);
     for p=1:Np
-        if Np == 1, pp = []; 
+        if Np == 1, pp = [];
         else,       pp = p;
         end
         ShowIntensityPrior(dat(p_ix{p}),sett,pp);
@@ -124,22 +124,22 @@ function Model(mu,Objective,N,sett)
 fig_name = sett.show.figname_model;
 
 mu  = spm_mb_shape('TemplateK1',mu,4);
-mu  = exp(mu);   
+mu  = exp(mu);
 nam = ['K1=' num2str(size(mu,4)) ', N=' num2str(N) ' (softmaxed)'];
 if size(mu,3) > 1
     % 3D
     ShowCat(mu,1,2,3,1,fig_name);
     ShowCat(mu,2,2,3,2,fig_name);
     title(nam);
-    ShowCat(mu,3,2,3,3,fig_name,true); % true -> show colorbar    
-    subplot(2,1,2);     
+    ShowCat(mu,3,2,3,3,fig_name,true); % true -> show colorbar
+    subplot(2,1,2);
 else
     % 2D
     ShowCat(mu,3,2,1,1,fig_name,true); % true -> show colorbar
     title(nam);
-    subplot(2,1,2); 
+    subplot(2,1,2);
 end
-plot(Objective,'k-','LineWidth',2);        
+plot(Objective,'k-','LineWidth',2);
 title('Negative log-likelihood')
 drawnow
 end
@@ -162,8 +162,8 @@ Kmg = numel(mg_ix);
 
 switch nam
     case 'Finished'
-        t = varargin{1}; 
-        
+        t = varargin{1};
+
         s0 = sprintf('Algorithm finished in %.1f seconds.', t);
         s1 = sprintf('%s',repmat('=',[1 numel(s0)]));
         fprintf('%s\n',s1)
@@ -172,12 +172,12 @@ switch nam
     case 'Affine'
         fprintf('\nOptimising affine at largest zoom level (max nit = %i)\n',nit)
     case 'AffineDiffeo'
-        nzm = varargin{1}; 
-        
-        fprintf('\nOptimising affine+diffeo at decreasing zoom levels (nzm = %i)\n',nzm)        
+        nzm = varargin{1};
+
+        fprintf('\nOptimising affine+diffeo at decreasing zoom levels (nzm = %i)\n',nzm)
     case 'Start'
         N = varargin{1};
-        K = varargin{2};        
+        K = varargin{2};
 
         s0 = sprintf('| Algorithm starting (N = %i, K = %i, Kmg = %i, updt_intprior = %i, updt_template = %i) |',N,K,Kmg,do_updt_int,do_updt_template);
         s1 = sprintf('%s',repmat('=',[1 numel(s0)]));
@@ -245,9 +245,9 @@ if ~isfield(dat,'mog'), nr_par = nr_par - 2; end
 
 [df,~] = spm_mb_io('GetSize',dat(1).f);
 if df(3) == 1, ax = 3;
-else,          ax = axis_3d;   
+else,          ax = axis_3d;
 end
-    
+
 clr = {'r','g','b','y','m','c',};
 K   = size(mu0,4);
 K1  = K + 1;
@@ -255,34 +255,34 @@ Kmg = numel(mg_ix);
 nd  = min(numel(dat),mx_subj);
 for n=1:nd
     % Parameters
-    [df,C] = spm_mb_io('GetSize',dat(n).f);          
-    c      = min(c,C);    
+    [df,C] = spm_mb_io('GetSize',dat(n).f);
+    c      = min(c,C);
     q      = double(dat(n).q);
     Mr     = spm_dexpm(q,B);
     Mn     = dat(n).Mat;
     do_bf  = dat(n).do_bf;
-    is_ct  = dat(n).is_ct;    
-    
+    is_ct  = dat(n).is_ct;
+
     % Warp template
     psi1 = spm_mb_io('GetData',dat(n).psi);
     psi  = spm_mb_shape('Compose',psi1,spm_mb_shape('Affine',df,Mmu\Mr*Mn));
-    mun  = spm_mb_shape('Pull1',mu0,psi,mu_bg);            
+    mun  = spm_mb_shape('Pull1',mu0,psi,mu_bg);
     clear psi1
-    
-    % Get bias field    
+
+    % Get bias field
     if isfield(dat(n),'mog') && any(do_bf == true)
         chan = spm_mb_appearance('BiasFieldStruct',dat(n),C,df,reg,fwhm,[],dat(n).bf.T);
-        bf   = spm_mb_appearance('BiasField',chan,df);        
+        bf   = spm_mb_appearance('BiasField',chan,df);
     else
         bf = ones([1 C]);
-    end  
-            
+    end
+
     % Get segmentation
     if isfield(dat,'mog')
-        fn = spm_mb_io('GetData',dat(n).f);         
+        fn = spm_mb_io('GetData',dat(n).f);
         fn = reshape(fn,[prod(df(1:3)) C]);
         fn = spm_mb_appearance('Mask',fn,is_ct);
-        
+
 %         % Store template voxels for where there are no observations in the image
 %         % data. These values will be used at the end of this function to fill in
 %         % responsibilities with NaNs.
@@ -299,36 +299,36 @@ for n=1:nd
 
         % Get template (K + 1)
         mun = spm_mb_shape('TemplateK1',mun,4);
-    
+
         % Integrate labels and multiple Gaussians per tissue
         labels = spm_mb_appearance('GetLabels',dat(n),sett);
         mg_w   = dat(n).mog.mg_w;
-        
+
         [bffn,code_image,msk_chn] = spm_gmm_lib('obs2cell', bf.*fn);
         mun                       = reshape(mun,[prod(df(1:3)) K + 1]);
         mun1                      = mun + labels;
         clear labels
         mun1                      = mun1(:,mg_ix);
-        mun1                      = mun1 + log(mg_w);        
+        mun1                      = mun1 + log(mg_w);
         mun1                      = spm_gmm_lib('obs2cell', mun1, code_image, false);
-                    
+
         % Get responsibility
         zn   = spm_mb_appearance('Responsibility',dat(n).mog.po.m,dat(n).mog.po.b, ...
-                                    dat(n).mog.po.W,dat(n).mog.po.n,bffn,mun1,msk_chn);           
-        zn   = spm_gmm_lib('cell2obs', zn, code_image, msk_chn);                
+                                    dat(n).mog.po.W,dat(n).mog.po.n,bffn,mun1,msk_chn);
+        zn   = spm_gmm_lib('cell2obs', zn, code_image, msk_chn);
         clear mun1 msk_chn
-                                     
+
         % If using multiple Gaussians per tissue, collapse so that zn is of
         % size K1
         if Kmg > K1
             for k=1:K1, zn(:,k) = sum(zn(:,mg_ix==k),2); end
             zn(:,K1 + 1:end)    = [];
         end
-        
+
 %         % Fill in resps with no observations using template
 %         for k=1:K1, zn(msk_allmiss,k) = bg_mun(:,k); end
 %         clear bg_mun msk_zn
-        
+
         % Reshape back
         zn  = reshape(zn,[df(1:3) K1]);
         fn  = reshape(fn,[df(1:3) C]);
@@ -336,12 +336,12 @@ for n=1:nd
     else
         % Get template (K + 1)
         mun = spm_mb_shape('TemplateK1',mun,4);
-    
+
         % Make K1 responsibilities
-        zn = spm_mb_io('GetData',dat(n).f); 
+        zn = spm_mb_io('GetData',dat(n).f);
         zn = cat(4,zn,1 - sum(zn,4));
-    end    
-    
+    end
+
     % Softmax template
     mun = exp(mun);
 
@@ -349,34 +349,34 @@ for n=1:nd
         bf = reshape(bf,[df C]);
     else
         bf = reshape(bf,[1 1 1 C]);
-    end  
-    
+    end
+
     % Show template, segmentation
     ShowCat(mun,ax,nr_tiss,nd,n,fig_name_tiss);
-    ShowCat(zn,ax,nr_tiss,nd,n + nd,fig_name_tiss);        
+    ShowCat(zn,ax,nr_tiss,nd,n + nd,fig_name_tiss);
     if isfield(dat,'mog')
-        % and image (if using GMM)     
-        ShowIm(bf(:,:,:,c).*fn(:,:,:,c),ax,nr_tiss,nd,n + 2*nd,fig_name_tiss,true,is_ct);        
+        % and image (if using GMM)
+        ShowIm(bf(:,:,:,c).*fn(:,:,:,c),ax,nr_tiss,nd,n + 2*nd,fig_name_tiss,true,is_ct);
     end
     clear zn
-    
+
     if show_extras
         % Show bias field fit, velocities, affine parameters, GMM fit,
         % lower bound
         if isfield(dat,'mog') && any(do_bf == true)
             % Show bias field
             ShowIm(fn(:,:,:,c),ax,nr_bf,nd,n,fig_name_bf,false,is_ct);
-            ShowIm(bf(:,:,:,c),ax,nr_bf,nd,n + nd,fig_name_bf,false);            
+            ShowIm(bf(:,:,:,c),ax,nr_bf,nd,n + nd,fig_name_bf,false);
             ShowIm(bf(:,:,:,c).*fn(:,:,:,c),ax,nr_bf,nd,n + 2*nd,fig_name_bf,false,is_ct);
         end
 
         % Now show some other stuff
         fg = findobj('Type', 'Figure', 'Name', fig_name_par);
         if isempty(fg), fg = figure('Name', fig_name_par, 'NumberTitle', 'off'); end
-        set(0, 'CurrentFigure', fg);   
+        set(0, 'CurrentFigure', fg);
 
-        % Affine parameters    
-        q      = spm_imatrix(Mr);            
+        % Affine parameters
+        q      = spm_imatrix(Mr);
         q      = q(1:6);
         q(4:6) = 180/pi*q(4:6);
         q      = abs(q);
@@ -387,15 +387,15 @@ for n=1:nd
             bar(k, q(k), clr{k});
         end
         box on
-        hold off            
-        set(gca,'xtick',[])  
+        hold off
+        set(gca,'xtick',[])
 
         % Velocities (x)
         v = spm_mb_io('GetData',dat(n).v);
         ShowIm(v(:,:,:,1),ax,nr_par,nd,n + 1*nd,fig_name_par)
 
         % Intensity histogram w GMM fit
-        if isfield(dat,'mog')                
+        if isfield(dat,'mog')
             % Here we get approximate class proportions from the (softmaxed K + 1)
             % tissue template
             mun       = reshape(mun,[prod(df(1:3)) size(mun,4)]);
@@ -404,15 +404,15 @@ for n=1:nd
             mun       = sum(mun,1);
             mun       = mun./sum(mun);
             mun       = mun(mg_ix).*mg_w;
-            
-            % Plot GMM fit        
+
+            % Plot GMM fit
             ShowGMMFit(bf(:,:,:,c).*fn(:,:,:,c),mun,dat(n).mog,nr_par,nd,n + 2*nd,c,mg_ix);
 
             % Lower bound
-            subplot(nr_par,nd,n + 3*nd) 
+            subplot(nr_par,nd,n + 3*nd)
             plot(dat(n).mog.lb.sum,'-');
             axis off
-        end    
+        end
     end
 end
 drawnow
@@ -442,30 +442,30 @@ end
 nd = min(numel(dat),mx_subj);
 for n=1:nd
     % Parameters
-    [df,C] = spm_mb_io('GetSize',dat(n).f);          
-    c      = min(c,C);    
+    [df,C] = spm_mb_io('GetSize',dat(n).f);
+    c      = min(c,C);
     q      = double(dat(n).q);
     Mr     = spm_dexpm(q,B);
-    Mn     = dat(n).Mat;        
+    Mn     = dat(n).Mat;
     do_bf  = dat(n).do_bf;
     is_ct  = dat(n).is_ct;
-    
+
     % Get forward deformation
     psi0 = spm_mb_io('GetData',dat(n).psi);
-    psi  = spm_mb_shape('Compose',psi0,spm_mb_shape('Affine',df,Mmu\Mr*Mn));  
+    psi  = spm_mb_shape('Compose',psi0,spm_mb_shape('Affine',df,Mmu\Mr*Mn));
     clear psi0
     if df(3) == 1, psi(:,:,:,3) = 1; end % 2D
-    
+
     % Bias field
     if isfield(dat(n),'mog') && any(do_bf == true)
         chan = spm_mb_appearance('BiasFieldStruct',dat(n),C,df,reg,fwhm,[],dat(n).bf.T);
-        bf   = spm_mb_appearance('BiasField',chan,df);  
+        bf   = spm_mb_appearance('BiasField',chan,df);
         bf   = reshape(bf,[df(1:3) C]);
         bf   = bf(:,:,:,c);
     else
         bf = 1;
-    end  
-    
+    end
+
     % Warp observed data to template space
     fn = spm_mb_io('GetData',dat(n).f);
     sd = spm_mb_shape('SampDens',Mmu,Mn);
@@ -477,20 +477,20 @@ for n=1:nd
         [fn,cnt] = spm_mb_shape('Push1',fn,psi,dmu,sd);
     end
     fn = fn./(cnt + eps('single'));
-    
+
     % Show
     if isfield(dat(n),'mog')
-        ShowIm(fn,3,nr,nd,n,fig_name,true,is_ct);         
+        ShowIm(fn,3,nr,nd,n,fig_name,true,is_ct);
         if size(mu,3) > 1
-            ShowIm(fn,2,nr,nd,n + nd,fig_name,true,is_ct);   
-            ShowIm(fn,1,nr,nd,n + 2*nd,fig_name,true,is_ct);        
+            ShowIm(fn,2,nr,nd,n + nd,fig_name,true,is_ct);
+            ShowIm(fn,1,nr,nd,n + 2*nd,fig_name,true,is_ct);
         end
     else
         fn = cat(4,fn,1 - sum(fn,4));
-        ShowCat(fn,3,nr,nd,n,fig_name);         
+        ShowCat(fn,3,nr,nd,n,fig_name);
         if size(mu,3) > 1
-            ShowCat(fn,2,nr,nd,n + nd,fig_name);   
-            ShowCat(fn,1,nr,nd,n + 2*nd,fig_name);        
+            ShowCat(fn,2,nr,nd,n + nd,fig_name);
+            ShowCat(fn,1,nr,nd,n + 2*nd,fig_name);
         end
     end
 end
@@ -560,7 +560,7 @@ if nargin < 5, show_native = true; end
 p_ix = spm_mb_appearance('GetPopulationIdx',dat);
 Np   = numel(p_ix);
 for p=1:Np
-    if Np == 1, pp = []; 
+    if Np == 1, pp = [];
     else,       pp = p;
     end
     if show_native
@@ -568,7 +568,7 @@ for p=1:Np
         ShowNativeSubjects(dat(p_ix{p}),mu,sett,pp,show_extras);
     else
         % Template space information
-        ShowTemplateSubjects(dat(p_ix{p}),mu,sett,pp);        
+        ShowTemplateSubjects(dat(p_ix{p}),mu,sett,pp);
     end
 end
 end
@@ -586,7 +586,7 @@ f  = findobj('Type', 'Figure', 'Name', fig_nam);
 if isempty(f)
     f = figure('Name', fig_nam, 'NumberTitle', 'off');
 end
-set(0, 'CurrentFigure', f); 
+set(0, 'CurrentFigure', f);
 
 if ischar(im),      im = nifti(im); end
 if isa(im,'nifti'), im = im.dat();  end
@@ -596,7 +596,7 @@ K  = dm(4);
 
 if do_softmax
     im = cat(4,im,zeros(dm(1:3),'single'));
-    im = spm_mb_shape('Softmax',im,4); 
+    im = spm_mb_shape('Softmax',im,4);
     K        = K + 1;
 end
 
@@ -605,13 +605,13 @@ if ~isempty(perm)
 end
 
 nr = floor(sqrt(K));
-nc = ceil(K/nr);  
+nc = ceil(K/nr);
 num_montage = 1:num_montage:dm(3);
 
 for k=1:K
     subplot(nr,nc,k)
     montage(im(:,:,num_montage,k))
-    axis off image xy;   
+    axis off image xy;
     colormap(gray)
 end
 drawnow
@@ -633,7 +633,7 @@ f = findobj('Type', 'Figure', 'Name', fn);
 if isempty(f)
     f = figure('Name', fn, 'NumberTitle', 'off');
 end
-set(0, 'CurrentFigure', f); 
+set(0, 'CurrentFigure', f);
 
 subplot(nr,nc,np);
 
@@ -683,13 +683,13 @@ if tri
 end
 
 c = squeeze(c(:,:,:,:));
-imagesc(c); axis off image xy;   
+imagesc(c); axis off image xy;
 colormap(pal);
 
-if show_colorbar    
+if show_colorbar
     cb = colorbar;
     set(gca, 'clim', [0.5 K+0.5]);
-    set(cb, 'ticks', 1:K, 'ticklabels', 1:K); 
+    set(cb, 'ticks', 1:K, 'ticklabels', 1:K);
 end
 end
 %==========================================================================
@@ -717,9 +717,9 @@ bar(centres, H, 'EdgeColor', 'none', 'FaceColor', [0.7 0.7 0.7]);
 A     = bsxfun(@times, mog.po.W, reshape(mog.po.n, [1 1 K])); % Expected precision
 xlims = [inf -inf];
 for k=1:K
-    MU   = mog.po.m(c,k);    
+    MU   = mog.po.m(c,k);
     sig2 = inv(A(c,c,k));
-    
+
     x = linspace(MU - 3*sqrt(sig2), MU + 3*sqrt(sig2),100);
     y = PI(k)*spm_Npdf(x, MU, sig2);
     plot(x, y, 'Color', colors(mg_ix(k),:), 'LineWidth', 1)
@@ -736,10 +736,10 @@ end
 
 box on
 hold off
-set(gca,'ytick',[])  
+set(gca,'ytick',[])
 end
 %==========================================================================
-        
+
 %==========================================================================
 % ShowIm()
 function ShowIm(in,ax,nr,nc,np,fn,use_gray,is_ct)
@@ -750,7 +750,7 @@ f  = findobj('Type', 'Figure', 'Name', fn);
 if isempty(f)
     f = figure('Name', fn, 'NumberTitle', 'off');
 end
-set(0, 'CurrentFigure', f);   
+set(0, 'CurrentFigure', f);
 
 subplot(nr,nc,np);
 
@@ -777,5 +777,5 @@ axis off image xy;
 if use_gray
     colormap(gray(128));
 end
-end 
+end
 %==========================================================================

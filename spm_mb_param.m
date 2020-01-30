@@ -16,13 +16,13 @@ if nargin == 0
 end
 id = varargin{1};
 varargin = varargin(2:end);
-switch id                   
+switch id
     case 'SetFit'
-        [varargout{1:nargout}] = SetFit(varargin{:});        
+        [varargout{1:nargout}] = SetFit(varargin{:});
     case 'Settings'
-        [varargout{1:nargout}] = Settings(varargin{:});   
+        [varargout{1:nargout}] = Settings(varargin{:});
     case 'ZoomSettings'
-        [varargout{1:nargout}] = ZoomSettings(varargin{:});           
+        [varargout{1:nargout}] = ZoomSettings(varargin{:});
     otherwise
         help spm_mb_param
         error('Unknown function %s. Type ''help spm_mb_param'' for help.', id)
@@ -115,7 +115,7 @@ end
 if ~isfield(sett.do,'gmm')
     sett.do.gmm = true;
 end
-if ~isfield(sett.do,'infer')    
+if ~isfield(sett.do,'infer')
     sett.do.infer = 1; % 0, 1, 2
 end
 if ~isfield(sett.do,'mu_bg')
@@ -181,13 +181,13 @@ end
 if ~isfield(sett,'labels')
     sett.labels = struct;
 end
-if ~isfield(sett.labels,'use')    
+if ~isfield(sett.labels,'use')
     sett.labels.use = false;
 end
-if ~isfield(sett.labels,'w')    
+if ~isfield(sett.labels,'w')
     sett.labels.w  = 0.99;
 end
-if ~isfield(sett.labels,'use_initgmm')    
+if ~isfield(sett.labels,'use_initgmm')
     sett.labels.use_initgmm  = true;
 end
 
@@ -206,17 +206,17 @@ if ~isfield(sett.model,'groupwise')
 end
 if ~isfield(sett.model,'init_mu_dm')
     % Minimum dimensions of template
-    sett.model.init_mu_dm = 16;    
+    sett.model.init_mu_dm = 16;
 end
 if ~isfield(sett.model,'ix_init_pop')
     % Index of population to use for initialising, then more than one
     % population
-    sett.model.ix_init_pop = 1;    
+    sett.model.ix_init_pop = 1;
 end
 if ~isfield(sett.model,'K')
     sett.model.K = 6;
 end
-if ~isfield(sett.model,'mg_ix')    
+if ~isfield(sett.model,'mg_ix')
     % For using multiple Gaussians per tissue (as in spm_preproc8)
     sett.model.mg_ix = 1;
 end
@@ -230,14 +230,14 @@ if ~isfield(sett.model,'mu_bg')
     % values are then used to fill in the missing FOV.
     sett.model.mu_bg = [];
 end
-if ~isfield(sett.model,'vx')    
-    sett.model.vx = 1;    
+if ~isfield(sett.model,'vx')
+    sett.model.vx = 1;
 end
-if ~isfield(sett.model,'tol')    
-    sett.model.tol = 1e-4;    
+if ~isfield(sett.model,'tol')
+    sett.model.tol = 1e-4;
 end
-if ~isfield(sett.model,'appear_ix')    
-    sett.model.appear_ix = 1;    
+if ~isfield(sett.model,'appear_ix')
+    sett.model.appear_ix = 1;
 end
 
 %------------------
@@ -247,13 +247,13 @@ end
 if ~isfield(sett,'nit')
     sett.nit = struct;
 end
-if ~isfield(sett.nit,'appear')   
+if ~isfield(sett.nit,'appear')
     sett.nit.appear = 2;
 end
-if ~isfield(sett.nit,'bf')   
+if ~isfield(sett.nit,'bf')
     sett.nit.bf = 1;
 end
-if ~isfield(sett.nit,'gmm')   
+if ~isfield(sett.nit,'gmm')
     sett.nit.gmm = 32;
 end
 if ~isfield(sett.nit,'init')
@@ -264,7 +264,7 @@ if ~isfield(sett.nit,'init_mu')
     % The number of template update iterations
     sett.nit.init_mu = 3;
 end
-if ~isfield(sett.nit,'miss')   
+if ~isfield(sett.nit,'miss')
     sett.nit.gmm_miss = 32;
 end
 if ~isfield(sett.nit,'zm')
@@ -431,10 +431,10 @@ end
 if ~isfield(sett.write,'tc')
     sett.write.tc = false(1,3); % native, warped, warped-mod
 end
-    
+
 % Make directories (if does not exist)
-if ~isempty(sett.write.dir_res) && ~(exist(sett.write.dir_res,'dir') == 7)  
-    mkdir(sett.write.dir_res);  
+if ~isempty(sett.write.dir_res) && ~(exist(sett.write.dir_res,'dir') == 7)
+    mkdir(sett.write.dir_res);
 end
 s                  = what(sett.write.dir_res); % Get absolute path
 sett.write.dir_res = s.path;
