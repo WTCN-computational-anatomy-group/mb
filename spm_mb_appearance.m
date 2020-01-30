@@ -964,11 +964,12 @@ end
 function dat = UpdateAllGMMs(dat, mu0, sett)
 
 % Parse function settings
-B     = sett.registr.B;
-Mmu   = sett.var.Mmu;
-mu_bg = sett.model.mu_bg;
+B           = sett.registr.B;
+Mmu         = sett.var.Mmu;
+mu_bg       = sett.model.mu_bg;
+num_workers = sett.gen.num_workers;
 
-for n=1:numel(dat)
+parfor(n=1:numel(dat),num_workers)
 
     % Warp template to subject
     df  = spm_mb_io('GetSize',dat(n).f);
@@ -976,7 +977,6 @@ for n=1:numel(dat)
     Mn  = dat(n).Mat;
     psi = spm_mb_shape('Compose',spm_mb_io('GetData',dat(n).psi),spm_mb_shape('Affine',df, Mmu\spm_dexpm(q,B)*Mn));
     mu  = spm_mb_shape('Pull1',mu0,psi,mu_bg);
-    clear psi
 
     % Update GMM parameters
     dat(n) = Update(dat(n),mu,sett);

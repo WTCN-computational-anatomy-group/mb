@@ -173,6 +173,9 @@ end
 if ~isfield(sett.gen,'samp_min')
     sett.gen.samp_min = 1;
 end
+if ~isfield(sett.gen,'num_workers')
+    sett.gen.num_workers = 0;
+end
 
 %------------------
 % .labels (label related)
