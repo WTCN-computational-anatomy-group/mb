@@ -465,8 +465,11 @@ end
 function dat = RigidAlignTemplate(dat,model,sett)
 
 % Parse function settings
-dir_res = sett.write.dir_res;
-Mmu     = sett.Mmu;
+dir_res  = sett.write.dir_res;
+Mmu      = sett.Mmu;
+updt_aff = sett.do.updt_aff;
+
+if ~updt_aff, return; end
 
 % Get template
 pth_mu = model.shape.template;
