@@ -341,12 +341,12 @@ for zm=numel(sz):-1:1 % loop over zoom levels
     spm_mb_show('All',dat,mu,Objective,N,sett);
 
     if zm > 1
-        oMmu     = sett.var.Mmu;
-        sett.var = spm_mb_io('CopyFields',sz(zm-1), sett.var);
-        [dat,mu] = spm_mb_shape('ZoomVolumes',dat,mu,sett,oMmu);
+        oMmu           = sett.var.Mmu;
+        sett.var       = spm_mb_io('CopyFields',sz(zm-1), sett.var);
+        [dat,mu]       = spm_mb_shape('ZoomVolumes',dat,mu,sett,oMmu);
         if updt_mu, te = spm_mb_shape('TemplateEnergy',mu,sett); end % Compute template energy
-        dat      = spm_mb_shape('VelocityEnergy',dat,sett); % Compute velocity energy
-        dat      = spm_mb_shape('UpdateWarps',dat,sett);    % Shoot new deformations
+        dat            = spm_mb_shape('VelocityEnergy',dat,sett); % Compute velocity energy
+        dat            = spm_mb_shape('UpdateWarps',dat,sett);    % Shoot new deformations
     end
 
     if write_ws
