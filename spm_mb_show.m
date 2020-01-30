@@ -536,7 +536,7 @@ s = sprintf('%s| ',s);
 if done == 0 || ~isfinite(done)
     s = sprintf('%sn/a%s ',s,blanks(14));
 else
-    s = sprintf('%s|oE-E|/E=%0.6f ',s,abs(done));
+    s = sprintf('%s|oE-E|/|E|=%0.6f ',s,abs(done));
 end
 s = sprintf('%s| ',s);
 
