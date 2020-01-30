@@ -288,9 +288,9 @@ if appear_given && template_given
     %------------------------------------------------------------
 
     % TODO
-    pr = model.appear.pr;
-    dc = w_mu.*pr.m;
-    dc = sum(dc,2);
+    pr  = model.appear.pr;
+    dc0 = w_mu.*pr.m;
+    dc0 = sum(dc0,2);
 
     for n=1:N
         [df,C] = spm_mb_io('GetSize',dat(n).f);
@@ -301,14 +301,13 @@ if appear_given && template_given
         fn = reshape(fn,[prod(df(1:3)) C]);
         fn = spm_mb_appearance('Mask',fn,dat(n).is_ct);
 
+        dc = zeros([1 C]);
         if do_dc
             for c=1:C
                 msk   = isfinite(fn(:,c));
-                dc(c) = dc(c)./mean(fn(msk,c));
+                dc(c) = dc0(c)./mean(fn(msk,c));
             end
-            dc = log(dc);
-        else
-            dc = zeros([1 C]);
+            dc = log(dc);            
         end
 
         if any(dat(n).do_bf == true)
