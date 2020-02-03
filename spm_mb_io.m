@@ -3,23 +3,23 @@ function varargout = spm_mb_io(varargin)
 %
 % Functions for I/O related.
 %
-% FORMAT to                = spm_mb_io('CopyFields',from,to)
-% FORMAT pth               = spm_mb_io('CropLearnedTemplate',pth,centre,bb,do_crop)
-% FORMAT [P,datn]          = spm_mb_io('GetClasses',datn,mu,sett)
-% FORMAT [ix_ct,ix_mri1,ix_mri2,Np] = spm_mb_io('GetCTandMRI',dat)
-% FORMAT [out,M]           = spm_mb_io('GetData',in)
-% FORMAT Mat               = spm_mb_io('GetMat',fin)
-% FORMAT [d,M]             = spm_mb_io('GetSize',fin)
-% FORMAT s                 = spm_mb_io('GetScale',fin,sett);
-% FORMAT dat               = spm_mb_io('InitDat',data,sett)
-% FORMAT model             = spm_mb_io('LoadModel',PthModel,sett)
-% FORMAT model             = spm_mb_io('MakeModel',dat,model,sett)
-% FORMAT [psi,fpth]        = spm_mb_io('SavePsiSub',datn,sett)
-% FORMAT                     spm_mb_io('SaveTemplate',dat,mu,sett)
-% FORMAT                     spm_mb_io('SetBoundCond')
-% FORMAT fout              = spm_mb_io('SetData',fin,f)
-% FORMAT                     spm_mb_io('SetPath')
-% FORMAT                     spm_mb_io('WriteNii',f,img,Mmu,descrip);
+% FORMAT to              = spm_mb_io('CopyFields',from,to)
+% FORMAT pth             = spm_mb_io('CropTemplate',pth,centre,bb)
+% FORMAT [P,datn]        = spm_mb_io('GetClasses',datn,mu,sett)
+% FORMAT [ict,imr1,imr2] = spm_mb_io('GetCTandMRI',dat)
+% FORMAT [out,M]         = spm_mb_io('GetData',in)
+% FORMAT Mat             = spm_mb_io('GetMat',fin)
+% FORMAT [d,M]           = spm_mb_io('GetSize',fin)
+% FORMAT s               = spm_mb_io('GetScale',fin,sett);
+% FORMAT dat             = spm_mb_io('InitDat',data,sett)
+% FORMAT model           = spm_mb_io('LoadModel',PthModel,sett)
+% FORMAT model           = spm_mb_io('MakeModel',dat,model,sett)
+% FORMAT [psi,fpth]      = spm_mb_io('SavePsiSub',datn,sett)
+% FORMAT                   spm_mb_io('SaveTemplate',dat,mu,sett)
+% FORMAT                   spm_mb_io('SetBoundCond')
+% FORMAT fout            = spm_mb_io('SetData',fin,f)
+% FORMAT                   spm_mb_io('SetPath')
+% FORMAT                   spm_mb_io('WriteNii',f,img,Mmu,descrip);
 %
 %__________________________________________________________________________
 % Copyright (C) 2019 Wellcome Trust Centre for Neuroimaging
@@ -33,8 +33,8 @@ varargin = varargin(2:end);
 switch id
     case 'CopyFields'
         [varargout{1:nargout}] = CopyFields(varargin{:});
-    case 'CropLearnedTemplate'
-        [varargout{1:nargout}] = CropLearnedTemplate(varargin{:});
+    case 'CropTemplate'
+        [varargout{1:nargout}] = CropTemplate(varargin{:});
     case 'GetClasses'
         [varargout{1:nargout}] = GetClasses(varargin{:});
     case 'GetCTandMRI'
@@ -83,56 +83,25 @@ end
 %==========================================================================
 
 %==========================================================================
-% CropLearnedTemplate()
-function fout = CropLearnedTemplate(fin,c,mrg,do)
-if nargin < 2, c   = []; end
-if nargin < 3, mrg = 0; end
-if nargin < 4, do  = true; end
+% CropTemplate()
+function fout = CropTemplate(fin,centre,bb)
+if nargin < 2, centre = []; end
+if nargin < 3, bb     = 0;  end
 
-if isscalar(mrg), mrg = mrg*ones(1,3); end
+if isscalar(bb), bb = bb*ones(2,3); end
 
-if do
-    [pth,nam,ext] = fileparts(fin);
-    nnam          = ['crp_' nam];
-    fout          = fullfile(pth,[nnam ext]);
-    copyfile(fin,fout);
+[pth,nam,ext] = fileparts(fin);
+fout          = fullfile(pth,['sv' nam ext]);    
 
-    c = [192 189 201];
-    bb = [c - [90 100 180]; c + [90 120 90]]; % [l b d], [r f u]
+bb = [centre - bb(1,:); centre + bb(2,:)]; % [l b d], [r f u]
 
-    V  = spm_vol(fout);
-    for k=1:numel(V)
-        VO = SubVol(V(k),bb);
-    end
+V = spm_vol(fin);
+for k=1:numel(V), SubVol(V(k),bb); end
 
-    spm_check_registration([fout ',1']);
-else
-%     Nii       = nifti(pth);
-%     dim       = Nii.dat.dim;
-%     tis_class = 1;
-%     centre_ix = [1,2; 3,2; 1,3];
-%
-%     figure(666)
-%     for i=1:3
-%         ci       = c(centre_ix(i,:));
-%         slice_ix = c(round(setdiff(1:3,centre_ix(i,:))));
-%
-%         subplot(1,3,i)
-%         if     i == 1, imagesc(Nii.dat(:,:,slice_ix,tis_class));
-%         elseif i == 2, imagesc(squeeze(Nii.dat(:,slice_ix,:,tis_class)));
-%         else,          imagesc(squeeze(Nii.dat(slice_ix,:,:,tis_class)));
-%         end
-%         axis image xy
-%
-%         hold on
-%         plot(ci(1),ci(2),'rx');
-%         bb1 = [ci(1) + mrg(i), ci(1) - mrg(i), ci(1) - mrg(i), ci(1) + mrg(i), ci(1) + mrg(i)];
-%         bb2 = [ci(2) + mrg(i), ci(2) + mrg(i), ci(2) - mrg(i), ci(2) - mrg(i), ci(2) + mrg(i)];
-%         plot(bb1, bb2, 'r-', 'LineWidth', 1);
-%         hold off
-%     end
+spm_check_registration([fout ',1']);
 end
-end
+%==========================================================================
+
 %==========================================================================
 % GetClasses()
 function [P,datn] = GetClasses(datn,mu,sett)
@@ -220,31 +189,27 @@ end
 
 %==========================================================================
 % GetCTandMRI()
-function [ix_ct,ix_mri1,ix_mri2] = GetCTandMRI(dat,sett)
+function [ict,imri1,imri2] = GetCTandMRI(dat,sett)
 
 % Parse function settings
 ix_init = sett.model.ix_init_pop;
 
 N          = numel(dat);
-ix_ct      = [];
-ix_mri2    = [];
+ict      = [];
+imri2    = [];
 ix_pop_mri = [];
 for n=1:N
     if any(dat(n).is_ct == true)
-        ix_ct = [ix_ct n];
+        ict = [ict n];
     else
         ix_pop_mri = [ix_pop_mri dat(n).ix_pop];
-        ix_mri2    = [ix_mri2 n];
+        imri2    = [imri2 n];
     end
 end
-Np = numel(unique(ix_pop_mri));
-
-ix_mri1 = ix_mri2(ix_pop_mri == ix_init);
-ix_mri2 = ix_mri2(ix_pop_mri ~= ix_init);
-
+imri1 = imri2(ix_pop_mri == ix_init);
+imri2 = imri2(ix_pop_mri ~= ix_init);
 % ix_mri1 = [ix_mri1 ix_mri2];
 % ix_mri2 = [];
-
 end
 %==========================================================================
 
@@ -358,6 +323,11 @@ for n=1:N
             end
         end
 
+        if N == 1
+            % Load nifti as numeri array into dat.F (faster)
+            dat(n).f = spm_mb_io('GetData',dat(n).f);
+        end
+        
         if run2d
             % Get 2D slice from 3D data
             fn       = spm_mb_io('GetData',dat(n).f);
@@ -383,22 +353,27 @@ for n=1:N
     dat(n).Mat = M0;
     if isa(F,'nifti') || (iscell(F) && (isa(F{1},'char') || isa(F{1},'nifti')))
         dat(n).Mat = Nii(1).mat;
-        if run2d
-            vx         = sqrt(sum(dat(n).Mat(1:3,1:3).^2));
-            dat(n).Mat = [diag(vx) zeros(3,1); 0 0 0 1];
-        end
     end
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Subject-level 'extras'
     %------------------------------------------------------------
 
-    % Orientation matrix given
+    % spm_vol object
+    dat(n).V   = [];
     dat(n).nam = [];
-    if isstruct(data(n)) && isfield(data(n),'nam') && ~isempty(data(n).nam)
-        dat(n).nam = data(n).nam;
+    if isstruct(data(n)) && isfield(data(n),'V') && ~isempty(data(n).V)
+        dat(n).V   = data(n).V;
+        [~,nam]    = fileparts(dat(n).V(1).fname);
+        dat(n).nam = nam;
+        dat(n).Mat = dat(n).V(1).mat;
     end
-    
+    df = spm_mb_io('GetSize',dat(n).f);
+    if df(3) == 1
+        vx         = sqrt(sum(dat(n).Mat(1:3,1:3).^2));
+        dat(n).Mat = [diag(vx) zeros(3,1); 0 0 0 1];
+    end
+        
     % Do bias field (per channel)
     dat(n).do_bf = true;
     if isstruct(data(n)) && isfield(data(n),'do_bf') && ~isempty(data(n).do_bf)

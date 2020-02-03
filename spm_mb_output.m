@@ -439,8 +439,12 @@ if any(write_df == true) || any(reshape(write_tc(:,[2 3]),[],1) == true) ||  any
     
     if write_df(2)
         % Get inverse deformation (correct?)
-        v   = spm_mb_io('GetData',datn.v);        
-        psi = spm_shoot3d(v, v_settings, shoot_eul); % Geodesic shooting
+        if df(3) > 1
+            psi = spm_diffeo('invdef',psi0,dmu,eye(4),eye(4));
+        else
+            v   = spm_mb_io('GetData',datn.v);        
+            psi = spm_shoot3d(v, v_settings, shoot_eul); % Geodesic shooting
+        end
 %         psi = spm_diffeo('invdef',psi0,dmu,eye(4),eye(4));
 %         if df(3) == 1, psi(:,:,:,3) = 1; end % 2D
         

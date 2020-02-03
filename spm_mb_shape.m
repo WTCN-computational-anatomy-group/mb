@@ -500,10 +500,14 @@ mu_sm = spm_load_priors8(Vmu);
 N = numel(dat);
 for n=1:N % loop over subjects
     % Image params
-    Vn = spm_vol(dat(n).f(1).dat.fname);
+    if ~isempty(dat(n).V)
+        Vn = dat(n).V;
+    else
+        Vn = spm_vol(dat(n).f(1).dat.fname);
+    end
     Vn = Vn(1);
-    Mn = dat(n).f(1).mat;
-
+    Mn = Vn.mat;
+    
     % Register atlas to image to get get R (so that Mmu\R*Mf)
     c             = (Vn.dim+1)/2;
     Vn.mat(1:3,4) = -Mn(1:3,1:3)*c(:);
@@ -522,8 +526,8 @@ for n=1:N % loop over subjects
     end
 
     % Fit final
-    R = spm_maff8(dat(n).f(1).dat.fname,8,32,mu_sm,R,'mni');
-    R = spm_maff8(dat(n).f(1).dat.fname,8,1,mu_sm,R,'mni');
+    R = spm_maff8(Vn,8,32,mu_sm,R,'mni');
+    R = spm_maff8(Vn,8,1,mu_sm,R,'mni');
 
     % Get best fit in Lie space
     e  = eig(R);
