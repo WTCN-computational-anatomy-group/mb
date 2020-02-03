@@ -326,14 +326,17 @@ for n=1:N
     end
 
     % Init datn.f
-    if iscell(F) && isnumeric(F{1})
+    if isnumeric(F) || iscell(F) && isnumeric(F{1})
         % Input F is numeric -> store as numeric
 
+        if iscell(F)
+            F = F{1};
+        end
         if run2d
             % Get 2D slice from 3D data
-            dat(n).f = GetSlice(F{1},run2d);
+            dat(n).f = GetSlice(F,run2d);
         else
-            dat(n).f = single(F{1});
+            dat(n).f = single(F);
         end
     elseif isa(F,'nifti') || (iscell(F) && (isa(F{1},'char') || isa(F{1},'nifti')))
         % Input F is nifti (path or object) -> store as nifti
@@ -366,20 +369,18 @@ for n=1:N
     [~,C] = spm_mb_io('GetSize',dat(n).f);
 
     % Parameters
-    dat(n).M     = M0;
-    dat(n).q     = zeros(6,1);
-    dat(n).v     = [];
-    dat(n).psi   = [];
-    dat(n).E     = [0 0]; % Px Pv
-    dat(n).bf    = [];
-
-    if do_gmm
-        dat(n).mog = [];
-        dat(n).bf  = [];
+    dat(n).q   = zeros(6,1); % rigid registration parameters
+    dat(n).v   = [];         % initial velocity
+    dat(n).psi = [];         % nonlinear deformation
+    dat(n).E   = [0 0];      % nllp(appear) nllp(v)
+    if do_gmm        
+        % GMM parameters
+        dat(n).mog = []; % GMM parameters
+        dat(n).bf  = []; % bias field (in image space)
     end
 
     % Orientation matrix (image voxel-to-world)
-    dat(n).Mat = eye(4);
+    dat(n).Mat = M0;
     if isa(F,'nifti') || (iscell(F) && (isa(F{1},'char') || isa(F{1},'nifti')))
         dat(n).Mat = Nii(1).mat;
         if run2d
@@ -392,41 +393,44 @@ for n=1:N
     % Subject-level 'extras'
     %------------------------------------------------------------
 
+    % Orientation matrix given
+    dat(n).nam = [];
+    if isstruct(data(n)) && isfield(data(n),'nam') && ~isempty(data(n).nam)
+        dat(n).nam = data(n).nam;
+    end
+    
     % Do bias field (per channel)
+    dat(n).do_bf = true;
     if isstruct(data(n)) && isfield(data(n),'do_bf') && ~isempty(data(n).do_bf)
         dat(n).do_bf = data(n).do_bf;
-    else
-        dat(n).do_bf = true;
     end
     if numel(dat(n).do_bf) < C
         dat(n).do_bf = repmat(dat(n).do_bf,[1 C]);
     end
 
     % Do rescale with bf dc
+    dat(n).do_dc = true;
     if isstruct(data(n)) && isfield(data(n),'do_dc') && ~isempty(data(n).do_dc)
-        dat(n).do_dc = data(n).do_dc;
-    else
-        dat(n).do_dc = true;
+        dat(n).do_dc = data(n).do_dc;    
     end
 
     % Intensity prior index
+    dat(n).ix_pop = 1;
     if isstruct(data(n)) && isfield(data(n),'ix_pop') && ~isempty(data(n).ix_pop)
-        dat(n).ix_pop = data(n).ix_pop;
-    else
-        dat(n).ix_pop = 1;
+        dat(n).ix_pop = data(n).ix_pop;    
     end
 
     % Is CT data
+    dat(n).is_ct = false;
     if isstruct(data(n)) && isfield(data(n),'is_ct') && ~isempty(data(n).is_ct)
-        dat(n).is_ct = data(n).is_ct;
-    else
-        dat(n).is_ct = false;
+        dat(n).is_ct = data(n).is_ct;            
     end
     if numel(dat(n).is_ct) < C
         dat(n).is_ct = repmat(dat(n).is_ct,[1 C]);
     end
 
     % Labels in a cell array as {nifti,cm_map}
+    dat(n).labels = [];
     if isstruct(data(n)) && isfield(data(n),'labels') && ~isempty(data(n).labels) && ~isempty(data(n).labels{1})
         dat(n).labels = data(n).labels;
 
@@ -435,8 +439,6 @@ for n=1:N
             labels           = spm_mb_io('GetData',dat(n).labels{1});
             dat(n).labels{1} = GetSlice(labels,run2d);
         end
-    else
-        dat(n).labels = [];
     end
 end
 end

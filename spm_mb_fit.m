@@ -51,7 +51,8 @@ vx           = sett.model.vx;
 write_ws     = sett.write.workspace;
 nit_mu       = sett.nit.init_mu;
 print2screen = sett.show.print2screen;
-tol          = sett.model.tol;
+tol_aff      = sett.model.tol_aff;
+tol_diffeo   = sett.model.tol_diffeo;
 updt_diff    = sett.do.updt_vel;
 updt_aff     = sett.do.updt_aff;
 samp_min     = sett.gen.samp_min;
@@ -178,7 +179,7 @@ spm_mb_show('All',dat,mu,[],N,sett);
 Objective = [];
 te        = 0;
 if updt_mu, te = spm_mb_shape('TemplateEnergy',mu,sett); end
-E         = inf(1,sum([updt_mu, updt_intpr, updt_aff])); % For tracking objfun
+E         = inf(1,max(1,sum([updt_mu, updt_intpr, updt_aff]))); % For tracking objfun
 oE        = E;
 
 if updt_aff
@@ -224,7 +225,7 @@ for it0=1:nit_aff
     done      = abs(oE(ix_done) - E(ix_done))/abs(E(ix_done));
 
     % Print to command window
-    spm_mb_show('PrintProgress',it0,E,oE,toc(t),done,sett);
+    spm_mb_show('PrintProgress',it0,E,oE,toc(t),done,tol_aff,sett);
 
     % If 2D, show stuff
     if dmu(3) == 1, spm_mb_show('All',dat,mu,Objective,N,sett); end
@@ -235,7 +236,7 @@ for it0=1:nit_aff
     end
 
     % Finished rigid alignment?
-    if done < tol, break; end
+    if done < tol_aff, break; end
 end
 
 if write_ws
@@ -322,18 +323,18 @@ for zm=numel(sz):-1:1 % loop over zoom levels
         end
 
         % Check convergence
-        ix_done   = 2;
+        ix_done   = updt_aff + updt_diff;
         Objective = [Objective, E];
         done      = abs(oE(ix_done) - E(ix_done))/abs(E(ix_done));
 
         % Print to command window
-        spm_mb_show('PrintProgress',[zm it0],E,oE,toc(t),done,sett);
+        spm_mb_show('PrintProgress',[zm it0],E,oE,toc(t),done,tol_diffeo,sett);
 
         % If 2D, show stuff
         if dmu(3) == 1, spm_mb_show('All',dat,mu,Objective,N,sett); end
 
         % Finished diffeo alignment?
-        if done < tol, break; end
+        if done < tol_diffeo, break; end
     end
     if print2screen, fprintf('\n'); end
 

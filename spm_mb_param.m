@@ -236,8 +236,11 @@ end
 if ~isfield(sett.model,'vx')
     sett.model.vx = 1;
 end
-if ~isfield(sett.model,'tol')
-    sett.model.tol = 1e-4;
+if ~isfield(sett.model,'tol_aff')
+    sett.model.tol_aff = 1e-5;
+end
+if ~isfield(sett.model,'tol_diffeo')
+    sett.model.tol_diffeo = 1e-4;
 end
 if ~isfield(sett.model,'appear_ix')
     sett.model.appear_ix = 1;
@@ -261,7 +264,7 @@ if ~isfield(sett.nit,'gmm')
 end
 if ~isfield(sett.nit,'init')
     % The number of iterations, for init rigid alignment.
-    sett.nit.init = 16;
+    sett.nit.init = 64;
 end
 if ~isfield(sett.nit,'init_mu')
     % The number of template update iterations
@@ -405,10 +408,6 @@ if ~isfield(sett.write,'clean_vel')
 end
 if ~isfield(sett.write,'df')
     sett.write.df = false(1,2); % forward, inverse
-end
-if ~isfield(sett.write,'labels')
-    % Write labels
-    sett.write.labels = [false false]; % native, template
 end
 if ~isfield(sett.write,'model')
     sett.write.model = true;

@@ -173,6 +173,7 @@ end
 % Compose()
 function psi = Compose(psi1,psi0)
 psi = spm_diffeo('comp',psi1,psi0);
+if size(psi,3) == 1, psi(:,:,:,3) = 1; end % 2D
 end
 %==========================================================================
 
@@ -475,7 +476,7 @@ if ~updt_aff, return; end
 pth_mu = model.shape.template;
 mu_sm  = spm_mb_io('GetData',pth_mu);
 
-if size(mu_sm,3) == 1, return; end
+if size(mu_sm,3) == 1, return; end % do not run if data is 2D
 
 % Softmax
 mu_sm = spm_mb_shape('TemplateK1',mu_sm,4);

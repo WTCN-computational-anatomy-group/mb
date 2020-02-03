@@ -9,7 +9,7 @@ function res = spm_mb_output(dat,mu,sett)
 % struct for saving paths of data written to disk
 N   = numel(dat);
 cl  = cell(N,1);
-res = struct('bf',cl,'im',cl,'imc',cl,'c',cl,'y',cl,'iy',cl,'wim',cl,'wimc',cl,'wc',cl,'mwc',cl,'lab',cl,'wlab',cl,'v',cl);
+res = struct('bf',cl,'im',cl,'imc',cl,'c',cl,'y',cl,'iy',cl,'wim',cl,'wimc',cl,'wc',cl,'mwc',cl,'v',cl);
 
 for n=1:N % Loop over subjects
     res(n) = ProcessSubject(dat(n),res(n),mu,n,sett);
@@ -144,11 +144,12 @@ nit_mrf    = sett.clean_z.nit_mrf;
 reg        = sett.bf.reg;
 write_bf   = sett.write.bf; % field
 write_df   = sett.write.df; % forward, inverse
-write_lab  = sett.write.labels;
 write_im   = sett.write.im; % image, corrected, warped, warped corrected
 write_tc   = sett.write.tc; % native, warped, warped-mod
 write_vel  = sett.write.vel;
 write_aff  = sett.write.affine;
+v_settings = sett.var.v_settings;
+shoot_eul  = sett.shoot.args;
 
 % Get parameters
 [df,C] = spm_mb_io('GetSize',datn.f);
@@ -158,8 +159,10 @@ Kmg    = numel(mg_ix);
 if isa(datn.f(1),'nifti')
     [pth,namn] = fileparts(datn.f(1).dat.fname);
 else
-    namn  = ['n' num2str(ix)];
     pth   = '.';
+    if isempty(datn.nam), namn  = ['n' num2str(ix)];
+    else,                 namn  = datn.nam;
+    end
 end
 Mr    = spm_dexpm(double(datn.q),B);
 Mn    = datn.Mat;
@@ -177,7 +180,7 @@ if size(write_bf,1) == 1 && C  > 1, write_bf = repmat(write_bf,[C  1]); end
 if size(write_im,1) == 1 && C  > 1, write_im = repmat(write_im,[C  1]); end
 if size(write_tc,1) == 1 && K1 > 1, write_tc = repmat(write_tc,[K1 1]); end
 
-if ~(all(write_bf(:) == false) && all(write_im(:) == false) && all(write_tc(:) == false) && all(write_lab(:) == false) && all(write_df(:) == false))
+if ~(all(write_bf(:) == false) && all(write_im(:) == false) && all(write_tc(:) == false) && all(write_df(:) == false))
     psi0 = spm_mb_io('GetData',datn.psi);
 end
 
@@ -201,7 +204,7 @@ if write_aff
     save(fpth,'Mr');
 end
 
-if isfield(datn,'mog') && (any(write_bf(:) == true) || any(write_im(:) == true) || any(write_tc(:) == true) || write_lab(1))
+if isfield(datn,'mog') && (any(write_bf(:) == true) || any(write_im(:) == true) || any(write_tc(:) == true))
     % Input data were intensity images
     %------------------
 
@@ -343,22 +346,6 @@ if isfield(datn,'mog') && (any(write_bf(:) == true) || any(write_im(:) == true) 
         end
         resn.c = pths;
     end
-
-    if write_lab(1) && ~isempty(datn.labels) && ~isempty(datn.labels{1})
-        % Write manual labels (if present)
-        descrip = 'Manual labels (';
-        pths    = {};
-        labels  = spm_mb_io('GetData',datn.labels{1});
-        val_lab = unique(labels);
-        for k=2:numel(val_lab) % loop over label classes
-            nam           = ['lab' num2str(val_lab(k)) '_' namn '.nii'];
-            fpth          = fullfile(dir_res,nam);
-            spm_mb_io('WriteNii',fpth,single(labels == val_lab(k)),Mmu,[descrip 'k=' num2str(val_lab(k)) ')']);
-            pths{end + 1} = fpth;
-        end
-        resn.lab  = pths;
-        clear labels
-    end
 else
     % Input data were segmentations
     %------------------
@@ -367,7 +354,7 @@ else
     zn = cat(4,zn,1 - sum(zn,4));
 end
 
-if any(write_df == true) || any(reshape(write_tc(:,[2 3]),[],1) == true) ||  any(reshape(write_im(:,[3 4]),[],1) == true) || write_lab(2)
+if any(write_df == true) || any(reshape(write_tc(:,[2 3]),[],1) == true) ||  any(reshape(write_im(:,[3 4]),[],1) == true)
     % Write forward deformation and/or normalised images
     %------------------
 
@@ -439,26 +426,10 @@ if any(write_df == true) || any(reshape(write_tc(:,[2 3]),[],1) == true) ||  any
         resn.mwc = pths;
     end
 
-    if write_lab(2) && ~isempty(datn.labels) && ~isempty(datn.labels{1})
-        % Write normalised manual labels (if present)
-        descrip = 'Normalised manual labels (';
-        pths    = {};
-        labels  = spm_mb_io('GetData',datn.labels{1});
-        val_lab = unique(labels);
-        for k=2:numel(val_lab) % loop over label classes
-            nam       = ['wlab' num2str(val_lab(k)) '_' namn '.nii'];
-            fpth      = fullfile(dir_res,nam);
-            [img,cnt] = spm_mb_shape('Push1',single(labels == val_lab(k)),psi,dmu,sd);
-            spm_mb_io('WriteNii',fpth,round(img./(cnt + eps('single'))),Mmu,[descrip 'k=' num2str(val_lab(k)) ')']);
-            pths{end + 1} = fpth;
-        end
-        resn.wlab  = pths;
-        clear labels
-    end
-
     if write_df(1)
         % Write forward deformation  (pulls template into subject space, use push to go other way)
-        psi       = reshape(psi,[df 1 3]);
+%         psi       = reshape(reshape(psi,[prod(df) 3])*Mmu(1:3,1:3)' + Mmu(1:3,4)',[df 1 3]);        
+%         psi       = reshape(psi,[df 1 3]);        
         descrip   = 'Forward deformation';
         nam       = ['y_' namn '.nii'];
         fpth      = fullfile(dir_res,nam);
@@ -468,10 +439,15 @@ if any(write_df == true) || any(reshape(write_tc(:,[2 3]),[],1) == true) ||  any
     
     if write_df(2)
         % Get inverse deformation (correct?)
-        psi = spm_diffeo('invdef',psi0,dmu(1:3),eye(4),eye(4));
-        %psi = spm_extrapolate_def(psi,Mmu);
-        M   = inv(Mmu\Mr*Mn);
-        psi = reshape(reshape(psi,[prod(dmu) 3])*M(1:3,1:3)' + M(1:3,4)',[dmu 3]);
+        v   = spm_mb_io('GetData',datn.v);        
+        psi = spm_shoot3d(v, v_settings, shoot_eul); % Geodesic shooting
+%         psi = spm_diffeo('invdef',psi0,dmu,eye(4),eye(4));
+%         if df(3) == 1, psi(:,:,:,3) = 1; end % 2D
+        
+%         M   = Mr\Mmu;
+%         psi = reshape(reshape(psi,[prod(dmu) 3])*M(1:3,1:3)' + M(1:3,4)',[dmu 1 3]); 
+        M   = (Mr*Mn)\Mmu;
+        psi = reshape(reshape(psi,[prod(dmu) 3])*M(1:3,1:3)' + M(1:3,4)',[dmu 3]); 
 
         % Write inverse deformation
         descrip = 'Inverse deformation';

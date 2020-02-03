@@ -184,7 +184,7 @@ end
 labels = spm_mb_io('GetData',datn.labels{1});
 if do_samp && samp > 1
     % Subsample labels
-    Mn     = datn.M;
+    Mn     = datn.Mat;
     labels = SubSample(labels,Mn,samp);
 end
 

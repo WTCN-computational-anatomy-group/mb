@@ -7,7 +7,7 @@ function varargout = spm_mb_show(varargin)
 % FORMAT spm_mb_show('All',dat,mu,Objective,N,sett)
 % FORMAT spm_mb_show('IntensityPrior',dat,sett,p)
 % FORMAT spm_mb_show('Model',mu,Objective,N,sett)
-% FORMAT spm_mb_show('PrintProgress',it,E,oE,t,done,sett)
+% FORMAT spm_mb_show('PrintProgress',it,E,oE,t,done,tol,sett)
 % FORMAT spm_mb_show('Subjects',dat,mu,sett,p,show_extras)
 % FORMAT spm_mb_show('Tissues',im,do_softmax,num_montage,perm,fig_nam)
 % FORMAT spm_mb_show('Speak',nam,sett,varargin)
@@ -500,11 +500,10 @@ end
 
 %==========================================================================
 % PrintProgress()
-function PrintProgress(it,E,oE,t,done,sett)
+function PrintProgress(it,E,oE,t,done,tol,sett)
 
 % Parse function settings
 print2screen = sett.show.print2screen;
-tol          = sett.model.tol;
 
 if ~print2screen, return; end
 
