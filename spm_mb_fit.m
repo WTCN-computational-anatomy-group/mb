@@ -105,6 +105,10 @@ if template_given
 else
     [Mmu,dmu] = spm_mb_shape('SpecifyMean',dat,vx,sett);
 end
+if dmu(3) == 1 % for 2D data
+    vx  = sqrt(sum(Mmu(1:3,1:3).^2));
+    Mmu = [diag(vx) zeros(3,1); 0 0 0 1];
+end
 sett.Mmu = Mmu;
 sett.dmu = dmu;
 
