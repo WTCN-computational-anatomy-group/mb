@@ -240,7 +240,7 @@ end
 
 if write_ws
     % Save workspace (except template - saved as nifti separately)
-    save(fullfile(dir_res,'fit_spm_mb.mat'), '-regexp', '^(?!(mu)$).');
+    save(fullfile(dir_res,'spm_mb_workspace.mat'), '-regexp', '^(?!(mu)$).');
 end
 
 % Save template
@@ -351,7 +351,7 @@ for zm=numel(sz):-1:1 % loop over zoom levels
 
     if write_ws
         % Save workspace (except template - saved as nifti separately)
-        save(fullfile(dir_res,'fit_spm_mb.mat'), '-regexp', '^(?!(mu)$).');
+        save(fullfile(dir_res,'spm_mb_workspace.mat'), '-regexp', '^(?!(mu)$).');
     end
 
     % Save template

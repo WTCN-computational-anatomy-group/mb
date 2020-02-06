@@ -407,7 +407,7 @@ if ~isfield(sett.write,'clean_vel')
     sett.write.clean_vel = true;
 end
 if ~isfield(sett.write,'df')
-    sett.write.df = false(1,2); % forward, inverse
+    sett.write.df = true;
 end
 if ~isfield(sett.write,'model')
     sett.write.model = true;

@@ -464,7 +464,7 @@ end
 
 if do_updt_template
     % Shape related
-    f                    = fullfile('mu_spm_mb.nii');
+    f                    = fullfile('spm_mb_mu.nii');
     model.shape.template = f; % Store path to template
 end
 
@@ -510,7 +510,7 @@ model.info.fnames = char(fnames);
 
 if write_model
     % Save model
-    save(fullfile(dir_res,'model_spm_mb.mat'),'model')
+    save(fullfile(dir_res,'spm_mb_model.mat'),'model')
 end
 end
 %==========================================================================
@@ -567,7 +567,7 @@ end
 if ~isempty(mu) && do_updt_template
     if write_mu(1)
         % Log
-        f        = fullfile(dir_res ,'mu_spm_mb.nii');
+        f        = fullfile(dir_res ,'spm_mb_mu.nii');
         fa       = file_array(f,size(mu),'float32',0);
         Nmu      = nifti;
         Nmu.dat  = fa;
@@ -583,7 +583,7 @@ if ~isempty(mu) && do_updt_template
         mu = spm_mb_shape('TemplateK1',mu,4);
         mu = exp(mu);
 
-        f        = fullfile(dir_res ,'mu_softmax_spm_mb.nii');
+        f        = fullfile(dir_res ,'spm_mb_mu_softmax.nii');
         fa       = file_array(f,size(mu),'float32',0);
         Nmu      = nifti;
         Nmu.dat  = fa;
@@ -650,7 +650,6 @@ Nii.mat  = M;
 Nii.mat0 = M;
 Nii.descrip = descrip;
 create(Nii);
-d = size(img);
 Nii.dat(:,:,:,:,:,:) = img;
 end
 %==========================================================================
