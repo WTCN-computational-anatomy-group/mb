@@ -82,7 +82,7 @@ if ~isfield(sett.bf,'fwhm')
     sett.bf.fwhm = 60;
 end
 if ~isfield(sett.bf,'reg')
-    sett.bf.reg = 1e5;
+    sett.bf.reg = 1e6;
 end
 
 %------------------
@@ -277,7 +277,7 @@ if ~isfield(sett.nit,'zm')
     % The number of iterations, for updating all model parameters, at each zoom
     % level. The final zoom level uses sett.nit.zm iterations, while
     % earlier zoom levels use sett.nit.zm + zoom_level.
-    sett.nit.zm = 4;
+    sett.nit.zm = 3;
 end
 
 %------------------
@@ -383,9 +383,9 @@ if ~isfield(sett.var,'mu_settings')
 end
 if ~isfield(sett.var,'v_settings')
     if sett.do.updt_aff
-        sett.var.v_settings = [0 0 0.2 0.05 0.2]*2;
+        sett.var.v_settings = [0 0 0.2 0.05 0.2]*4;
     else
-        sett.var.v_settings = [1e-4 0 0.2 0.05 0.2]*2;
+        sett.var.v_settings = [1e-4 0 0.2 0.05 0.2]*4;
     end
 end
 %------------------
