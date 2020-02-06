@@ -138,11 +138,6 @@ sett.var = spm_mb_io('CopyFields',sz(end), sett.var);
 
 dat = spm_mb_shape('InitDef',dat,sett);
 
-if template_given
-    % Align template by a quick, rough rigid registration
-    dat = spm_mb_shape('RigidAlignTemplate',dat,model,sett);
-end
-
 %------------------
 % Init apperance model parameters
 %------------------
