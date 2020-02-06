@@ -351,8 +351,10 @@ for n=1:N
 
     % Orientation matrix (image voxel-to-world)
     dat(n).Mat = M0;
+    matFromNii = false;
     if isa(F,'nifti') || (iscell(F) && (isa(F{1},'char') || isa(F{1},'nifti')))
         dat(n).Mat = Nii(1).mat0;
+        matFromNii = true;
     end
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -362,7 +364,7 @@ for n=1:N
     % spm_vol object
     dat(n).V   = [];
     dat(n).nam = [];
-    if isstruct(data(n)) && isfield(data(n),'V') && ~isempty(data(n).V)
+    if ~matFromNii && (isstruct(data(n)) && isfield(data(n),'V') && ~isempty(data(n).V))
         dat(n).V   = data(n).V;
         [~,nam]    = fileparts(dat(n).V(1).fname);
         dat(n).nam = nam;
