@@ -311,11 +311,13 @@ for n=1:nd
         mun1                      = mun1(:,mg_ix);
         mun1                      = mun1 + log(mg_w);
         mun1                      = spm_gmm_lib('obs2cell', mun1, code_image, false);
+        mun                       = spm_gmm_lib('obs2cell', mun, code_image, false);
 
         % Get responsibility
         zn   = spm_mb_appearance('Responsibility',dat(n).mog.po.m,dat(n).mog.po.b, ...
                                     dat(n).mog.po.W,dat(n).mog.po.n,bffn,mun1,msk_chn);
         zn   = spm_gmm_lib('cell2obs', zn, code_image, msk_chn);
+        mun  = spm_gmm_lib('cell2obs', mun, code_image, msk_chn);
         clear mun1 msk_chn
 
         % If using multiple Gaussians per tissue, collapse so that zn is of
