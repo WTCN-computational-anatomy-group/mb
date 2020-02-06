@@ -9,7 +9,8 @@ function res = spm_mb_output(dat,mu,sett)
 % struct for saving paths of data written to disk
 N   = numel(dat);
 cl  = cell(N,1);
-res = struct('bf',cl,'im',cl,'imc',cl,'c',cl,'y',cl,'iy',cl,'wim',cl,'wimc',cl,'wc',cl,'mwc',cl,'v',cl);
+res = struct('bf',cl,'im',cl,'imc',cl,'c',cl,'y',cl,'wim',cl, ...
+             'wimc',cl,'wc',cl,'mwc',cl,'v',cl);
 
 for n=1:N % Loop over subjects
     res(n) = ProcessSubject(dat(n),res(n),mu,n,sett);
@@ -148,8 +149,6 @@ write_im   = sett.write.im; % image, corrected, warped, warped corrected
 write_tc   = sett.write.tc; % native, warped, warped-mod
 write_vel  = sett.write.vel;
 write_aff  = sett.write.affine;
-v_settings = sett.var.v_settings;
-shoot_eul  = sett.shoot.args;
 
 % Get parameters
 [df,C] = spm_mb_io('GetSize',datn.f);
@@ -362,8 +361,8 @@ if any(write_df == true) || any(reshape(write_tc(:,[2 3]),[],1) == true) ||  any
     sd = spm_mb_shape('SampDens',Mmu,Mn);
 
     % Get forward deformation (pulls template into subject space)
-    psi = spm_mb_shape('Compose',psi0,spm_mb_shape('Affine',df,Mmu\Mr*Mn));
-    if df(3) == 1, psi(:,:,:,3) = 1; end % 2D
+    psi = spm_mb_shape('Compose',psi0,spm_mb_shape('Affine',df,Mmu\Mr*Mn));    
+    clear psi0
     
     if isfield(datn,'mog') && any(write_im(:,3) == true)
         % Write normalised image
@@ -428,38 +427,22 @@ if any(write_df == true) || any(reshape(write_tc(:,[2 3]),[],1) == true) ||  any
 
     if write_df(1)
         % Write forward deformation  (pulls template into subject space, use push to go other way)
-%         psi       = reshape(reshape(psi,[prod(df) 3])*Mmu(1:3,1:3)' + Mmu(1:3,4)',[df 1 3]);        
-%         psi       = reshape(psi,[df 1 3]);        
-        descrip   = 'Forward deformation';
-        nam       = ['y_' namn '.nii'];
-        fpth      = fullfile(dir_res,nam);
+        psi     = reshape(reshape(psi,[prod(df) 3])*Mmu(1:3,1:3)' + Mmu(1:3,4)',[df 1 3]);       
+        descrip = 'Forward deformation';
+        nam     = ['y_' namn '.nii'];
+        fpth    = fullfile(dir_res,nam);
         spm_mb_io('WriteNii',fpth,psi,Mn,descrip);
-        resn.y = fpth;
+        resn.y  = fpth;
     end
     
-    if write_df(2)
-        % Get inverse deformation (correct?)
-        if df(3) > 1
-            psi = spm_diffeo('invdef',psi0,dmu,eye(4),eye(4));
-        else
-            v   = spm_mb_io('GetData',datn.v);        
-            psi = spm_shoot3d(v, v_settings, shoot_eul); % Geodesic shooting
-        end
-%         psi = spm_diffeo('invdef',psi0,dmu,eye(4),eye(4));
-%         if df(3) == 1, psi(:,:,:,3) = 1; end % 2D
-        
-%         M   = Mr\Mmu;
-%         psi = reshape(reshape(psi,[prod(dmu) 3])*M(1:3,1:3)' + M(1:3,4)',[dmu 1 3]); 
-        M   = (Mr*Mn)\Mmu;
-        psi = reshape(reshape(psi,[prod(dmu) 3])*M(1:3,1:3)' + M(1:3,4)',[dmu 3]); 
-
-        % Write inverse deformation
-        descrip = 'Inverse deformation';
-        nam     = ['iy_' namn '.nii'];
-        fpth    = fullfile(dir_res,nam);
-        spm_mb_io('WriteNii',fpth,psi,Mmu,descrip);
-        resn.iy = fpth;
-    end
+%     if write_df(2)
+%         % Write inverse deformation
+%         descrip = 'Inverse deformation';
+%         nam     = ['iy_' namn '.nii'];
+%         fpth    = fullfile(dir_res,nam);
+%         spm_mb_io('WriteNii',fpth,psi,Mmu,descrip);
+%         resn.iy = fpth;
+%     end
 end
 if clean_def  && isa(datn.psi,'nifti') && isfile(datn.psi.dat.fname),          delete(datn.psi.dat.fname); end
 if ~write_vel && clean_vel && isa(datn.v,'nifti') && isfile(datn.v.dat.fname), delete(datn.v.dat.fname);   end
