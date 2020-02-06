@@ -1468,7 +1468,7 @@ for n=1:N % Loop over subjects
 
         % Move template space sample points to subject space
         Mn = dat(n1).Mat;
-        M  = Mn\Mmu;
+        M  = Mmu\Mn;
         yf = ymu*M';
         yf = reshape(yf(:,1:3),[Nvx 1 1 3]);
         if df(3) == 1, yf(:,:,:,3) = 1; end
