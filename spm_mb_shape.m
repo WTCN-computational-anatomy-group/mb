@@ -15,6 +15,7 @@ function varargout = spm_mb_shape(varargin)
 % FORMAT [dat,mu]      = spm_mb_shape('PropagateTemplate',dat,mu,sz,sett)
 % FORMAT dat           = spm_mb_shape('RigidAlignTemplate',dat,model,sett)
 % FORMAT sd            = spm_mb_shape('SampDens',Mmu,Mn)
+% FORMAT varargout     = spm_mb_shape('Shoot',v0,kernel,args)
 % FORMAT mu1           = spm_mb_shape('ShrinkTemplate',mu,oMmu,sett)
 % FORMAT P             = spm_mb_shape('Softmax',mu,dr)
 % FORMAT [Mmu,d]       = spm_mb_shape('SpecifyMean',dat,vx,sett)
@@ -63,6 +64,8 @@ switch id
         [varargout{1:nargout}] = RigidAlignTemplate(varargin{:});
     case 'SampDens'
         [varargout{1:nargout}] = SampDens(varargin{:});
+    case 'Shoot'
+        [varargout{1:nargout}] = Shoot(varargin{:});
     case 'ShrinkTemplate'
         [varargout{1:nargout}] = ShrinkTemplate(varargin{:});
     case 'Softmax'
