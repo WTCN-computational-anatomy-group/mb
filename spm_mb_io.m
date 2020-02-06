@@ -352,7 +352,7 @@ for n=1:N
     % Orientation matrix (image voxel-to-world)
     dat(n).Mat = M0;
     if isa(F,'nifti') || (iscell(F) && (isa(F{1},'char') || isa(F{1},'nifti')))
-        dat(n).Mat = Nii(1).mat;
+        dat(n).Mat = Nii(1).mat0;
     end
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
