@@ -750,8 +750,7 @@ num_workers = sett.gen.num_workers;
 
 g  = spm_field('vel2mom', mu, mu_settings);
 w  = zeros(sett.var.d,'single');
-%parfor(n=1:numel(dat),num_workers)
-for n=1:numel(dat)
+parfor(n=1:numel(dat),num_workers)
     [gn,wn,dat(n)] = UpdateMeanSub(dat(n),mu,sett);
     g              = g + gn;
     w              = w + wn;

@@ -186,7 +186,7 @@ if updt_aff
 spm_mb_show('Speak','Affine',sett);
 
 sett.gen.samp = numel(sz); % coarse-to-fine sampling of observed data
-
+nit_aff=0;
 for it0=1:nit_aff
 
     t = tic; % Start timer
@@ -250,7 +250,7 @@ end
 
 spm_mb_show('Speak','AffineDiffeo',sett,numel(sz));
 
-E  = [E(1) inf(1,sum([(updt_aff + updt_diff)*updt_mu, updt_aff, updt_diff]) - 1)]; % For tracking objfun
+E  = inf(1,sum([(updt_aff + updt_diff)*updt_mu, updt_aff, updt_diff])); % For tracking objfun
 oE = E;
 
 for zm=numel(sz):-1:1 % loop over zoom levels
@@ -316,7 +316,7 @@ for zm=numel(sz):-1:1 % loop over zoom levels
         ix_done   = updt_aff + updt_diff;
         Objective = [Objective, E];
         done      = abs(oE(ix_done) - E(ix_done))/abs(E(ix_done));
-        done      = false;
+        done      = 1;
 
         % Print to command window
         spm_mb_show('PrintProgress',[zm it0],E,oE,toc(t),done,tol_diffeo,sett);
