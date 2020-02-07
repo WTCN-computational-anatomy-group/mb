@@ -12,7 +12,6 @@ function varargout = spm_mb_shape(varargin)
 % FORMAT sett          = spm_mb_shape('MuValOutsideFOV',mu,sett);
 % FORMAT a1            = spm_mb_shape('Pull1',a0,psi,bg,r)
 % FORMAT [f1,w1]       = spm_mb_shape('Push1',f,psi,d,r,bg)
-% FORMAT [dat,mu]      = spm_mb_shape('PropagateTemplate',dat,mu,sz,sett)
 % FORMAT dat           = spm_mb_shape('RigidAlignTemplate',dat,model,sett)
 % FORMAT sd            = spm_mb_shape('SampDens',Mmu,Mn)
 % FORMAT varargout     = spm_mb_shape('Shoot',v0,kernel,args)
@@ -29,6 +28,7 @@ function varargout = spm_mb_shape(varargin)
 % FORMAT dat           = spm_mb_shape('UpdateWarps',dat,sett)
 % FORMAT dat           = spm_mb_shape('VelocityEnergy',dat,sett)
 % FORMAT [dat,mu]      = spm_mb_shape('ZoomVolumes',dat,mu,sett,oMmu)
+% FORMAT sz            = spm_mb_param('ZoomSettings',d, Mmu, v_settings, mu_settings, n)
 %
 %__________________________________________________________________________
 % Copyright (C) 2019 Wellcome Trust Centre for Neuroimaging
@@ -58,8 +58,6 @@ switch id
         [varargout{1:nargout}] = Pull1(varargin{:});
     case 'Push1'
         [varargout{1:nargout}] = Push1(varargin{:});
-    case 'PropagateTemplate'
-        [varargout{1:nargout}] = PropagateTemplate(varargin{:});
     case 'RigidAlignTemplate'
         [varargout{1:nargout}] = RigidAlignTemplate(varargin{:});
     case 'SampDens'
@@ -90,6 +88,8 @@ switch id
         [varargout{1:nargout}] = UpdateWarps(varargin{:});
     case 'ZoomVolumes'
         [varargout{1:nargout}] = ZoomVolumes(varargin{:});
+    case 'ZoomSettings'
+        [varargout{1:nargout}] = ZoomSettings(varargin{:});
     case 'VelocityEnergy'
         [varargout{1:nargout}] = VelocityEnergy(varargin{:});
     otherwise
@@ -436,35 +436,6 @@ end
 %==========================================================================
 
 %==========================================================================
-% PropagateTemplate()
-function [dat,mu] = PropagateTemplate(dat,mu,sz,sett)
-
-% Parse function settings
-nit_init_mu = sett.nit.init_mu;
-
-% Partion CT and MR images
-[ix_ct,ix_mri1,ix_mri2] = spm_mb_io('GetCTandMRI',dat,sett);
-
-if ~isempty(ix_mri1) && (~isempty(ix_ct) || ~isempty(ix_mri2))
-
-    sett.gen.samp = numel(sz); % coarse-to-fine sampling of observed data
-
-    for it=1:nit_init_mu
-        [mu,dat(ix_mri1)] = spm_mb_shape('UpdateMean',dat(ix_mri1), mu, sett);
-        dat(ix_mri1)      = spm_mb_appearance('UpdatePrior',dat(ix_mri1), mu, sett);
-    end
-
-    if ~isempty(ix_mri2)
-        for it=1:nit_init_mu
-            [mu,dat([ix_mri1 ix_mri2])] = spm_mb_shape('UpdateMean',dat([ix_mri1 ix_mri2]), mu, sett);
-            dat([ix_mri1 ix_mri2])      = spm_mb_appearance('UpdatePrior',dat([ix_mri1 ix_mri2]), mu, sett);
-        end
-    end
-end
-end
-%==========================================================================
-
-%==========================================================================
 % RigidAlignTemplate()
 function dat = RigidAlignTemplate(dat,model,sett)
 
@@ -779,7 +750,8 @@ num_workers = sett.gen.num_workers;
 
 g  = spm_field('vel2mom', mu, mu_settings);
 w  = zeros(sett.var.d,'single');
-parfor(n=1:numel(dat),num_workers)
+%parfor(n=1:numel(dat),num_workers)
+for n=1:numel(dat)
     [gn,wn,dat(n)] = UpdateMeanSub(dat(n),mu,sett);
     g              = g + gn;
     w              = w + wn;
@@ -892,7 +864,7 @@ Mn   = datn.Mat;
 [Mr,dM3] = spm_dexpm(q,B);
 dM   = zeros(12,size(B,3));
 for m=1:size(B,3)
-    tmp     = Mmu\dM3(:,:,m)*Mmu;
+    tmp     = (Mr*Mmu)\dM3(:,:,m)*Mmu;
     dM(:,m) = reshape(tmp(1:3,:),12,1);
 end
 
@@ -1487,3 +1459,26 @@ varargout{1} = psi;
 varargout{2} = v;
 end
 %==========================================================================
+
+%==========================================================================
+% ZoomSettings()
+function sz = ZoomSettings(d, Mmu, v_settings, mu_settings, n)
+[dz{1:n}] = deal(d);
+sz        = struct('Mmu',Mmu,'d',dz,...
+                   'v_settings', v_settings,...
+                   'mu_settings',mu_settings);
+
+% I'm still not entirely sure how best to deal with regularisation
+% when dealing with different voxel sizes.
+scale = 1/abs(det(Mmu(1:3,1:3)));
+for i=1:n
+    sz(i).d           = ceil(d/(2^(i-1)));
+    z                 = d./sz(i).d;
+    sz(i).Mmu         = Mmu*[diag(z), (1-z(:))*0.5; 0 0 0 1];
+    vx                = sqrt(sum(sz(i).Mmu(1:3,1:3).^2));
+    sz(i).v_settings  = [vx v_settings *(scale*abs(det(sz(i).Mmu(1:3,1:3))))];
+    sz(i).mu_settings = [vx mu_settings*(scale*abs(det(sz(i).Mmu(1:3,1:3))))];
+end
+end
+%==========================================================================
+
