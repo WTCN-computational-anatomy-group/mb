@@ -195,7 +195,7 @@ for it0=1:nit_aff
 
     if ~(updt_mu && it0 == 1)
         % UPDATE: rigid
-        dat  = spm_mb_shape('UpdateSimpleAffines',dat,mu,sett); oE(i) = E(i);
+        dat  = spm_mb_shape('UpdateAffines',dat,mu,sett); oE(i) = E(i);
         E(i) = sum(sum(cat(2,dat.E),2),1) + te; % Cost function after previous update
     end
     i = i + 1;
