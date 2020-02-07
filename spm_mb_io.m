@@ -3,6 +3,7 @@ function varargout = spm_mb_io(varargin)
 %
 % Functions for I/O related.
 %
+% FORMAT fn              = spm_mb_io('GetImage',datn)
 % FORMAT to              = spm_mb_io('CopyFields',from,to)
 % FORMAT pth             = spm_mb_io('CropTemplate',pth,centre,bb)
 % FORMAT [P,datn]        = spm_mb_io('GetClasses',datn,mu,sett)
@@ -31,6 +32,8 @@ end
 id = varargin{1};
 varargin = varargin(2:end);
 switch id
+    case 'GetImage'
+        [varargout{1:nargout}] = GetImage(varargin{:});
     case 'CopyFields'
         [varargout{1:nargout}] = CopyFields(varargin{:});
     case 'CropTemplate'
@@ -184,6 +187,35 @@ if isa(in,'nifti')
     return
 end
 error('Unknown datatype.');
+end
+%==========================================================================
+
+%==========================================================================
+function fn = GetImage(datn)
+% This is the place to do various image cleaning steps
+fn = spm_mb_io('GetData',datn.f);
+df = [size(fn,1) size(fn,2) size(fn,3)];
+C  = size(fn,4);
+fn = Mask(fn,datn.is_ct);
+end
+%==========================================================================
+
+%==========================================================================
+% Mask()
+function fn = Mask(fn,is_ct)
+C = size(fn,4);
+for c=1:C
+    fn(:,:,:,c) = ApplyMask(fn(:,:,:,c),is_ct(c));
+end
+end
+%==========================================================================
+
+%==========================================================================
+% ApplyMask()
+function f = ApplyMask(f,is_ct)
+if is_ct, f(~isfinite(f) | f == 0 | f < - 1020 | f > 3000) = NaN;
+else,     f(~isfinite(f) | f == 0)                         = NaN;
+end
 end
 %==========================================================================
 
@@ -346,7 +378,7 @@ for n=1:N
     if do_gmm        
         % GMM parameters
         dat(n).mog = []; % GMM parameters
-        dat(n).bf  = []; % bias field (in image space)
+        dat(n).T   = {}; % bias field (in image space)
     end
 
     % Orientation matrix (image voxel-to-world)

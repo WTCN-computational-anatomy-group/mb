@@ -42,7 +42,6 @@ t0 = tic;
 sett         = spm_mb_param('Settings',sett);
 dir_res      = sett.write.dir_res;
 do_gmm       = sett.do.gmm;
-do_zoom      = sett.do.zoom;
 init_mu_dm   = sett.model.init_mu_dm;
 K            = sett.model.K;
 nit_aff      = sett.nit.init;
@@ -128,8 +127,7 @@ end
 %------------------
 
 nz       = max(ceil(log2(min(dmu(dmu~=1))) - log2(init_mu_dm)),1);
-if ~do_zoom, nz = 1; end
-sz       = spm_mb_param('ZoomSettings',dmu,Mmu,sett.var.v_settings,sett.var.mu_settings,nz);
+sz       = spm_mb_shape('ZoomSettings',dmu,Mmu,sett.var.v_settings,sett.var.mu_settings,nz);
 sett.var = spm_mb_io('CopyFields',sz(end), sett.var);
 
 %------------------
@@ -142,7 +140,7 @@ dat = spm_mb_shape('InitDef',dat,sett);
 % Init apperance model parameters
 %------------------
 
-[dat,sett] = spm_mb_appearance('Init',dat,model,K,sett);
+[dat,sett] = spm_mb_init('Init',dat,model,K,sett);
 
 spm_mb_show('Speak','Start',sett,N,K);
 
@@ -162,7 +160,7 @@ else
 
     % Init template with one population then use that template to init GMM
     % parameters of other populations
-    [dat,mu] = spm_mb_shape('PropagateTemplate',dat,mu,sz,sett);
+    [dat,mu] = spm_mb_init('PropagateTemplate',dat,mu,sz,sett);
 end
 
 % Save template
@@ -214,7 +212,7 @@ for it0=1:nit_aff
 
     if do_gmm && updt_intpr
         % UPDATE: intensity prior
-        dat  = spm_mb_appearance('UpdatePrior',dat, mu, sett); oE(i) = E(i);
+        dat  = spm_mb_appearance('UpdatePrior',dat, sett); oE(i) = E(i);
         E(i) = sum(sum(cat(2,dat.E),2),1) + te; % Cost function after previous update
     end
 
@@ -295,7 +293,7 @@ for zm=numel(sz):-1:1 % loop over zoom levels
 
         if updt_diff && do_gmm && updt_intpr
             % UPDATE: intensity prior
-            dat  = spm_mb_appearance('UpdatePrior',dat, mu, sett); oE(i) = E(i);
+            dat  = spm_mb_appearance('UpdatePrior',dat, sett); oE(i) = E(i);
             E(i) = sum(sum(cat(2,dat.E),2),1) + te; i = i + 1;  % Cost function after previous update
         end
 
@@ -317,7 +315,7 @@ for zm=numel(sz):-1:1 % loop over zoom levels
 
         if updt_aff && do_gmm && updt_intpr
             % UPDATE: intensity prior
-            dat  = spm_mb_appearance('UpdatePrior',dat, mu, sett); oE(i) = E(i);
+            dat  = spm_mb_appearance('UpdatePrior',dat, sett); oE(i) = E(i);
             E(i) = sum(sum(cat(2,dat.E),2),1) + te; % Cost function after previous update
         end
 

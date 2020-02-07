@@ -5,7 +5,6 @@ function varargout = spm_mb_param(varargin)
 %
 % FORMAT [template_given,appear_given,sett] = spm_mb_param('SetFit',model,sett)
 % FORMAT sett                               = spm_mb_param('Settings')
-% FORMAT sz                                 = spm_mb_param('ZoomSettings',d, Mmu, v_settings, mu_settings, n)
 %
 %__________________________________________________________________________
 % Copyright (C) 2019 Wellcome Trust Centre for Neuroimaging
@@ -21,8 +20,6 @@ switch id
         [varargout{1:nargout}] = SetFit(varargin{:});
     case 'Settings'
         [varargout{1:nargout}] = Settings(varargin{:});
-    case 'ZoomSettings'
-        [varargout{1:nargout}] = ZoomSettings(varargin{:});
     otherwise
         help spm_mb_param
         error('Unknown function %s. Type ''help spm_mb_param'' for help.', id)
@@ -444,24 +441,3 @@ sett.write.dir_res = s.path;
 end
 %==========================================================================
 
-%==========================================================================
-% ZoomSettings()
-function sz = ZoomSettings(d, Mmu, v_settings, mu_settings, n)
-[dz{1:n}] = deal(d);
-sz        = struct('Mmu',Mmu,'d',dz,...
-                   'v_settings', v_settings,...
-                   'mu_settings',mu_settings);
-
-% I'm still not entirely sure how best to deal with regularisation
-% when dealing with different voxel sizes.
-scale = 1/abs(det(Mmu(1:3,1:3)));
-for i=1:n
-    sz(i).d           = ceil(d/(2^(i-1)));
-    z                 = d./sz(i).d;
-    sz(i).Mmu         = Mmu*[diag(z), (1-z(:))*0.5; 0 0 0 1];
-    vx                = sqrt(sum(sz(i).Mmu(1:3,1:3).^2));
-    sz(i).v_settings  = [vx v_settings *(scale*abs(det(sz(i).Mmu(1:3,1:3))))];
-    sz(i).mu_settings = [vx mu_settings*(scale*abs(det(sz(i).Mmu(1:3,1:3))))];
-end
-end
-%==========================================================================
