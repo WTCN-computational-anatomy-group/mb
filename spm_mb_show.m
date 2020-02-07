@@ -271,8 +271,8 @@ for n=1:nd
 
     % Get bias field
     if isfield(dat(n),'mog') && any(do_bf == true)
-        chan = spm_mb_appearance('BiasFieldStruct',dat(n),C,df,reg,fwhm,[],dat(n).bf.T);
-        bf   = spm_mb_appearance('BiasField',chan,df);
+        chan = spm_mb_appearance('BiasBasis',dat(n).T,df,vx,reg,samp);
+        bf   = spm_mb_appearance('BiasField',dat(n).T,chan);
     else
         bf = ones([1 C]);
     end
@@ -458,10 +458,14 @@ for n=1:nd
     clear psi0
     if df(3) == 1, psi(:,:,:,3) = 1; end % 2D
 
+        chan = spm_mb_appearance('BiasBasis',datn.T,df,vx,reg,samp);
+        bf   = spm_mb_appearance('BiasField',datn.T,chan);
+
     % Bias field
     if isfield(dat(n),'mog') && any(do_bf == true)
-        chan = spm_mb_appearance('BiasFieldStruct',dat(n),C,df,reg,fwhm,[],dat(n).bf.T);
-        bf   = spm_mb_appearance('BiasField',chan,df);
+        chan = spm_mb_appearance('BiasBasis',dat(n).T,df,vx,reg,samp);
+        bf   = spm_mb_appearance('BiasField',dat(n).T,chan);
+
         bf   = reshape(bf,[df(1:3) C]);
         bf   = bf(:,:,:,c);
     else
