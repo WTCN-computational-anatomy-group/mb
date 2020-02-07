@@ -606,6 +606,7 @@ end
 %==========================================================================
 % UpdatePrior()
 function dat = UpdatePrior(dat, sett, add_po_observation)
+if ~isfield(dat,'mog'), return; end
 if nargin < 4, add_po_observation = false; end
 
 % Parse function settings
