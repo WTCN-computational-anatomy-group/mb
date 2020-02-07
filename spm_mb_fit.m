@@ -186,7 +186,7 @@ if updt_aff
 spm_mb_show('Speak','Affine',sett);
 
 sett.gen.samp = numel(sz); % coarse-to-fine sampling of observed data
-nit_aff=0;
+
 for it0=1:nit_aff
 
     t = tic; % Start timer
