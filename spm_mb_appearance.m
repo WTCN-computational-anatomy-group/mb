@@ -62,8 +62,8 @@ lln = zeros(1,C);
 for c=cr
     lln(c) = double(-0.5*T{c}(:)'*chan(c).ICO*T{c}(:));
     for z=1:nz
-        bf_c      = TransformBF(chan(c).B1,chan(c).B2,chan(c).B3(z,:),T{c});
-        bfn(:,:,:,c) = single(exp(bf_c));
+        bf_c         = TransformBF(chan(c).B1,chan(c).B2,chan(c).B3(z,:),T{c});
+        bfn(:,:,z,c) = single(exp(bf_c));
     end
 end
 end
@@ -334,7 +334,7 @@ end
 mun = spm_mb_shape('TemplateK1',mun,2);
 
 % Add labels and template
-mun    = mun + labels;
+mun = mun + labels;
 clear labels
 
 % Expand, if using multiple Gaussians per tissue
@@ -758,7 +758,7 @@ end
 %==========================================================================
 
 %==========================================================================
-% IndexSlice2Vol()
+% IndexSlice2Vol() % unused
 function ix = IndexSlice2Vol(z,Iz)
 ix = ((z - 1)*Iz + 1):z*Iz;
 end
