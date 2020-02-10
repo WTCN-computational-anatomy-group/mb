@@ -334,6 +334,9 @@ mg_w       = datn.mog.mg_w;
 % Get image data
 fn0 = spm_mb_io('GetImage',datn);
 
+% For visualising results (spm_mb_show)
+spm_mb_io('Write2Visualise',datn,mun0,'mu',sett);
+
 % % Store template voxels for where there are no observations in the image
 % % data. These values will be used at the end of this function to fill in
 % % responsibilities with NaNs.
@@ -409,9 +412,18 @@ if any(do_bf == true)
     T          = datn.T;
     chan       = BiasBasis(T,df,Mn,reg,samp);
     [bf,llpbf] = BiasField(T,chan);
-    bffn       = bf.*fn;
+    bffn       = bf.*fn;    
 else
-    bffn       = fn;
+    bffn = fn;
+end
+
+% For visualising results (spm_mb_show)    
+if samp == 1
+    spm_mb_io('Write2Visualise',datn,bffn,'bff',sett);
+    if any(do_bf == true)
+        spm_mb_io('Write2Visualise',datn,fn,'f',sett);
+        spm_mb_io('Write2Visualise',datn,bf,'bf',sett);
+    end
 end
 
 if isempty(lb.XB)
@@ -614,12 +626,20 @@ if nargout > 1
             % Get full-sized bias field
             chan = BiasBasis(T,df,Mn,reg);
             bf   = BiasField(T,chan);
-            bffn = bf.*fn;
-            clear bf
+            bffn = bf.*fn;            
         else
             bffn = fn;
         end
-        clear fn
+                
+        % For visualising results (spm_mb_show)
+        spm_mb_io('Write2Visualise',datn,bffn,'bff',sett);
+        if any(do_bf == true)
+            spm_mb_io('Write2Visualise',datn,fn,'f',sett);
+            spm_mb_io('Write2Visualise',datn,bf,'bf',sett);
+            clear bf
+        end
+        clear fn 
+    
         [bffn,code_image,msk_chn] = spm_gmm_lib('obs2cell', vol2vec(bffn));
 
         % Template
@@ -656,6 +676,9 @@ if nargout > 1
 
     % Make 4D
     zn = reshape(zn,[df(1:3) K]);
+    
+    % For visualising results (spm_mb_show)    
+    spm_mb_io('Write2Visualise',datn,zn,'z',sett);
 end
 end
 %==========================================================================

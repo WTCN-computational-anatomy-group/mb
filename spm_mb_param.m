@@ -242,6 +242,9 @@ end
 if ~isfield(sett.model,'appear_ix')
     sett.model.appear_ix = 1;
 end
+if ~isfield(sett.model,'appear_chn')
+    sett.model.appear_chn = [];
+end
 
 %------------------
 % .nit (iteration related)
@@ -322,7 +325,7 @@ if ~isfield(sett.show,'channel')
     sett.show.channel = 1; % 1, ..., C
 end
 if ~isfield(sett.show,'figs')
-    sett.show.figs = {}; % {'model','normalised','segmentations','intensity','parameters','InitGMM'}
+    sett.show.figs = {}; % {'model','segmentations','intensity','parameters','InitGMM'}
 end
 if ~isfield(sett.show,'figname_bf')
     sett.show.figname_bf = '(spm_mb) Bias fields';
@@ -342,14 +345,14 @@ end
 if ~isfield(sett.show,'figname_subjects')
     sett.show.figname_subjects = '(spm_mb) Segmentations';
 end
-if ~isfield(sett.show,'figname_imtemplatepace')
-    sett.show.figname_imtemplatepace = '(spm_mb) Template space data';
-end
 if ~isfield(sett.show,'print2screen')
     sett.show.print2screen = true;
 end
 if ~isfield(sett.show,'mx_subjects')
-    sett.show.mx_subjects = 2;
+    sett.show.mx_subjects = 8;
+end
+if ~isfield(sett.show,'dir_vis')
+    sett.show.dir_vis = 'tmp-vis';
 end
 
 %------------------
@@ -438,6 +441,13 @@ end
 s                  = what(sett.write.dir_res); % Get absolute path
 sett.write.dir_res = s.path;
 
+sett.show.dir_vis = fullfile(sett.write.dir_res,sett.show.dir_vis);
+
+if any(strcmp(sett.show.figs,'segmentations')) || any(strcmp(sett.show.figs,'parameters'))
+    if exist(sett.show.dir_vis,'dir') == 7, rmdir(sett.show.dir_vis,'s'); end
+    mkdir(sett.show.dir_vis)
+    s                 = what(sett.show.dir_vis); % Get absolute path
+    sett.show.dir_vis = s.path;
+end
 end
 %==========================================================================
-

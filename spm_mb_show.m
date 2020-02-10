@@ -57,10 +57,6 @@ if ~isempty(figs)
         % Template and negative loglikelihood
         Model(mu,Objective,N,sett);
     end
-    if any(strcmp(figs,'normalised'))
-        % Template space images
-        Subjects(dat,mu,sett,false,false);
-    end
     if any(strcmp(figs,'segmentations')) && ~any(strcmp(figs,'parameters'))
         % Segmentations and warped template
         Subjects(dat,mu,sett,false);
@@ -82,7 +78,7 @@ end
 function Clear(sett)
 fn = {sett.show.figname_bf, sett.show.figname_int, sett.show.figname_model, ...
       sett.show.figname_subjects, sett.show.figname_parameters, ...
-      sett.show.figname_imtemplatepace, sett.show.figname_gmm};
+      sett.show.figname_gmm};
 for i=1:numel(fn)
     f = findobj('Type', 'Figure', 'Name', fn{i});
     if ~isempty(f), clf(f); drawnow; end
@@ -213,8 +209,8 @@ end
 %==========================================================================
 
 %==========================================================================
-% ShowNativeSubjects()
-function ShowNativeSubjects(dat,mu0,sett,p,show_extras)
+% ShowSubjects()
+function ShowSubjects(dat,mu0,sett,p,show_extras)
 if nargin < 4, p           = [];   end
 if nargin < 5, show_extras = true; end
 
@@ -226,10 +222,8 @@ fig_name_bf   = sett.show.figname_bf;
 fig_name_par  = sett.show.figname_parameters;
 fig_name_tiss = sett.show.figname_subjects;
 mg_ix         = sett.model.mg_ix;
-Mmu           = sett.var.Mmu;
-mu_bg         = sett.model.mu_bg;
 mx_subj       = sett.show.mx_subjects;
-reg           = sett.bf.reg;
+dir_vis       = sett.show.dir_vis;
 
 if ~isempty(p), fig_name_bf   = [fig_name_bf ' (p=' num2str(p) ')']; end
 if ~isempty(p), fig_name_par  = [fig_name_par ' (p=' num2str(p) ')']; end
@@ -250,125 +244,43 @@ end
 clr = {'r','g','b','y','m','c',};
 K   = size(mu0,4);
 K1  = K + 1;
-Kmg = numel(mg_ix);
 nd  = min(numel(dat),mx_subj);
 for n=1:nd
     % Parameters
-    [df,C] = spm_mb_io('GetSize',dat(n).f);
-    c      = min(c,C);
-    q      = double(dat(n).q);
-    Mr     = spm_dexpm(q,B);
-    Mn     = dat(n).Mat;
-    do_bf  = dat(n).do_bf;
-    is_ct  = dat(n).is_ct;
-
-    % Warp template
-    psi1 = spm_mb_io('GetData',dat(n).psi);
-    psi  = spm_mb_shape('Compose',psi1,spm_mb_shape('Affine',df,Mmu\Mr*Mn));
-    mun  = spm_mb_shape('Pull1',mu0,psi,mu_bg);
-    clear psi1
-
-    % Get bias field
-    if isfield(dat(n),'mog') && any(do_bf == true)
-        chan = spm_mb_appearance('BiasBasis',dat(n).T,df,vx,reg,samp);
-        bf   = spm_mb_appearance('BiasField',dat(n).T,chan);
-    else
-        bf = ones([1 C]);
-    end
-
-    % Get segmentation
-    if isfield(dat,'mog')
-        fn = spm_mb_io('GetData',dat(n).f);
-        fn = reshape(fn,[prod(df(1:3)) C]);
-        fn = spm_mb_appearance('Mask',fn,is_ct);
-
-%         % Store template voxels for where there are no observations in the image
-%         % data. These values will be used at the end of this function to fill in
-%         % responsibilities with NaNs.
-%         msk_allmiss = all(isnan(fn),2);
-%         bg_mun      = zeros([nnz(msk_allmiss) K],'single');
-%         for k=1:K
-%             kbg_mun     = mun(:,:,:,k);
-%             kbg_mun     = kbg_mun(msk_allmiss);
-%             bg_mun(:,k) = kbg_mun;
-%         end
-%         clear kbg_mun
-%         bg_mun = spm_mb_shape('TemplateK1',bg_mun,2);
-%         bg_mun = exp(bg_mun);
-
-        % Get template (K + 1)
-        mun = spm_mb_shape('TemplateK1',mun,4);
-
-        % Integrate labels and multiple Gaussians per tissue
-        labels = spm_mb_appearance('GetLabels',dat(n),sett);
-        mg_w   = dat(n).mog.mg_w;
-
-        [bffn,code_image,msk_chn] = spm_gmm_lib('obs2cell', bf.*fn);
-        mun                       = reshape(mun,[prod(df(1:3)) K + 1]);
-        mun1                      = mun + labels;
-        clear labels
-        mun1                      = mun1(:,mg_ix);
-        mun1                      = mun1 + log(mg_w);
-        mun1                      = spm_gmm_lib('obs2cell', mun1, code_image, false);
-        mun                       = spm_gmm_lib('obs2cell', mun, code_image, false);
-
-        % Get responsibility
-        zn   = spm_mb_appearance('Responsibility',dat(n).mog.po.m,dat(n).mog.po.b, ...
-                                    dat(n).mog.po.W,dat(n).mog.po.n,bffn,mun1,msk_chn);
-        zn   = spm_gmm_lib('cell2obs', zn, code_image, msk_chn);
-        mun  = spm_gmm_lib('cell2obs', mun, code_image, msk_chn);
-        clear mun1 msk_chn
-
-        % If using multiple Gaussians per tissue, collapse so that zn is of
-        % size K1
-        if Kmg > K1
-            for k=1:K1, zn(:,k) = sum(zn(:,mg_ix==k),2); end
-            zn(:,K1 + 1:end)    = [];
-        end
-
-%         % Fill in resps with no observations using template
-%         for k=1:K1, zn(msk_allmiss,k) = bg_mun(:,k); end
-%         clear bg_mun msk_zn
-
-        % Reshape back
-        zn  = reshape(zn,[df(1:3) K1]);
-        fn  = reshape(fn,[df(1:3) C]);
-        mun = reshape(mun,[df(1:3) K + 1]);
-    else
-        % Get template (K + 1)
-        mun = spm_mb_shape('TemplateK1',mun,4);
-
-        % Make K1 responsibilities
-        zn = spm_mb_io('GetData',dat(n).f);
-        zn = cat(4,zn,1 - sum(zn,4));
-    end
-
-    % Softmax template
-    mun = exp(mun);
-
-    if isfield(dat(n),'mog') && any(do_bf == true)
-        bf = reshape(bf,[df C]);
-    else
-        bf = reshape(bf,[1 1 1 C]);
-    end
-
-    % Show template, segmentation
-    ShowCat(mun,ax,nr_tiss,nd,n,fig_name_tiss);
-    ShowCat(zn,ax,nr_tiss,nd,n + nd,fig_name_tiss);
+    [~,C] = spm_mb_io('GetSize',dat(n).f);
+    c     = min(c,C);
+    q     = double(dat(n).q);
+    Mr    = spm_dexpm(q,B);
+    do_bf = dat(n).do_bf;
+    is_ct = dat(n).is_ct;    
+    nam0  = dat(n).nam;    
+    mg_w  = dat(n).mog.mg_w;
+    
+    % Show template
+    pth = fullfile(dir_vis,[nam0 '-mu-']);
+    ShowCat(pth,ax,nr_tiss,nd,n,fig_name_tiss);
+    
+    % Show segmentation
+    pth = fullfile(dir_vis,[nam0 '-z-']);
+    ShowCat(pth,ax,nr_tiss,nd,n + nd,fig_name_tiss);
+    
     if isfield(dat,'mog')
         % and image (if using GMM)
-        ShowIm(bf(:,:,:,c).*fn(:,:,:,c),ax,nr_tiss,nd,n + 2*nd,fig_name_tiss,true,is_ct);
+        pth = fullfile(dir_vis,[nam0 '-bff-']);
+        ShowIm(pth,ax,nr_tiss,nd,n + 2*nd,fig_name_tiss,true,is_ct);
     end
-    clear zn
 
     if show_extras
         % Show bias field fit, velocities, affine parameters, GMM fit,
         % lower bound
         if isfield(dat,'mog') && any(do_bf == true)
             % Show bias field
-            ShowIm(fn(:,:,:,c),ax,nr_bf,nd,n,fig_name_bf,false,is_ct);
-            ShowIm(bf(:,:,:,c),ax,nr_bf,nd,n + nd,fig_name_bf,false);
-            ShowIm(bf(:,:,:,c).*fn(:,:,:,c),ax,nr_bf,nd,n + 2*nd,fig_name_bf,false,is_ct);
+            pth = fullfile(dir_vis,[nam0 '-f-']);
+            ShowIm(pth,ax,nr_bf,nd,n,fig_name_bf,false,is_ct);
+            pth = fullfile(dir_vis,[nam0 '-bf-']);
+            ShowIm(pth,ax,nr_bf,nd,n + nd,fig_name_bf,false);
+            pth = fullfile(dir_vis,[nam0 '-bff-']);
+            ShowIm(pth,ax,nr_bf,nd,n + 2*nd,fig_name_bf,false,is_ct);
         end
 
         % Now show some other stuff
@@ -399,99 +311,20 @@ for n=1:nd
         if isfield(dat,'mog')
             % Here we get approximate class proportions from the (softmaxed K + 1)
             % tissue template
-            mun       = reshape(mun,[prod(df(1:3)) size(mun,4)]);
-            msk       = isfinite(mun);
-            mun(~msk) = 0;
-            mun       = sum(mun,1);
-            mun       = mun./sum(mun);
-            mun       = mun(mg_ix).*mg_w;
+            wp = ones(1,K1)/K1;
+            wp = wp(mg_ix).*mg_w;
 
             % Plot GMM fit
-            ShowGMMFit(bf(:,:,:,c).*fn(:,:,:,c),mun,dat(n).mog,nr_par,nd,n + 2*nd,c,mg_ix);
+            pth = fullfile(dir_vis,[nam0 '-bff-' num2str(ax) '.nii']);
+            Nii = nifti(pth);
+            bff = single(Nii.dat());
+            
+            ShowGMMFit(bff,wp,dat(n).mog,nr_par,nd,n + 2*nd,c,mg_ix);
 
             % Lower bound
             subplot(nr_par,nd,n + 3*nd)
             plot(dat(n).mog.lb.sum,'-');
             axis off
-        end
-    end
-end
-drawnow
-end
-%==========================================================================
-
-%==========================================================================
-% ShowTemplateSubjects()
-function ShowTemplateSubjects(dat,mu,sett,p)
-
-% Parse function settings
-B        = sett.registr.B;
-c        = sett.show.channel;
-dmu      = sett.var.d;
-fig_name = sett.show.figname_imtemplatepace;
-Mmu      = sett.var.Mmu;
-mx_subj  = sett.show.mx_subjects;
-reg      = sett.bf.reg;
-
-if ~isempty(p), fig_name   = [fig_name ' (p=' num2str(p) ')']; end
-
-if size(mu,3) > 1, nr = 3;
-else,              nr = 1;
-end
-
-nd = min(numel(dat),mx_subj);
-for n=1:nd
-    % Parameters
-    [df,C] = spm_mb_io('GetSize',dat(n).f);
-    c      = min(c,C);
-    q      = double(dat(n).q);
-    Mr     = spm_dexpm(q,B);
-    Mn     = dat(n).Mat;
-    do_bf  = dat(n).do_bf;
-    is_ct  = dat(n).is_ct;
-
-    % Get forward deformation
-    psi0 = spm_mb_io('GetData',dat(n).psi);
-    psi  = spm_mb_shape('Compose',psi0,spm_mb_shape('Affine',df,Mmu\Mr*Mn));
-    clear psi0
-    if df(3) == 1, psi(:,:,:,3) = 1; end % 2D
-
-    % Bias field
-    if isfield(dat(n),'mog') && any(do_bf == true)
-        chan = spm_mb_appearance('BiasBasis',dat(n).T,df,vx,reg,samp);
-        bf   = spm_mb_appearance('BiasField',dat(n).T,chan);
-
-        bf   = reshape(bf,[df(1:3) C]);
-        bf   = bf(:,:,:,c);
-    else
-        bf = 1;
-    end
-
-    % Warp observed data to template space
-    fn = spm_mb_io('GetData',dat(n).f);
-    sd = spm_mb_shape('SampDens',Mmu,Mn);
-    if isfield(dat(n),'mog')
-        fn       = bf.*fn(:,:,:,c);
-        clear bf
-        [fn,cnt] = spm_mb_shape('Push1',fn,psi,dmu,sd);
-    else
-        [fn,cnt] = spm_mb_shape('Push1',fn,psi,dmu,sd);
-    end
-    fn = fn./(cnt + eps('single'));
-
-    % Show
-    if isfield(dat(n),'mog')
-        ShowIm(fn,3,nr,nd,n,fig_name,true,is_ct);
-        if size(mu,3) > 1
-            ShowIm(fn,2,nr,nd,n + nd,fig_name,true,is_ct);
-            ShowIm(fn,1,nr,nd,n + 2*nd,fig_name,true,is_ct);
-        end
-    else
-        fn = cat(4,fn,1 - sum(fn,4));
-        ShowCat(fn,3,nr,nd,n,fig_name);
-        if size(mu,3) > 1
-            ShowCat(fn,2,nr,nd,n + nd,fig_name);
-            ShowCat(fn,1,nr,nd,n + 2*nd,fig_name);
         end
     end
 end
@@ -553,9 +386,8 @@ end
 
 %==========================================================================
 % Subjects()
-function Subjects(dat,mu,sett,show_extras,show_native)
+function Subjects(dat,mu,sett,show_extras)
 if nargin < 4, show_extras = true; end
-if nargin < 5, show_native = true; end
 
 p_ix = spm_mb_appearance('GetPopulationIdx',dat);
 Np   = numel(p_ix);
@@ -563,13 +395,7 @@ for p=1:Np
     if Np == 1, pp = [];
     else,       pp = p;
     end
-    if show_native
-        % Subject space information
-        ShowNativeSubjects(dat(p_ix{p}),mu,sett,pp,show_extras);
-    else
-        % Template space information
-        ShowTemplateSubjects(dat(p_ix{p}),mu,sett,pp);
-    end
+    ShowSubjects(dat(p_ix{p}),mu,sett,pp,show_extras);
 end
 end
 %==========================================================================
@@ -637,6 +463,14 @@ set(0, 'CurrentFigure', f);
 
 subplot(nr,nc,np);
 
+if ischar(in)
+    % File path
+    pth = [in num2str(ax) '.nii'];
+    Nii = nifti(pth);
+    in  = Nii.dat();
+end
+
+% Image array
 dm = size(in);
 if numel(dm) ~= 4
     dm = [dm 1 1];
@@ -754,6 +588,14 @@ set(0, 'CurrentFigure', f);
 
 subplot(nr,nc,np);
 
+if ischar(in)
+    % File path
+    pth = [in num2str(ax) '.nii'];
+    Nii = nifti(pth);
+    in  = Nii.dat();
+end
+
+% Image array
 dm  = size(in);
 dm  = [dm 1];
 mid = ceil(dm(1:3).*0.5);
@@ -767,6 +609,7 @@ else
 end
 
 in = squeeze(in(:,:,:,:));
+
 if is_ct
     % Assume CT..
     imagesc(in,[0 100]);

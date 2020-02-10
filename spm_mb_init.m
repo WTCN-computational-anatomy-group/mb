@@ -123,13 +123,14 @@ if appear_given && template_given
         do_dc  = dat(n).do_dc;
 
         % Load image data
-        fn = spm_mb_io('GetImage',dat(n));
-
+        fn = spm_mb_io('GetImage',dat(n));        
+        fn = reshape(fn,[prod(df(1:3)) C]);
+        
         dc = zeros([1 C]);
         if do_dc
             for c=1:C
                 msk   = isfinite(fn(:,c));
-                dc(c) = dc0(c)./mean(fn(msk,c));
+                dc(c) = dc0(c)./mean(mean(mean(fn(msk,c))));
             end
             dc = log(dc);
         end
@@ -137,12 +138,13 @@ if appear_given && template_given
         dat(n) = InitBias(dat(n),fwhm,dc);
         if any(dat(n).do_bf == true)
             % Modulate with bias field
-            chan = spm_mb_appearance('BiasBasis',dat(n).T,df,dat(n).mat,reg,samp);
-            bf   = spm_mb_appearance('BiasField',dat(n).T,chan,df);
+            chan = spm_mb_appearance('BiasBasis',dat(n).T,df,dat(n).Mat,reg);
+            bf   = spm_mb_appearance('BiasField',dat(n).T,chan);
+            bf   = reshape(bf,[prod(df(1:3)) C]);
             fn   = bf.*fn;
         end
 
-        % TODO
+        % TODO        
         po = InitSimplePosteriorGMM(dat(n),fn,mu,pr,K1,mg_ix,sett);
 
         mog.po   = po;
@@ -171,63 +173,7 @@ else
         % TODO
 
         % Run on 'ix_mri1' subjects
-        if 1
-            dat(ix_mri1) = InitGMM(dat(ix_mri1),sett);
-        else
-            Nmri1 = numel(ix_mri1);
-            mn    = 0;
-            Cov   = 0;
-            for n=1:Nmri1
-                [df,C] = spm_mb_io('GetSize',dat(n).f);
-
-                % Load image data
-                fn = spm_mb_io('GetImage',dat(n));
-
-                % Set bias field dc scaling
-                dc = ones(1,C);
-                for c=1:C
-                    msk   = isfinite(fn(:,c));
-                    dc(c) = dc(c)./mean(fn(msk,c));
-                end
-                dc = -log(dc);
-
-                dat(n) = InitBias(dat(n),fwhm,dc);
-                if any(dat(n).do_bf == true)
-                    % Modulate with bias field
-                    chan = spm_mb_appearance('BiasBasis',dat(n).T,df,dat(n).mat,reg,samp);
-                    bf   = spm_mb_appearance('BiasField',dat(n).T,chan,df);
-                    fn   = bf.*fn;
-                end
-
-                % TODO
-                po = InitSimplePosteriorGMM(dat(n),fn,mu,[],K1,mg_ix,sett);
-
-                mn  = mn + mean(po.m,2);
-                Covn = zeros(C,C,K1);
-                for k=1:K1
-                    Covn(:,:,k) = inv(po.W(:,:,k).*po.n(k));
-                end
-                Cov = Cov + mean(Covn,3);
-
-                mog.po   = po;
-                mog.pr   = po;
-                mog.lb   = lb;
-                mog.mg_w = mg_w;
-
-                dat(n).mog = mog;
-            end
-
-            mn  = mn/Nmri1;
-            mn  = repmat(mn,[1 K1]);
-            Cov = Cov/Nmri1;
-            W   = inv(Cov)./po.n(1);
-            W   = repmat(W,[1 1 K1]);
-
-            for n=1:Nmri1
-                dat(n).mog.pr.m = mn;
-                dat(n).mog.pr.W = W;
-            end
-        end
+        dat(ix_mri1) = InitGMM(dat(ix_mri1),sett);        
 
         if ~isempty(ix_mri2)
             % TODO
@@ -246,8 +192,10 @@ else
                 mog.mg_w = mg_w;
 
                 dat(n1).mog = mog;
-                fn = spm_mb_io('GetImage',dat(n));
-
+                
+                fn = spm_mb_io('GetImage',dat(n1));
+                fn = reshape(fn,[prod(df(1:3)) C]);
+                
                 % Set bias field dc scaling
                 if do_dc
                     dc = ones(1,C);
@@ -285,9 +233,7 @@ else
             for n=1:Nct
                 n1          = ix_ct(n);
                 dat(n1).mog = mog;
-
                 if any(dat(n1).do_bf == true)
-                    [df,C]  = spm_mb_io('GetSize',dat(n1).f);
                     dat(n1) = InitBias(dat(n1),fwhm,dc);
                 end
             end
@@ -362,8 +308,8 @@ for n=1:N
     dat(n) = InitBias(dat(n),fwhm,dc);
     if any(dat(n).do_bf == true)
         % Modulate with bias field
-        chan = spm_mb_appearance('BiasBasis',dat(n).T,df,dat(n).mat,reg,samp);
-        bf   = spm_mb_appearance('BiasField',dat(n).T,chan,df);
+        chan = spm_mb_appearance('BiasBasis',dat(n).T,df,dat(n).Mat,reg,samp);
+        bf   = spm_mb_appearance('BiasField',dat(n).T,chan);
         fn   = bf.*fn;
     end
 

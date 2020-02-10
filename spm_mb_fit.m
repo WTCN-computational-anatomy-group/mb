@@ -155,19 +155,10 @@ else
     % Uninformative template
     mu = zeros([sett.var.d K],'single');
 
-    % Show stuff
-    spm_mb_show('All',dat,mu,[],N,sett);
-
     % Init template with one population then use that template to init GMM
     % parameters of other populations
     [dat,mu] = spm_mb_init('PropagateTemplate',dat,mu,sz,sett);
 end
-
-% Save template
-spm_mb_io('SaveTemplate',dat,mu,sett);
-
-% Show stuff
-spm_mb_show('All',dat,mu,[],N,sett);
 
 %------------------
 % Start algorithm
@@ -221,8 +212,8 @@ for it0=1:nit_aff
     % Print to command window
     spm_mb_show('PrintProgress',it0,E,oE,toc(t),done,tol_aff,sett);
 
-    % If 2D, show stuff
-    if dmu(3) == 1, spm_mb_show('All',dat,mu,Objective,N,sett); end
+    % Show stuff
+    spm_mb_show('All',dat,mu,Objective,N,sett);
 
     if do_gmm && it0 == 1
         % Introduce multiple Gaussians per tissue
@@ -240,9 +231,6 @@ end
 
 % Save template
 spm_mb_io('SaveTemplate',dat,mu,sett);
-
-% Show stuff
-spm_mb_show('All',dat,mu,Objective,N,sett);
 end
 
 %------------------
@@ -322,16 +310,13 @@ for zm=numel(sz):-1:1 % loop over zoom levels
         % Print to command window
         spm_mb_show('PrintProgress',[zm it0],E,oE,toc(t),done,tol_diffeo,sett);
 
-        % If 2D, show stuff
-        if dmu(3) == 1, spm_mb_show('All',dat,mu,Objective,N,sett); end
+        % Show stuff
+        spm_mb_show('All',dat,mu,Objective,N,sett);
 
         % Finished diffeo alignment?
         if done < tol_diffeo, break; end
     end
     if print2screen, fprintf('\n'); end
-
-    % Show stuff
-    spm_mb_show('All',dat,mu,Objective,N,sett);
 
     if zm > 1
         oMmu           = sett.var.Mmu;
@@ -341,7 +326,7 @@ for zm=numel(sz):-1:1 % loop over zoom levels
         elseif  updt_mu && ~updt_diff
             [~,mu]     = spm_mb_shape('ZoomVolumes',[],mu,sett,oMmu);
         elseif ~updt_mu &&  updt_diff
-            dat        = spm_mb_shape('ZoomVolumes',dat,[],sett,oMmu);
+            dat        = spm_mb_shape('ZoomVolumes',dat,mu,sett,oMmu);
         end
         if updt_mu, te = spm_mb_shape('TemplateEnergy',mu,sett); end % Compute template energy
         if updt_diff
@@ -361,6 +346,9 @@ end
 
 % Make model
 model = spm_mb_io('MakeModel',dat,model,sett);
+
+% Clean-up temporary files
+if exist(sett.show.dir_vis,'dir') == 7, rmdir(sett.show.dir_vis,'s'); end
 
 % Print total runtime
 spm_mb_show('Speak','Finished',sett,toc(t0));

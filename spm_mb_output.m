@@ -158,17 +158,10 @@ write_aff  = sett.write.affine;
 K      = size(mun,4);
 K1     = K + 1;
 Kmg    = numel(mg_ix);
-if isa(datn.f(1),'nifti')
-    [pth,namn] = fileparts(datn.f(1).dat.fname);
-else
-    pth   = '.';
-    if isempty(datn.nam), namn  = ['n' num2str(ix)];
-    else,                 namn  = datn.nam;
-    end
-end
-Mr    = spm_dexpm(double(datn.q),B);
-Mn    = datn.Mat;
-do_bf = datn.do_bf;
+namn   = datn.nam;
+Mr     = spm_dexpm(double(datn.q),B);
+Mn     = datn.Mat;
+do_bf  = datn.do_bf;
 
 % Set output path
 if ~isempty(dir_res) && ~(exist(dir_res,'dir') == 7), mkdir(dir_res); end
