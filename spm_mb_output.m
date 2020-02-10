@@ -48,7 +48,11 @@ if level==2, th1 = 0.2; end
 niter  = 32;
 niter2 = 32;
 for j=1:niter
-    if j>2, th=th1; else th=0.6; end  % Dilate after two its of erosion
+    if j>2
+        th       = th1;
+    else
+        th       = 0.6;
+    end  % Dilate after two its of erosion
     for i=1:size(b,3)
         gp       = double(sum(zn(:,:,i,ixt.gm),4));
         wp       = double(sum(zn(:,:,i,ixt.wm),4));
@@ -134,7 +138,6 @@ clean_vel  = sett.write.clean_vel;
 dmu        = sett.var.d;
 dir_res    = sett.write.dir_res;
 do_infer   = sett.do.infer;
-fwhm       = sett.bf.fwhm;
 gwc_level  = sett.clean_z.gwc_level;
 gwc_tix    = sett.clean_z.gwc_tix;
 mg_ix      = sett.model.mg_ix;
@@ -166,7 +169,6 @@ end
 Mr    = spm_dexpm(double(datn.q),B);
 Mn    = datn.Mat;
 do_bf = datn.do_bf;
-is_ct = datn.is_ct;
 
 % Set output path
 if ~isempty(dir_res) && ~(exist(dir_res,'dir') == 7), mkdir(dir_res); end

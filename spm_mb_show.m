@@ -225,7 +225,6 @@ c             = sett.show.channel;
 fig_name_bf   = sett.show.figname_bf;
 fig_name_par  = sett.show.figname_parameters;
 fig_name_tiss = sett.show.figname_subjects;
-fwhm          = sett.bf.fwhm;
 mg_ix         = sett.model.mg_ix;
 Mmu           = sett.var.Mmu;
 mu_bg         = sett.model.mu_bg;
@@ -430,7 +429,6 @@ B        = sett.registr.B;
 c        = sett.show.channel;
 dmu      = sett.var.d;
 fig_name = sett.show.figname_imtemplatepace;
-fwhm     = sett.bf.fwhm;
 Mmu      = sett.var.Mmu;
 mx_subj  = sett.show.mx_subjects;
 reg      = sett.bf.reg;
@@ -457,9 +455,6 @@ for n=1:nd
     psi  = spm_mb_shape('Compose',psi0,spm_mb_shape('Affine',df,Mmu\Mr*Mn));
     clear psi0
     if df(3) == 1, psi(:,:,:,3) = 1; end % 2D
-
-        chan = spm_mb_appearance('BiasBasis',datn.T,df,vx,reg,samp);
-        bf   = spm_mb_appearance('BiasField',datn.T,chan);
 
     % Bias field
     if isfield(dat(n),'mog') && any(do_bf == true)
