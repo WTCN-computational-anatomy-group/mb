@@ -72,6 +72,7 @@ model = spm_mb_io('LoadModel',PthModel,sett);
 
 [template_given,~,sett] = spm_mb_param('SetFit',model,sett);
 updt_mu                 = sett.do.updt_template;
+updt_intpr              = sett.do.updt_int;
 
 %------------------
 % Init dat
@@ -197,7 +198,7 @@ for it0=1:nit_aff
         dat   = spm_mb_shape('UpdateSimpleAffines',dat,mu,sett);
         oE(i) = E(i);
         E(i)  = sum(sum(cat(2,dat.E),2),1) + te; % Cost function after previous update
-        dat   = spm_mb_appearance('UpdatePrior',dat, sett);
+        if updt_intpr, dat = spm_mb_appearance('UpdatePrior',dat, sett); end
     end
     i = i + 1;
 
@@ -207,7 +208,7 @@ for it0=1:nit_aff
             [mu,dat] = spm_mb_shape('UpdateMean',dat, mu, sett);
             oE(i)    = E(i);
             E(i)     = sum(sum(cat(2,dat.E),2),1) + te; % Cost function after previous update
-            dat      = spm_mb_appearance('UpdatePrior',dat, sett);
+            if updt_intpr, dat = spm_mb_appearance('UpdatePrior',dat, sett); end
             te       = spm_mb_shape('TemplateEnergy',mu,sett);
         end
     end
@@ -273,7 +274,7 @@ for zm=numel(sz):-1:1 % loop over zoom levels
             oE(i) = E(i);
             E(i)  = sum(sum(cat(2,dat.E),2),1) + te; % Cost function after previous update
             dat   = spm_mb_shape('VelocityEnergy',dat,sett);
-            dat   = spm_mb_appearance('UpdatePrior',dat, sett);
+            if updt_intpr, dat = spm_mb_appearance('UpdatePrior',dat, sett); end
 
             % Shoot new deformations
             dat = spm_mb_shape('UpdateWarps',dat,sett);
@@ -286,7 +287,7 @@ for zm=numel(sz):-1:1 % loop over zoom levels
                 [mu,dat] = spm_mb_shape('UpdateMean',dat, mu, sett);
                 oE(i)    = E(i);
                 E(i)     = sum(sum(cat(2,dat.E),2),1) + te; % Cost function after previous update
-                dat      = spm_mb_appearance('UpdatePrior',dat, sett);
+                if updt_intpr, dat = spm_mb_appearance('UpdatePrior',dat, sett); end
                 te       = spm_mb_shape('TemplateEnergy',mu,sett); 
             end
             i = i + 1;
@@ -297,7 +298,7 @@ for zm=numel(sz):-1:1 % loop over zoom levels
             dat   = spm_mb_shape('UpdateAffines',dat,mu,sett);
             oE(i) = E(i);
             E(i)  = sum(sum(cat(2,dat.E),2),1) + te; % Cost function after previous update
-            dat   = spm_mb_appearance('UpdatePrior',dat, sett);
+            if updt_intpr, dat = spm_mb_appearance('UpdatePrior',dat, sett); end
             i     = i + 1;
         end
 
@@ -307,7 +308,7 @@ for zm=numel(sz):-1:1 % loop over zoom levels
                 [mu,dat] = spm_mb_shape('UpdateMean',dat, mu, sett);
                 oE(i)    = E(i);
                 E(i)     = sum(sum(cat(2,dat.E),2),1) + te; % Cost function after previous update
-                dat      = spm_mb_appearance('UpdatePrior',dat, sett);
+                if updt_intpr, dat = spm_mb_appearance('UpdatePrior',dat, sett); end
                 te       = spm_mb_shape('TemplateEnergy',mu,sett);
             end
         end
@@ -335,7 +336,14 @@ for zm=numel(sz):-1:1 % loop over zoom levels
     if zm > 1
         oMmu           = sett.var.Mmu;
         sett.var       = spm_mb_io('CopyFields',sz(zm-1), sett.var);
-        [dat,mu]       = spm_mb_shape('ZoomVolumes',dat,mu,sett,oMmu);
+        if      updt_mu &&  updt_diff
+            [dat,mu]       = spm_mb_shape('ZoomVolumes',dat,mu,sett,oMmu);
+        elseif  updt_mu && ~updt_diff
+            [~,mu]       = spm_mb_shape('ZoomVolumes',[],mu,sett,oMmu);
+        elseif ~updt_mu &&  updt_diff
+            mu           = ShrinkTemplate(mu0,Mmu,sett);
+            dat          = spm_mb_shape('ZoomVolumes',dat,[],sett,oMmu);
+        end
         if updt_mu, te = spm_mb_shape('TemplateEnergy',mu,sett); end % Compute template energy
         dat            = spm_mb_shape('VelocityEnergy',dat,sett); % Compute velocity energy
         dat            = spm_mb_shape('UpdateWarps',dat,sett);    % Shoot new deformations

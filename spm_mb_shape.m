@@ -1140,13 +1140,16 @@ d0    = [size(mu,1) size(mu,2) size(mu,3)];
 z     = single(reshape(d./d0,[1 1 1 3]));
 Mzoom = oMmu\Mmu;
 y     = reshape(reshape(Identity(d),[prod(d),3])*Mzoom(1:3,1:3)' + Mzoom(1:3,4)',[d 3]);
-if nargout > 1, mu = spm_diffeo('pullc',mu,y); end % only resize template if updating it
-parfor(n=1:numel(dat),num_workers)
-    v          = spm_mb_io('GetData',dat(n).v);
-    v          = spm_diffeo('pullc',v,y).*z;
-    dat(n).v   = ResizeFile(dat(n).v  ,d,Mmu);
-    dat(n).psi = ResizeFile(dat(n).psi,d,Mmu);
-    dat(n).v   = spm_mb_io('SetData',dat(n).v,v);
+if nargout > 1 || ~isempty(mu), mu = spm_diffeo('pullc',mu,y); end % only resize template if updating it
+
+if ~isempty(dat)
+    parfor(n=1:numel(dat),num_workers)
+        v          = spm_mb_io('GetData',dat(n).v);
+        v          = spm_diffeo('pullc',v,y).*z;
+        dat(n).v   = ResizeFile(dat(n).v  ,d,Mmu);
+        dat(n).psi = ResizeFile(dat(n).psi,d,Mmu);
+        dat(n).v   = spm_mb_io('SetData',dat(n).v,v);
+    end
 end
 end
 %==========================================================================
