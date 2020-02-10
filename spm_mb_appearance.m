@@ -70,6 +70,27 @@ end
 %==========================================================================
 
 %==========================================================================
+% TransformBF()
+function t = TransformBF(B1,B2,B3,T)
+% Create an image-space log bias field from its basis function encoding.
+%
+% FORMAT t = TransformBF(B1,B2,B3,T)
+% B1 - x-dim DCT basis [nx kx]
+% B2 - y-dim DCT basis [ny ky]
+% B3 - z-dim DCT basis [nz kz]
+% T  - DCT encoding of the log bias field [kx ky kz]
+% t  - Reconstructed log bias field [nx ny nz]
+if ~isempty(T)
+    d2 = [size(T) 1];
+    t1 = reshape(reshape(T, d2(1)*d2(2),d2(3))*B3', d2(1), d2(2));
+    t  = B1*t1*B2';
+else
+    t  = zeros(size(B1,1),size(B2,1));
+end
+end
+%==========================================================================
+
+%==========================================================================
 function chan = BiasBasis(T,df,Mat,reg,samp)
 if nargin<5, samp = 0; end
 cl   = cell(1, numel(T));
@@ -139,6 +160,49 @@ labels = cm(labels,:);
 
 % Make log probability
 labels = log(labels);
+end
+%==========================================================================
+
+%==========================================================================
+% GetLabelConfMatrix()
+function cm = GetLabelConfMatrix(cm_map,sett)
+% FORMAT CM = get_label_cm(cm_map,opt)
+% cm_map - Defines the confusion matrix
+% sett   - Options structure
+% cm     - confusion matrix
+%
+% Build Rater confusion matrix for one subject.
+% This matrix maps template classes to manually segmented classes.
+% Manual labels often do not follow the same convention as the Template,
+% and not all regions may be labelled. Therefore, a manual label may
+% correspond to several Template classes and, conversely, one Template
+% class may correspond to several manual labels.
+%__________________________________________________________________________
+% Copyright (C) 2018 Wellcome Centre for Human Neuroimaging
+
+% Here, we assume that all subjects from the same population (e.g.,
+% a publicily available dataset) have the same labelling protocole and
+% confusion matrix.
+% We allow the rater's sensitivity to change every few acquistion. We would
+% typically start with a high sensitivity, to weight the labels strongly,
+% and then decrease this value to allow the model to correct the rater's
+% mistakes (especially near boundaries).
+
+% Parse function settings
+K = sett.model.K;
+w = sett.labels.w;
+
+K1 = K + 1;
+L  = numel(cm_map); % Number of labels
+cm = zeros([L K1],'single'); % Allocate confusion matrix
+for l=1:L % Loop over labels
+    ix            = false(1,K1);
+    ix(cm_map{l}) = true;
+
+    cm(l,ix)  = w/nnz(ix);
+    cm(l,~ix) = (1 - w)/nnz(~ix);
+end
+cm = bsxfun(@rdivide,cm,sum(cm,2));
 end
 %==========================================================================
 
@@ -715,49 +779,6 @@ end
 %==========================================================================
 
 %==========================================================================
-% GetLabelConfMatrix()
-function cm = GetLabelConfMatrix(cm_map,sett)
-% FORMAT CM = get_label_cm(cm_map,opt)
-% cm_map - Defines the confusion matrix
-% sett   - Options structure
-% cm     - confusion matrix
-%
-% Build Rater confusion matrix for one subject.
-% This matrix maps template classes to manually segmented classes.
-% Manual labels often do not follow the same convention as the Template,
-% and not all regions may be labelled. Therefore, a manual label may
-% correspond to several Template classes and, conversely, one Template
-% class may correspond to several manual labels.
-%__________________________________________________________________________
-% Copyright (C) 2018 Wellcome Centre for Human Neuroimaging
-
-% Here, we assume that all subjects from the same population (e.g.,
-% a publicily available dataset) have the same labelling protocole and
-% confusion matrix.
-% We allow the rater's sensitivity to change every few acquistion. We would
-% typically start with a high sensitivity, to weight the labels strongly,
-% and then decrease this value to allow the model to correct the rater's
-% mistakes (especially near boundaries).
-
-% Parse function settings
-K = sett.model.K;
-w = sett.labels.w;
-
-K1 = K + 1;
-L  = numel(cm_map); % Number of labels
-cm = zeros([L K1],'single'); % Allocate confusion matrix
-for l=1:L % Loop over labels
-    ix            = false(1,K1);
-    ix(cm_map{l}) = true;
-
-    cm(l,ix)  = w/nnz(ix);
-    cm(l,~ix) = (1 - w)/nnz(~ix);
-end
-cm = bsxfun(@rdivide,cm,sum(cm,2));
-end
-%==========================================================================
-
-%==========================================================================
 % IndexSlice2Vol() % unused
 function ix = IndexSlice2Vol(z,Iz)
 ix = ((z - 1)*Iz + 1):z*Iz;
@@ -786,10 +807,9 @@ function lb = LowerBound(type,varargin)
 %   >> Marginal log-likelihood of the observed data, without the
 %      bias-related normalisation.
 if strcmpi(type,'ln(|bf|)')
-    bf     = varargin{1};
-    msk_vx = varargin{2};
-
-    lb = sum(log(bf(msk_vx)),'double');
+    bf       = varargin{1};
+    msk_vx   = varargin{2};
+    lb       = sum(log(bf(msk_vx)),'double');
 elseif strcmpi(type,'ln(P(X|Z))')
     fn       = varargin{1};
     zn       = varargin{2};
@@ -851,27 +871,6 @@ df   = [df 1];
 df   = df(1:3);
 sk   = max([1 1 1],round(samp*[1 1 1]./vx));
 ind  = {1:sk(1):df(1), 1:sk(2):df(2), 1:sk(3):df(3)};
-end
-%==========================================================================
-
-%==========================================================================
-% TransformBF()
-function t = TransformBF(B1,B2,B3,T)
-% Create an image-space log bias field from its basis function encoding.
-%
-% FORMAT t = TransformBF(B1,B2,B3,T)
-% B1 - x-dim DCT basis [nx kx]
-% B2 - y-dim DCT basis [ny ky]
-% B3 - z-dim DCT basis [nz kz]
-% T  - DCT encoding of the log bias field [kx ky kz]
-% t  - Reconstructed log bias field [nx ny nz]
-if ~isempty(T)
-    d2 = [size(T) 1];
-    t1 = reshape(reshape(T, d2(1)*d2(2),d2(3))*B3', d2(1), d2(2));
-    t  = B1*t1*B2';
-else
-    t  = zeros(size(B1,1),size(B2,1));
-end
 end
 %==========================================================================
 
