@@ -1271,7 +1271,7 @@ end
 mx    = ceil(mx);
 mn    = floor(mn);
 if do_crop
-    prct  = 0.1;            % percentage to remove (in each direction)
+    prct  = 0.05;            % percentage to remove (in each direction)
     o     = -prct*(mx - mn); % offset -> make template a bit smaller (for using less memory!)
 else
     o = 3;
