@@ -237,7 +237,7 @@ if ~isfield(sett.model,'tol_aff')
     sett.model.tol_aff = 1e-5;
 end
 if ~isfield(sett.model,'tol_diffeo')
-    sett.model.tol_diffeo = 1e-4;
+    sett.model.tol_diffeo = 0;
 end
 if ~isfield(sett.model,'appear_ix')
     sett.model.appear_ix = 1;
@@ -380,9 +380,9 @@ if ~isfield(sett.var,'mu_settings')
 end
 if ~isfield(sett.var,'v_settings')
     if sett.do.updt_aff
-        sett.var.v_settings = [0 0 0.2 0.05 0.2]*8;
+        sett.var.v_settings = [0 0 0.2 0.05 0.2]*4;
     else
-        sett.var.v_settings = [1e-4 0 0.2 0.05 0.2]*8;
+        sett.var.v_settings = [1e-4 0 0.2 0.05 0.2]*4;
     end
 end
 %------------------
