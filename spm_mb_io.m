@@ -398,9 +398,9 @@ for n=1:N
 
     % spm_vol object    
     if ~matFromNii && (isstruct(data(n)) && isfield(data(n),'V') && ~isempty(data(n).V))        
-        [~,nam]    = fileparts(dat(n).V(1).fname);
+        [~,nam]    = fileparts(data(n).V(1).fname);
         dat(n).nam = nam;
-        dat(n).Mat = dat(n).V(1).mat;        
+        dat(n).Mat = data(n).V(1).mat;        
     end
     df = spm_mb_io('GetSize',dat(n).f);
     if df(3) == 1
