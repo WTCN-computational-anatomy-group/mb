@@ -239,15 +239,17 @@ end
 
 spm_mb_show('Speak','AffineDiffeo',sett,numel(sz));
 
-E  = inf(1,sum([(updt_aff + updt_diff)*updt_mu, updt_aff, updt_diff])); % For tracking objfun
-oE = E;
+E     = inf(1,sum([(updt_aff + updt_diff)*updt_mu, updt_aff, updt_diff])); % For tracking objfun
+oE    = E;
+ovxmu = sqrt(sum(sett.var.Mmu(1:3,1:3).^2));
 
 for zm=numel(sz):-1:1 % loop over zoom levels
 
     sett.gen.samp = max(zm,samp_min); % coarse-to-fine sampling of observed data
 
     if template_given && ~updt_mu
-        mu = spm_mb_shape('ShrinkTemplate',mu0,Mmu,sett);
+        mu  = spm_mb_shape('ShrinkTemplate',mu0,Mmu,sett);
+%         mu1 = mu; % because used for smoothing
     end
 
     nit_zm = nit_zm0 + (zm - 1); % use nit_zm0 only for zm = 1
@@ -255,7 +257,17 @@ for zm=numel(sz):-1:1 % loop over zoom levels
 
         t = tic; % Start timer
         i = 1;   % For tracking objfun
-
+        
+%         if template_given
+%             % Smooth template a little bit (decreases with iteration num)
+%             fwhm1 = linspace(ovxmu(1), 0, nit_zm);
+%             fwhm2 = linspace(ovxmu(2), 0, nit_zm);
+%             fwhm3 = linspace(ovxmu(3), 0, nit_zm);
+%             fwhm  = [fwhm1(it0), fwhm2(it0), fwhm3(it0)];
+%             vxmu  = sqrt(sum(sett.var.Mmu(1:3,1:3).^2));
+%             mu    = spm_mb_shape('SmoothImage',mu1,fwhm,vxmu);
+%         end
+        
         if updt_diff
             % UPDATE: diffeo
             dat   = spm_mb_shape('UpdateVelocities',dat,mu,sett);
@@ -320,7 +332,8 @@ for zm=numel(sz):-1:1 % loop over zoom levels
 
     if zm > 1
         oMmu           = sett.var.Mmu;
-        sett.var       = spm_mb_io('CopyFields',sz(zm-1), sett.var);
+        ovxmu          = sqrt(sum(sett.var.Mmu(1:3,1:3).^2));
+        sett.var       = spm_mb_io('CopyFields',sz(zm - 1), sett.var);
         if      updt_mu &&  updt_diff
             [dat,mu]   = spm_mb_shape('ZoomVolumes',dat,mu,sett,oMmu);
         elseif  updt_mu && ~updt_diff

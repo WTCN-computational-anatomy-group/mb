@@ -16,6 +16,7 @@ function varargout = spm_mb_shape(varargin)
 % FORMAT sd            = spm_mb_shape('SampDens',Mmu,Mn)
 % FORMAT varargout     = spm_mb_shape('Shoot',v0,kernel,args)
 % FORMAT mu1           = spm_mb_shape('ShrinkTemplate',mu,oMmu,sett)
+% FORMAT simg          = spm_mb_shape('SmoothImage',img,fwhm,vx)
 % FORMAT P             = spm_mb_shape('Softmax',mu,dr)
 % FORMAT [Mmu,d]       = spm_mb_shape('SpecifyMean',dat,vx,sett)
 % FORMAT E             = spm_mb_shape('TemplateEnergy',mu,sett)
@@ -66,6 +67,8 @@ switch id
         [varargout{1:nargout}] = Shoot(varargin{:});
     case 'ShrinkTemplate'
         [varargout{1:nargout}] = ShrinkTemplate(varargin{:});
+    case 'SmoothImage'
+        [varargout{1:nargout}] = SmoothImage(varargin{:});        
     case 'Softmax'
         [varargout{1:nargout}] = Softmax(varargin{:});
     case 'SpecifyMean'
@@ -545,6 +548,42 @@ else
     y       = reshape(reshape(Identity(d0),[prod(d0),3])*Mzoom(1:3,1:3)'+Mzoom(1:3,4)',[d0 3]);
     [mu1,c] = Push1(mu,y,d,1,mu_bg);
     mu1     = mu1./(c+eps);
+end
+end
+%==========================================================================
+
+%==========================================================================
+% SmoothImage()
+function img = SmoothImage(img,fwhm,vx)
+
+if nargin<2, fwhm = 0; end
+if nargin<3, vx   = 1; end
+
+if all(fwhm == 0), return; end
+
+if numel(fwhm) == 1, fwhm = fwhm*ones(1,3); end
+if numel(vx) == 1,   vx   = vx*ones(1,3);   end
+
+fwhm = fwhm./vx;
+s1   = fwhm/sqrt(8*log(2));
+
+x  = round(6*s1(1)); x = -x:x; x = spm_smoothkern(fwhm(1),x,1); x  = x/sum(x);
+y  = round(6*s1(2)); y = -y:y; y = spm_smoothkern(fwhm(2),y,1); y  = y/sum(y);
+z  = round(6*s1(3)); z = -z:z; z = spm_smoothkern(fwhm(3),z,1); z  = z/sum(z);
+
+i  = (length(x) - 1)/2;
+j  = (length(y) - 1)/2;
+k  = (length(z) - 1)/2;
+
+d   = size(img);
+K   = d(4);
+tmp = cell(1,K);
+for k1=1:K
+    tmp{k1} = zeros(d(1:3),'single');
+    spm_conv_vol(img(:,:,:,k1),tmp{k1},x,y,z,-[i,j,k]);
+end
+for k1=1:K
+    img(:,:,:,k1) = tmp{k1};
 end
 end
 %==========================================================================
