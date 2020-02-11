@@ -11,7 +11,7 @@ function varargout = spm_mb_appearance(varargin)
 % FORMAT [dat,sett] = spm_mb_appearance('IntroduceMG',dat,sett)
 % FORMAT zn         = spm_mb_appearance('Responsibility',m,b,W,n,fn,mu,msk_chn)
 % FORMAT [zn,datn]  = spm_mb_appearance('Update',datn,mun0,sett)
-% FORMAT dat        = spm_mb_appearance('UpdatePrior',dat,sett,add_po_observation)
+% FORMAT dat        = spm_mb_appearance('UpdatePrior',dat,sett)
 %__________________________________________________________________________
 % Copyright (C) 2019 Wellcome Trust Centre for Neuroimaging
 
@@ -692,9 +692,8 @@ end
 
 %==========================================================================
 % UpdatePrior()
-function dat = UpdatePrior(dat, sett, add_po_observation)
+function dat = UpdatePrior(dat, settn)
 if ~isfield(dat,'mog'), return; end
-if nargin < 4, add_po_observation = false; end
 
 % Parse function settings
 mg_ix = sett.model.mg_ix;
@@ -709,7 +708,6 @@ for p=1:numel(p_ix) % Loop over populations
     % Get old prior
     pr = dat(p_ix{p}(1)).mog.pr;
     pr = {pr.m,pr.b,pr.W,pr.n};
-    C  = size(pr{1},1);
 
     % Get all posteriors
     K1    = numel(mg_ix);
@@ -722,67 +720,8 @@ for p=1:numel(p_ix) % Loop over populations
         po{n}{2}{2} = dat(n1).mog.po.n;
     end
 
-if add_po_observation
-    % Add one artificial observation (increases numerical stability)
-
-    % Get overall mean and variance for regularising
-    avgmn = 0;
-    sum_b = 0;
-    avgvr = 0;
-    sum_n = 0;
-    for n=1:N
-        pon = dat(p_ix{p}(n)).mog.po;
-        for k=1:K1
-            avgmn = avgmn + pon.m(:,k)*pon.b(k);
-            avgvr = avgvr + inv(pon.W(:,:,k));
-            sum_n = sum_n + pon.n(k);
-            sum_b = sum_b + pon.b(k);
-        end
-    end
-    avgvr = avgvr/sum_n;
-    avgmn = avgmn/sum_b;
-    avgpr = diag(1./diag(avgvr));
-
-    % Add the artificial observation
-    po1{1}{1} = repmat(avgmn,[1 K1]);     % m
-    po1{1}{2} = zeros(1,K1) + 0.01;       % b
-    po1{2}{1} = repmat(avgpr/C,[1 1 K1]); % W
-    po1{2}{2} = C*ones(1,K1);             % n
-    po{end+1} = po1;
-end
-
     % Update prior
     pr = spm_gmm_lib('updatehyperpars',po,pr);
-
-if false
-    sum_m = 0;
-    sum_b = 0;
-    sum_P = 0;
-    sum_n = 0;
-    for k=1:K1
-        sum_m = sum_m + pr{1}(:,k)*pr{2}(k);
-        sum_P = sum_P + inv(pr{3}(:,:,k));
-        sum_n = sum_n + pr{4}(k);
-        sum_b = sum_b + pr{2}(k);
-    end
-    b_extra = 0;
-    m_extra = sum_m/sum_b;
-    n_extra = C;
-    W_extra = C*diag(1./diag(sum_P/sum_n));              % Double check
-    W_new   = W_extra;
-    P_extra = inv(W_extra);
-    for k=1:K1
-        W_new(:,:,k) = inv(P_extra + inv(pr{3}(:,:,k))); % Double check
-    end
-
-    % Assign new prior
-    for n=p_ix{p}
-        dat(n).mog.pr.m = (pr{1} + m_extra)./reshape(pr{2} + b_extra,[1 K1]);
-        dat(n).mog.pr.b =  pr{2} + b_extra;
-        dat(n).mog.pr.W =  W_new;
-        dat(n).mog.pr.n =  pr{4} + n_extra;
-    end
-end
 
     % Assign new prior
     for n=p_ix{p}
