@@ -48,7 +48,11 @@ if level==2, th1 = 0.2; end
 niter  = 32;
 niter2 = 32;
 for j=1:niter
-    if j>2, th=th1; else th=0.6; end  % Dilate after two its of erosion
+    if j>2
+        th       = th1;
+    else
+        th       = 0.6;
+    end  % Dilate after two its of erosion
     for i=1:size(b,3)
         gp       = double(sum(zn(:,:,i,ixt.gm),4));
         wp       = double(sum(zn(:,:,i,ixt.wm),4));
@@ -134,7 +138,6 @@ clean_vel  = sett.write.clean_vel;
 dmu        = sett.var.d;
 dir_res    = sett.write.dir_res;
 do_infer   = sett.do.infer;
-fwhm       = sett.bf.fwhm;
 gwc_level  = sett.clean_z.gwc_level;
 gwc_tix    = sett.clean_z.gwc_tix;
 mg_ix      = sett.model.mg_ix;
@@ -155,18 +158,10 @@ write_aff  = sett.write.affine;
 K      = size(mun,4);
 K1     = K + 1;
 Kmg    = numel(mg_ix);
-if isa(datn.f(1),'nifti')
-    [pth,namn] = fileparts(datn.f(1).dat.fname);
-else
-    pth   = '.';
-    if isempty(datn.nam), namn  = ['n' num2str(ix)];
-    else,                 namn  = datn.nam;
-    end
-end
-Mr    = spm_dexpm(double(datn.q),B);
-Mn    = datn.Mat;
-do_bf = datn.do_bf;
-is_ct = datn.is_ct;
+namn   = datn.nam;
+Mr     = spm_dexpm(double(datn.q),B);
+Mn     = datn.Mat;
+do_bf  = datn.do_bf;
 
 % Set output path
 if ~isempty(dir_res) && ~(exist(dir_res,'dir') == 7), mkdir(dir_res); end
@@ -218,16 +213,14 @@ if isfield(datn,'mog') && (any(write_bf(:) == true) || any(write_im(:) == true) 
 
     if any(do_bf == true)
         % Get bias field
-        chan = spm_mb_appearance('BiasFieldStruct',datn,C,df,reg,fwhm,[],datn.bf.T);
-        bf   = spm_mb_appearance('BiasField',chan,df);
+        chan = spm_mb_appearance('BiasBasis',datn.T,df,datn.Mat,reg);
+        bf   = spm_mb_appearance('BiasField',datn.T,chan);
     else
         bf   = ones([1 C],'single');
     end
 
     % Get image(s)
-    fn      = spm_mb_io('GetData',datn.f);
-    fn      = reshape(fn,[prod(df(1:3)) C]);
-    fn      = spm_mb_appearance('Mask',fn,is_ct);
+    fn      = spm_mb_io('GetImage',datn);
 
     % Get labels
     labels = spm_mb_appearance('GetLabels',datn,sett);
@@ -240,7 +233,7 @@ if isfield(datn,'mog') && (any(write_bf(:) == true) || any(write_im(:) == true) 
     mun  = mun + log(mg_w);
 
     % Format for spm_gmm
-    [bffn,code_image,msk_chn] = spm_gmm_lib('obs2cell', bf.*fn);
+    [bffn,code_image,msk_chn] = spm_gmm_lib('obs2cell', reshape(bf.*fn,[prod(df) C]));
     mun                       = spm_gmm_lib('obs2cell', mun, code_image, false);
 
     % GMM posterior
@@ -262,7 +255,7 @@ if isfield(datn,'mog') && (any(write_bf(:) == true) || any(write_im(:) == true) 
         sample_post = do_infer > 1;
         MU          = datn.mog.po.m;
         A           = bsxfun(@times, datn.mog.po.W, reshape(datn.mog.po.n, [1 1 Kmg]));
-        fn          = spm_gmm_lib('InferMissing',fn,zn,{MU,A},code,sample_post);
+        fn          = spm_gmm_lib('InferMissing',reshape(fn,[prod(df) C]),zn,{MU,A},code,sample_post);
         clear code
     end
 

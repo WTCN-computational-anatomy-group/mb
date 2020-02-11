@@ -3,6 +3,7 @@ function varargout = spm_mb_io(varargin)
 %
 % Functions for I/O related.
 %
+% FORMAT fn              = spm_mb_io('GetImage',datn)
 % FORMAT to              = spm_mb_io('CopyFields',from,to)
 % FORMAT pth             = spm_mb_io('CropTemplate',pth,centre,bb)
 % FORMAT [P,datn]        = spm_mb_io('GetClasses',datn,mu,sett)
@@ -19,6 +20,7 @@ function varargout = spm_mb_io(varargin)
 % FORMAT                   spm_mb_io('SetBoundCond')
 % FORMAT fout            = spm_mb_io('SetData',fin,f)
 % FORMAT                   spm_mb_io('SetPath')
+% FORMAT                   spm_mb_io('Write2Visualise',datn,im,nam,sett);
 % FORMAT                   spm_mb_io('WriteNii',f,img,Mmu,descrip);
 %
 %__________________________________________________________________________
@@ -31,6 +33,8 @@ end
 id = varargin{1};
 varargin = varargin(2:end);
 switch id
+    case 'GetImage'
+        [varargout{1:nargout}] = GetImage(varargin{:});
     case 'CopyFields'
         [varargout{1:nargout}] = CopyFields(varargin{:});
     case 'CropTemplate'
@@ -63,6 +67,8 @@ switch id
         [varargout{1:nargout}] = SetData(varargin{:});
     case 'SetPath'
         [varargout{1:nargout}] = SetPath(varargin{:});
+    case 'Write2Visualise'
+        [varargout{1:nargout}] = Write2Visualise(varargin{:});        
     case 'WriteNii'
         [varargout{1:nargout}] = WriteNii(varargin{:});
     otherwise
@@ -184,6 +190,35 @@ if isa(in,'nifti')
     return
 end
 error('Unknown datatype.');
+end
+%==========================================================================
+
+%==========================================================================
+function fn = GetImage(datn)
+% This is the place to do various image cleaning steps
+fn = spm_mb_io('GetData',datn.f);
+df = [size(fn,1) size(fn,2) size(fn,3)];
+C  = size(fn,4);
+fn = Mask(fn,datn.is_ct);
+end
+%==========================================================================
+
+%==========================================================================
+% Mask()
+function fn = Mask(fn,is_ct)
+C = size(fn,4);
+for c=1:C
+    fn(:,:,:,c) = ApplyMask(fn(:,:,:,c),is_ct(c));
+end
+end
+%==========================================================================
+
+%==========================================================================
+% ApplyMask()
+function f = ApplyMask(f,is_ct)
+if is_ct, f(~isfinite(f) | f == 0 | f < - 1020 | f > 3000) = NaN;
+else,     f(~isfinite(f) | f == 0)                         = NaN;
+end
 end
 %==========================================================================
 
@@ -346,12 +381,12 @@ for n=1:N
     if do_gmm        
         % GMM parameters
         dat(n).mog = []; % GMM parameters
-        dat(n).bf  = []; % bias field (in image space)
+        dat(n).T   = {}; % bias field (in image space)
     end
 
     % Orientation matrix (image voxel-to-world)
     dat(n).Mat = M0;
-    dat(n).nam = [];
+    dat(n).nam = ['n' num2str(n)];
     matFromNii = false;
     if isa(F,'nifti') || (iscell(F) && (isa(F{1},'char') || isa(F{1},'nifti')))
         dat(n).Mat = Nii(1).mat0;
@@ -366,9 +401,9 @@ for n=1:N
 
     % spm_vol object    
     if ~matFromNii && (isstruct(data(n)) && isfield(data(n),'V') && ~isempty(data(n).V))        
-        [~,nam]    = fileparts(dat(n).V(1).fname);
+        [~,nam]    = fileparts(data(n).V(1).fname);
         dat(n).nam = nam;
-        dat(n).Mat = dat(n).V(1).mat;        
+        dat(n).Mat = data(n).V(1).mat;        
     end
     df = spm_mb_io('GetSize',dat(n).f);
     if df(3) == 1
@@ -426,7 +461,8 @@ end
 function model = LoadModel(PthModel,sett)
 
 % Parse function settings
-appear_ix = sett.model.appear_ix;
+appear_ix  = sett.model.appear_ix;
+appear_chn = sett.model.appear_chn;
 
 model = struct;
 if isempty(PthModel), return; end
@@ -441,7 +477,12 @@ if isfile(PthModel)
 
     if isfield(model,'appear') && isfield(model.appear,'pr')
         % Pick appearance prior
-        model.appear.pr = model.appear.pr(num2str(min(appear_ix,model.appear.pr.Count)));
+        pr = model.appear.pr(num2str(min(appear_ix,model.appear.pr.Count)));        
+        if ~isempty(appear_chn)
+            pr.m = pr.m(appear_chn,:);
+            pr.W = pr.W(appear_chn,appear_chn,:);
+        end
+        model.appear.pr = pr;
     end
 end
 end
@@ -639,6 +680,81 @@ pth=fileparts(which('spm'));
 addpath(pth);
 addpath(fullfile(pth,'toolbox','Longitudinal'));
 addpath(fullfile(pth,'toolbox','Shoot'));
+end
+%==========================================================================
+
+%==========================================================================
+% Write2Visualise()
+function Write2Visualise(datn,im,nam,sett)
+
+% Parse function settings
+c       = sett.show.channel;
+dir_vis = sett.show.dir_vis;
+figs    = sett.show.figs;
+
+if ~any(strcmp(figs,'segmentations')) && ~any(strcmp(figs,'parameters'))
+    return
+end
+if ~any(strcmp(figs,'parameters')) && (strcmp(nam,'bf') || strcmp(nam,'f'))
+    return
+end
+if ~any(strcmp(figs,'segmentations')) && (strcmp(nam,'z') || strcmp(nam,'mu'))
+    return
+end
+
+nam0 = datn.nam;
+d    = [size(im,1) size(im,2) size(im,3)];
+ix   = round(0.5*d);
+
+if strcmp(nam,'f') || strcmp(nam,'bf') || strcmp(nam,'bff') 
+    % Image -> pick channel
+    c  = min(c,size(im,4));
+    im = im(:,:,:,c);
+end
+
+im1 = squeeze(im(:,:,ix(3),:));
+if strcmp(nam,'z') 
+    % Resp -> make K1 classes 
+    im1 = cat(3,im1,1 - sum(im1,3)); 
+end
+if strcmp(nam,'mu') 
+    % Template -> make K1 classes and softmax
+    im1 = spm_mb_shape('TemplateK1',im1,3);
+    im1 = exp(im1);
+end 
+pth = fullfile(dir_vis,[nam0 '-' nam '-3.nii']);
+im1 = reshape(im1,[size(im1,1) size(im1,2) 1 size(im1,3)]);
+spm_mb_io('WriteNii',pth,im1,eye(4),'tmp');
+
+if d(3) > 1 % 3D
+    im1 = squeeze(im(:,ix(2),:,:));
+    if strcmp(nam,'z') 
+        % Resp -> make K1 classes 
+        im1 = cat(3,im1,1 - sum(im1,3)); 
+    end
+    if strcmp(nam,'mu') 
+        % Template -> make K1 classes and softmax
+        im1 = spm_mb_shape('TemplateK1',im1,3);
+        im1 = exp(im1);
+    end    
+    pth = fullfile(dir_vis,[nam0 '-' nam '-2.nii']);
+    im1 = reshape(im1,[size(im1,1) size(im1,2) 1 size(im1,3)]);
+    spm_mb_io('WriteNii',pth,im1,eye(4),'tmp');  
+
+    im1 = squeeze(im(ix(1),:,:,:));
+    if strcmp(nam,'z') 
+        % Resp -> make K1 classes 
+        im1 = cat(3,im1,1 - sum(im1,3)); 
+    end
+    if strcmp(nam,'mu') 
+        % Template -> make K1 classes and softmax
+        im1 = spm_mb_shape('TemplateK1',im1,3);
+        im1 = exp(im1);
+    end 
+    pth = fullfile(dir_vis,[nam0 '-' nam '-1.nii']);
+    im1 = reshape(im1,[size(im1,1) size(im1,2) 1 size(im1,3)]);
+    spm_mb_io('WriteNii',pth,im1,eye(4),'tmp');
+end
 end
 %==========================================================================
 

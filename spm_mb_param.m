@@ -5,7 +5,6 @@ function varargout = spm_mb_param(varargin)
 %
 % FORMAT [template_given,appear_given,sett] = spm_mb_param('SetFit',model,sett)
 % FORMAT sett                               = spm_mb_param('Settings')
-% FORMAT sz                                 = spm_mb_param('ZoomSettings',d, Mmu, v_settings, mu_settings, n)
 %
 %__________________________________________________________________________
 % Copyright (C) 2019 Wellcome Trust Centre for Neuroimaging
@@ -21,8 +20,6 @@ switch id
         [varargout{1:nargout}] = SetFit(varargin{:});
     case 'Settings'
         [varargout{1:nargout}] = Settings(varargin{:});
-    case 'ZoomSettings'
-        [varargout{1:nargout}] = ZoomSettings(varargin{:});
     otherwise
         help spm_mb_param
         error('Unknown function %s. Type ''help spm_mb_param'' for help.', id)
@@ -245,6 +242,9 @@ end
 if ~isfield(sett.model,'appear_ix')
     sett.model.appear_ix = 1;
 end
+if ~isfield(sett.model,'appear_chn')
+    sett.model.appear_chn = [];
+end
 
 %------------------
 % .nit (iteration related)
@@ -325,7 +325,7 @@ if ~isfield(sett.show,'channel')
     sett.show.channel = 1; % 1, ..., C
 end
 if ~isfield(sett.show,'figs')
-    sett.show.figs = {}; % {'model','normalised','segmentations','intensity','parameters','InitGMM'}
+    sett.show.figs = {}; % {'model','segmentations','intensity','parameters','InitGMM'}
 end
 if ~isfield(sett.show,'figname_bf')
     sett.show.figname_bf = '(spm_mb) Bias fields';
@@ -345,14 +345,14 @@ end
 if ~isfield(sett.show,'figname_subjects')
     sett.show.figname_subjects = '(spm_mb) Segmentations';
 end
-if ~isfield(sett.show,'figname_imtemplatepace')
-    sett.show.figname_imtemplatepace = '(spm_mb) Template space data';
-end
 if ~isfield(sett.show,'print2screen')
     sett.show.print2screen = true;
 end
 if ~isfield(sett.show,'mx_subjects')
-    sett.show.mx_subjects = 2;
+    sett.show.mx_subjects = 8;
+end
+if ~isfield(sett.show,'dir_vis')
+    sett.show.dir_vis = 'tmp-vis';
 end
 
 %------------------
@@ -441,27 +441,13 @@ end
 s                  = what(sett.write.dir_res); % Get absolute path
 sett.write.dir_res = s.path;
 
-end
-%==========================================================================
+sett.show.dir_vis = fullfile(sett.write.dir_res,sett.show.dir_vis);
 
-%==========================================================================
-% ZoomSettings()
-function sz = ZoomSettings(d, Mmu, v_settings, mu_settings, n)
-[dz{1:n}] = deal(d);
-sz        = struct('Mmu',Mmu,'d',dz,...
-                   'v_settings', v_settings,...
-                   'mu_settings',mu_settings);
-
-% I'm still not entirely sure how best to deal with regularisation
-% when dealing with different voxel sizes.
-scale = 1/abs(det(Mmu(1:3,1:3)));
-for i=1:n
-    sz(i).d           = ceil(d/(2^(i-1)));
-    z                 = d./sz(i).d;
-    sz(i).Mmu         = Mmu*[diag(z), (1-z(:))*0.5; 0 0 0 1];
-    vx                = sqrt(sum(sz(i).Mmu(1:3,1:3).^2));
-    sz(i).v_settings  = [vx v_settings *(scale*abs(det(sz(i).Mmu(1:3,1:3))))];
-    sz(i).mu_settings = [vx mu_settings*(scale*abs(det(sz(i).Mmu(1:3,1:3))))];
+if any(strcmp(sett.show.figs,'segmentations')) || any(strcmp(sett.show.figs,'parameters'))
+    if exist(sett.show.dir_vis,'dir') == 7, rmdir(sett.show.dir_vis,'s'); end
+    mkdir(sett.show.dir_vis)
+    s                 = what(sett.show.dir_vis); % Get absolute path
+    sett.show.dir_vis = s.path;
 end
 end
 %==========================================================================
