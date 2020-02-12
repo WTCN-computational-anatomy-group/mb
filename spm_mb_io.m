@@ -110,42 +110,25 @@ end
 
 %==========================================================================
 % GetClasses()
-function [P,datn] = GetClasses(datn,mu,sett)
+function [P,datn] = GetClasses(datn,mun,sett)
 
 if ~isfield(datn,'mog')
     P = GetData(datn.f);
 
+    % For visualising results (spm_mb_show)
+    spm_mb_io('Write2Visualise',datn,P,'z',sett);
+    spm_mb_io('Write2Visualise',datn,mun,'mu',sett);
+    
     if nargout > 1
         % Compute subject-specific categorical cross-entropy loss between
         % segmentation and template
         msk       = all(isfinite(P),4);
-        tmp       = sum(P.*mu,4) - spm_mb_shape('LSE',mu,4);
+        tmp       = sum(P.*mun,4) - spm_mb_shape('LSE',mun,4);
         datn.E(1) = -sum(tmp(msk(:)));
     end
 else
     % Update appearance model
-    [datn,P] = spm_mb_appearance('Update',datn,mu,sett);
-end
-
-if 0
-    % Show stuff
-    d  = size(mu);
-    d  = [d 1 1];
-    K  = d(4);
-    nr = floor(sqrt(K));
-    nc = ceil(K/nr);
-
-    for k=1:K
-        % Show template
-        figure(664); subplot(nr,nc,k); imagesc(mu(:,:,ceil(d(3).*0.55),k)');
-        title('mu');
-        axis image xy off; drawnow
-
-        % Show segmentation
-        figure(665); subplot(nr,nc,k); imagesc(P(:,:,ceil(d(3).*0.55),k)');
-        title('Seg')
-        axis image xy off; drawnow
-    end
+    [datn,P] = spm_mb_appearance('Update',datn,mun,sett);
 end
 end
 %==========================================================================
