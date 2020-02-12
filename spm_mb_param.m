@@ -277,7 +277,7 @@ if ~isfield(sett.nit,'zm')
     % The number of iterations, for updating all model parameters, at each zoom
     % level. The final zoom level uses sett.nit.zm iterations, while
     % earlier zoom levels use sett.nit.zm + zoom_level.
-    sett.nit.zm = 4;
+    sett.nit.zm = 3;
 end
 
 %------------------
