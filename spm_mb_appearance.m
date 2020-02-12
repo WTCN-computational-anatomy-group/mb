@@ -692,7 +692,7 @@ end
 
 %==========================================================================
 % UpdatePrior()
-function dat = UpdatePrior(dat, settn)
+function dat = UpdatePrior(dat, sett)
 if ~isfield(dat,'mog'), return; end
 
 % Parse function settings

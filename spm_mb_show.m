@@ -253,8 +253,7 @@ for n=1:nd
     Mr    = spm_dexpm(q,B);
     do_bf = dat(n).do_bf;
     is_ct = dat(n).is_ct;    
-    nam0  = dat(n).nam;    
-    mg_w  = dat(n).mog.mg_w;
+    nam0  = dat(n).nam;        
     
     % Show template
     pth = fullfile(dir_vis,[nam0 '-mu-']);
@@ -311,8 +310,9 @@ for n=1:nd
         if isfield(dat,'mog')
             % Here we get approximate class proportions from the (softmaxed K + 1)
             % tissue template
-            wp = ones(1,K1)/K1;
-            wp = wp(mg_ix).*mg_w;
+            mg_w = dat(n).mog.mg_w;
+            wp   = ones(1,K1)/K1;
+            wp   = wp(mg_ix).*mg_w;
 
             % Plot GMM fit
             pth = fullfile(dir_vis,[nam0 '-bff-' num2str(ax) '.nii']);

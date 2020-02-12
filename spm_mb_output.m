@@ -427,16 +427,9 @@ if any(write_df == true) || any(reshape(write_tc(:,[2 3]),[],1) == true) ||  any
         spm_mb_io('WriteNii',fpth,psi,Mn,descrip);
         resn.y  = fpth;
     end
-    
-%     if write_df(2)
-%         % Write inverse deformation
-%         descrip = 'Inverse deformation';
-%         nam     = ['iy_' namn '.nii'];
-%         fpth    = fullfile(dir_res,nam);
-%         spm_mb_io('WriteNii',fpth,psi,Mmu,descrip);
-%         resn.iy = fpth;
-%     end
 end
+
+% Clean-up
 if clean_def  && isa(datn.psi,'nifti') && isfile(datn.psi.dat.fname),          delete(datn.psi.dat.fname); end
 if ~write_vel && clean_vel && isa(datn.v,'nifti') && isfile(datn.v.dat.fname), delete(datn.v.dat.fname);   end
 end
