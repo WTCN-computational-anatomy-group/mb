@@ -418,7 +418,7 @@ else
 end
 
 % For visualising results (spm_mb_show)    
-if samp == 1
+if samp == 0
     spm_mb_io('Write2Visualise',datn,bffn,'bff',sett);
     if any(do_bf == true)
         spm_mb_io('Write2Visualise',datn,fn,'f',sett);
