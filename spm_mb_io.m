@@ -372,7 +372,7 @@ for n=1:N
     dat(n).nam = ['n' num2str(n)];
     matFromNii = false;
     if isa(F,'nifti') || (iscell(F) && (isa(F{1},'char') || isa(F{1},'nifti')))
-        dat(n).Mat = Nii(1).mat0;
+        dat(n).Mat = Nii(1).mat;
         [~,nam]    = fileparts(Nii(1).dat.fname);
         dat(n).nam = nam;
         matFromNii = true;

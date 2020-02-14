@@ -379,7 +379,7 @@ if ~isfield(sett,'var')
     sett.var = struct;
 end
 if ~isfield(sett.var,'mu_settings')
-    sett.var.mu_settings = [1e-3 0.2 0];
+    sett.var.mu_settings = [1e-3 0.2 0]; % [1e-2 0.50 0]
 end
 if ~isfield(sett.var,'v_settings')
     if sett.do.updt_aff

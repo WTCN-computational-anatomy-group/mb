@@ -244,129 +244,6 @@ end
 %==========================================================================
 
 %==========================================================================
-% InitPopulation()
-function dat = InitPopulation(dat,mu,pr,K,use_initgmm,w_mu,mg_ix,sett)
-
-% Parse function settings
-fwhm = sett.bf.fwhm;
-reg  = sett.bf.reg;
-
-% Parameters
-N     = numel(dat);
-K1    = K + 1;
-Kmg   = numel(mg_ix);
-[~,C] = spm_mb_io('GetSize',dat(1).f);
-
-% Lower bound struct
-lb  = struct('sum', NaN, 'X', [], 'XB', [], 'Z', [], 'P', [], 'MU', [], ...
-             'A', [], 'pr_v', [], 'pr_bf',[]);
-
-if ~use_initgmm
-    % A simple scheme based on image statistics is used to init the GMM
-    % parameters
-    mx  = zeros(C,numel(dat));
-    mn  = zeros(C,numel(dat));
-    avg = zeros(C,numel(dat));
-    vr  = zeros(C,numel(dat));
-else
-    % The InitGMM function is used to init GMM posterior and prior, as well
-    % as the bias field DC scaling
-    [po,pr,dc_all] = InitGMM(dat,sett);
-end
-
-% Loop over subjects in population(s)
-for n=1:N
-    [df,C] = spm_mb_io('GetSize',dat(n).f);
-
-    if ~use_initgmm
-        % Load image data
-        fn = spm_mb_io('GetImage',dat(n));
-
-        % Set bias field DC component based on making images in
-        % population closs to a mean value given by val
-        if any(dat(n).do_bf == true)
-            if ~isempty(pr)
-                % Weighted mean based on template and prior mean
-                val = w_mu.*pr.m;
-                val = sum(val,2);
-            else
-                val = 1e3*ones(1,C);
-            end
-
-            % Make mean close to val
-            dc = zeros(1,C);
-            for c=1:C
-                msk   = isfinite(fn(:,c));
-                dc(c) = val(c)./mean(fn(msk,c));
-            end
-            dc = log(dc);
-        end
-    else
-        dc = dc_all(:,n);
-    end
-
-    dat(n) = InitBias(dat(n),fwhm,dc);
-    if any(dat(n).do_bf == true)
-        % Modulate with bias field
-        chan = spm_mb_appearance('BiasBasis',dat(n).T,df,dat(n).Mat,reg,samp);
-        bf   = spm_mb_appearance('BiasField',dat(n).T,chan);
-        fn   = bf.*fn;
-    end
-
-    if ~use_initgmm
-        % Init GMM
-        [po,mx(:,n),mn(:,n),avg(:,n),vr(:,n)] = InitSimplePosteriorGMM(dat(n),fn,mu,pr,K1,mg_ix,sett);
-    end
-
-    % Assign GMM
-    mog.po     = po;
-    mog.lb     = lb;
-    mog.mg_w   = ones(1,Kmg)./arrayfun(@(x) sum(x == mg_ix), mg_ix);
-    dat(n).mog = mog;
-end
-
-if isempty(pr)
-    % Init GMM empirical prior
-    pr = InitSimplePriorGMM(mx,mn,avg,vr,mu,K1);
-end
-
-% Assign prior
-for n=1:numel(dat)
-    dat(n).mog.pr = pr;
-end
-
-if K1 < Kmg && numel(pr.n) ~= Kmg
-    % Modify posteriors and priors for when using multiple Gaussians per
-    % tissue
-    for n=1:N
-
-        is_ct = dat(n).is_ct;
-
-        % Posterior
-        po            = dat(n).mog.po;
-        gmm           = spm_gmm_lib('extras', 'more_gmms', {po.m,po.b,po.W,po.n}, mg_ix);
-        if ~is_ct, gmm{1} = abs(gmm{1}); end % make sure non-negative
-        po.m          = gmm{1};
-        po.b          = gmm{2};
-        po.W          = gmm{3};
-        po.n          = gmm{4};
-        dat(n).mog.po = po;
-
-        % Prior
-        pr            = dat(n).mog.pr;
-        gmm           = spm_gmm_lib('extras', 'more_gmms', {pr.m,pr.b,pr.W,pr.n}, mg_ix);
-        if ~is_ct, gmm{1} = abs(gmm{1}); end % make sure non-negative
-        pr.m          = gmm{1};
-        pr.b          = gmm{2};
-        pr.W          = gmm{3};
-        pr.n          = gmm{4};
-        dat(n).mog.pr = pr;
-    end
-end
-end
-%==========================================================================
-
-%==========================================================================
 % InitGMM()
 function dat = InitGMM(dat,sett)
 % Code for initialising a GMM over lots of images of different channels and
@@ -459,7 +336,7 @@ sk           = max([1 1 1],round(sampmu*[1 1 1]./vxmu));
 sk(dmu == 1) = 1; % defines sampling grid
 
 % Number of voxels to sample, and what indices (defined in template space)
-crp_prct = 0.3; % to skip sampling to many air voxels, which are usually in the outer parts of the images
+crp_prct = 0.1; % to skip sampling to many air voxels, which are usually in the outer parts of the images
 dmu_crp  = ceil((1 - 2*crp_prct)*dmu);
 diff_mu  = ceil((dmu - dmu_crp)/2);
 Nvx      = min(round(prod(dmu(1:3))/N), round(prod(dmu(1:3)./sk)));
@@ -504,7 +381,7 @@ for n=1:N % Loop over subjects
 
         % Move template space sample points to subject space
         Mn = dat(n1).Mat;
-        M  = Mmu\Mn;
+        M  = Mn\Mmu;
         yf = ymu*M';
         yf = reshape(yf(:,1:3),[Nvx 1 1 3]);
         if df(3) == 1, yf(:,:,:,3) = 1; end

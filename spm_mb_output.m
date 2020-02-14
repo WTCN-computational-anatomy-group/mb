@@ -251,11 +251,10 @@ if isfield(datn,'mog') && (any(write_bf(:) == true) || any(write_im(:) == true) 
     fn = bf.*fn;
     if do_infer
         % Infer missing values
-        code        = sum(bsxfun(@times, ~isnan(fn), 2.^(0:size(fn,2)-1)), 2);
         sample_post = do_infer > 1;
         MU          = datn.mog.po.m;
         A           = bsxfun(@times, datn.mog.po.W, reshape(datn.mog.po.n, [1 1 Kmg]));
-        fn          = spm_gmm_lib('InferMissing',reshape(fn,[prod(df) C]),zn,{MU,A},code,sample_post);
+        fn          = spm_gmm_lib('InferMissing',reshape(fn,[prod(df) C]),zn,{MU,A},code_image,sample_post);
         clear code
     end
 
