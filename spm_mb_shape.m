@@ -746,7 +746,7 @@ function [mu,dat] = UpdateMean(dat, mu, sett)
 % Parse function settings
 accel       = sett.gen.accel;
 mu_settings = sett.var.mu_settings;
-s_settings  = sett.shoot.s_settings;
+s_settings  = sett.gen.s_settings;
 num_workers = sett.gen.num_workers;
 
 g  = spm_field('vel2mom', mu, mu_settings);
@@ -918,13 +918,13 @@ function [mu,dat] = UpdateSimpleMean(dat, mu, sett)
 % Parse function settings
 accel       = sett.gen.accel;
 mu_settings = sett.var.mu_settings;
-s_settings  = sett.shoot.s_settings;
+s_settings  = sett.gen.s_settings;
 num_workers = sett.gen.num_workers;
 
 w  = zeros(sett.var.d,'single');
 gf = zeros(size(mu),'single');
 % for n=1:numel(dat)
-parfor(n=1:numel(dat),num_wortkers)
+parfor(n=1:numel(dat),num_workers)
     [gn,wn,dat(n)] = UpdateSimpleMeanSub(dat(n),mu,sett);
     gf             = gf + gn;
     w              = w  + wn;
@@ -989,7 +989,7 @@ B          = sett.registr.B;
 d          = sett.var.d;
 Mmu        = sett.var.Mmu;
 mu_bg      = sett.model.mu_bg;
-s_settings = sett.shoot.s_settings;
+s_settings = sett.gen.s_settings;
 scal       = sett.optim.scal_v;
 v_settings = sett.var.v_settings;
 
@@ -1112,7 +1112,7 @@ if ~isempty(avg_v)
     v    = v - avg_v;
 end
 datn.v   = spm_mb_io('SetData',datn.v,v);
-psi1     = Shoot(v, kernel, sett.shoot.args); % Geodesic shooting
+psi1     = Shoot(v, kernel, sett.gen.args); % Geodesic shooting
 datn.psi = spm_mb_io('SetData',datn.psi,psi1);
 end
 %==========================================================================
