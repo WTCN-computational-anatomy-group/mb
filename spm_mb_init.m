@@ -234,7 +234,7 @@ else
                 n1          = ix_ct(n);
                 dat(n1).mog = mog;
                 if any(dat(n1).do_bf == true)
-                    dat(n1) = InitBias(dat(n1),fwhm,dc);
+                    dat(n1) = InitBias(dat(n1),fwhm,[]);
                 end
             end
         end
