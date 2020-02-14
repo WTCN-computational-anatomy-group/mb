@@ -617,7 +617,7 @@ datn.mog.mg_w = mg_w;
 if nargout > 1
     % Compute full size resps
 
-    if samp > 1
+    if samp > 0
         % Compute responsibilities on original data
         fn = fn0;
 
