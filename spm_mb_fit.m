@@ -304,8 +304,7 @@ for zm=numel(sz):-1:1 % loop over zoom levels
         % Check convergence
         ix_done   = updt_aff + updt_diff;
         Objective = [Objective, E];
-        done      = abs(oE(ix_done) - E(ix_done))/abs(E(ix_done));
-        done      = 1;
+        done      = abs(oE(ix_done) - E(ix_done))/abs(E(ix_done));        
 
         % Print to command window
         spm_mb_show('PrintProgress',[zm it0],E,oE,toc(t),done,tol_diffeo,sett);
