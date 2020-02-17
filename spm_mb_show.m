@@ -7,6 +7,7 @@ function varargout = spm_mb_show(varargin)
 % FORMAT spm_mb_show('All',dat,mu,Objective,N,sett)
 % FORMAT spm_mb_show('IntensityPrior',dat,sett,p)
 % FORMAT spm_mb_show('Model',mu,Objective,N,sett)
+% FORMAT spm_mb_show('PrintDateTime')
 % FORMAT spm_mb_show('PrintProgress',it,E,oE,t,done,tol,sett)
 % FORMAT spm_mb_show('Subjects',dat,mu,sett,p,show_extras)
 % FORMAT spm_mb_show('Tissues',im,do_softmax,num_montage,perm,fig_nam)
@@ -30,6 +31,8 @@ switch id
         [varargout{1:nargout}] = IntensityPrior(varargin{:});
     case 'Model'
         [varargout{1:nargout}] = Model(varargin{:});
+    case 'PrintDateTime'
+        [varargout{1:nargout}] = PrintDateTime(varargin{:});        
     case 'PrintProgress'
         [varargout{1:nargout}] = PrintProgress(varargin{:});
     case 'Subjects'
@@ -329,6 +332,13 @@ for n=1:nd
     end
 end
 drawnow
+end
+%==========================================================================
+
+%==========================================================================
+% PrintDateTime()
+function PrintDateTime()
+disp([repmat('-',1,10) char(datetime(now,'InputFormat','yyyy-MM-dd HH:mm:ss.SSS','ConvertFrom','datenum')) repmat('-',1,10)]);
 end
 %==========================================================================
 
