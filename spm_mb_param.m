@@ -39,6 +39,7 @@ if template_given && appear_given
     sett.model.groupwise  = false;
     sett.do.updt_int      = false;
     sett.do.updt_template = false;
+    sett.write.model      = false;
 elseif template_given
     % Fit learned shape model, learn appearance model
     sett.model.groupwise  = false;
