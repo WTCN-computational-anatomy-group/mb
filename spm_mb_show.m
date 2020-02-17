@@ -81,7 +81,7 @@ end
 function Clear(sett)
 fn = {sett.show.figname_bf, sett.show.figname_int, sett.show.figname_model, ...
       sett.show.figname_subjects, sett.show.figname_parameters, ...
-      sett.show.figname_gmm};
+      sett.show.figname_init};
 for i=1:numel(fn)
     f = findobj('Type', 'Figure', 'Name', fn{i});
     if ~isempty(f), clf(f); drawnow; end

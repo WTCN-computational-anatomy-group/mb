@@ -263,7 +263,7 @@ K       = sett.model.K;
 Mmu     = sett.Mmu;
 fwhm    = sett.bf.fwhm;
 reg     = sett.bf.reg;
-fignam  = sett.show.figname_gmm;
+fignam  = sett.show.figname_init;
 figs    = sett.show.figs;
 use_lab = sett.labels.use_initgmm;
 
@@ -273,7 +273,7 @@ nit     = 256;   % Max number of iterations
 nit_sub = 64;    % Max number of sub-iterations to update GMM mu and Sigma
 do_dc   = true;
 wp_reg  = 0.01;  % Regularises the GMM proportion by a percentage of the sampled number of voxels
-verbose = any(strcmp(figs,'InitGMM'));
+verbose = any(strcmp(figs,'init'));
 
 Ndat = numel(dat);   % Total number of subjects
 K1   = K + 1;        % Number of Gaussians
