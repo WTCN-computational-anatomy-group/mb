@@ -69,7 +69,7 @@ end
 
 % Get memory requirement (with current template size)
 K1             = K + 1;
-Multiplier     = 5.5;                            % A multiplier that has been estimated empirically based on algorithm memory requirement
+Multiplier     = 8;                              % A multiplier that has been estimated empirically based on algorithm memory requirement
 NumFloats      = Multiplier*prod(dm(1:3))*K1;    % times two..we also keep images, etc in memory (rough)
 FloatSizeBytes = 4;                              % One float is four bytes (single precision)
 MemReq         = (NumFloats*FloatSizeBytes)/1e6; % to MB
