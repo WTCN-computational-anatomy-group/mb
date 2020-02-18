@@ -7,12 +7,12 @@ function varargout = spm_mb_shape(varargin)
 % FORMAT B             = spm_mb_shape('AffineBases',code)
 % FORMAT psi           = spm_mb_shape('Compose',psi1,psi0)
 % FORMAT id            = spm_mb_shape('Identity',d)
-% FORMAT dat           = spm_mb_shape('InitDef',dat,sett)
+% FORMAT dat           = spm_mb_shape('InitDef',dat,model,sett)
 % FORMAT l             = spm_mb_shape('LSE',mu,dr)
 % FORMAT sett          = spm_mb_shape('MuValOutsideFOV',mu,sett);
 % FORMAT a1            = spm_mb_shape('Pull1',a0,psi,bg,r)
 % FORMAT [f1,w1]       = spm_mb_shape('Push1',f,psi,d,r,bg)
-% FORMAT dat           = spm_mb_shape('RigidAlignTemplate',dat,model,sett)
+% FORMAT q             = spm_mb_shape('Rigid2MNI',V,sett)
 % FORMAT sd            = spm_mb_shape('SampDens',Mmu,Mn)
 % FORMAT varargout     = spm_mb_shape('Shoot',v0,kernel,args)
 % FORMAT mu1           = spm_mb_shape('ShrinkTemplate',mu,oMmu,sett)
@@ -58,8 +58,8 @@ switch id
         [varargout{1:nargout}] = Pull1(varargin{:});
     case 'Push1'
         [varargout{1:nargout}] = Push1(varargin{:});
-    case 'RigidAlignTemplate'
-        [varargout{1:nargout}] = RigidAlignTemplate(varargin{:});
+    case 'Rigid2MNI'
+        [varargout{1:nargout}] = Rigid2MNI(varargin{:});
     case 'SampDens'
         [varargout{1:nargout}] = SampDens(varargin{:});
     case 'Shoot'
@@ -190,7 +190,7 @@ end
 
 %==========================================================================
 % InitDef()
-function dat = InitDef(dat,sett)
+function dat = InitDef(dat,model,sett)
 
 % Parse function settings
 B       = sett.registr.B;
@@ -228,6 +228,28 @@ for n=1:numel(dat)
             nii.dat(:,:,:,:) = psi1;
             dat(n).psi  = nii;
         end
+    end
+end
+
+template_given = spm_mb_param('SetFit',model,sett);
+
+if template_given && d(3) > 1
+    % If template given and 3D, make quick rigid alignment to MNI space
+    for n=1:numel(dat)
+        if isa(dat(n).f,'nifti')
+            Vn = spm_vol(dat(n).f(1).dat.fname);
+        elseif ~isempty(dat(n).V)
+            Vn = dat(n).V;
+        else
+            continue
+        end    
+        Vn = Vn(1);
+
+        % Get rigid alignment to MNI
+        q = Rigid2MNI(Vn,sett);
+
+        % Set rigid parameters
+        dat(n).q = q;
     end
 end
 end
@@ -432,90 +454,6 @@ else
     f1(~msk) = 0;
     w1       = all(msk,4);
 end
-end
-%==========================================================================
-
-%==========================================================================
-% RigidAlignTemplate()
-function dat = RigidAlignTemplate(dat,model,sett)
-
-% Parse function settings
-dir_res  = sett.write.dir_res;
-Mmu      = sett.Mmu;
-updt_aff = sett.do.updt_aff;
-
-if ~updt_aff, return; end
-
-% Get template
-pth_mu = model.shape.template;
-mu_sm  = spm_mb_io('GetData',pth_mu);
-
-if size(mu_sm,3) == 1, return; end % do not run if data is 2D
-
-% Softmax
-mu_sm = spm_mb_shape('TemplateK1',mu_sm,4);
-mu_sm = exp(mu_sm);
-
-% Write softmaxed template
-pth_mu_sm        = fullfile(dir_res ,'mu_softmax_spm_mb.nii');
-fa               = file_array(pth_mu_sm,size(mu_sm),'float32',0);
-Nmu              = nifti;
-Nmu.dat          = fa;
-Nmu.mat          = Mmu;
-Nmu.mat0         = Mmu;
-Nmu.descrip      = 'Mean parameters (softmax)';
-create(Nmu);
-Nmu.dat(:,:,:,:) = mu_sm;
-
-% Load softmaxed template
-Vmu   = spm_vol(pth_mu_sm);
-mu_sm = spm_load_priors8(Vmu);
-
-N = numel(dat);
-for n=1:N % loop over subjects
-    % Image params
-    if ~isempty(dat(n).V)
-        Vn = dat(n).V;
-    else
-        Vn = spm_vol(dat(n).f(1).dat.fname);
-    end
-    Vn = Vn(1);
-    Mn = Vn.mat;
-    
-    % Register atlas to image to get get R (so that Mmu\R*Mf)
-    c             = (Vn.dim+1)/2;
-    Vn.mat(1:3,4) = -Mn(1:3,1:3)*c(:);
-    [Affine1,ll1] = spm_maff8(Vn,8,(0+1)*16,mu_sm,[],'mni'); % Closer to rigid
-    Affine1       = Affine1*(Vn.mat/Mn);
-
-    % Run using the origin from the header
-    Vn.mat        = Mn;
-    [Affine2,ll2] = spm_maff8(Vn,8,(0+1)*16,mu_sm,[],'mni'); % Closer to rigid
-
-    % Pick the result with the best fit
-    if ll1>ll2
-        R = Affine1;
-    else
-        R = Affine2;
-    end
-
-    % Fit final
-    R = spm_maff8(Vn,8,32,mu_sm,R,'mni');
-    R = spm_maff8(Vn,8,1,mu_sm,R,'mni');
-
-    % Get best fit in Lie space
-    e  = eig(R);
-    if isreal(e) && any(e<=0), disp('Possible problem!'); disp(eig(R)); end
-    B1 = reshape(sett.registr.B,[16 size(sett.registr.B,3)]);
-    q  = B1\reshape(real(logm(R)),[16 1]);
-
-    % Update rigid parameters
-    dat(n).q = q;
-end
-
-% Delete softmaxed template
-delete(pth_mu_sm);
-
 end
 %==========================================================================
 
@@ -1527,3 +1465,70 @@ end
 end
 %==========================================================================
 
+%==========================================================================
+function q = Rigid2MNI(V,sett)
+% Estimate rigid alignment to MNI space
+
+% Parse function settings
+B = sett.registr.B;
+
+% Load tissue probability data
+tpm = fullfile(spm('dir'),'tpm','TPM.nii,');
+tpm = [repmat(tpm,[6 1]) num2str((1:6)')];
+tpm = spm_load_priors8(tpm);
+
+% Do affine registration to SPM12 atlas space (MNI)
+M               = V(1).mat;
+c               = (V(1).dim+1)/2;
+V(1).mat(1:3,4) = -M(1:3,1:3)*c(:);
+[Affine1,ll1]   = spm_maff8(V(1),8,(0+1)*16,tpm,[],'mni'); % Closer to rigid
+Affine1         = Affine1*(V(1).mat/M);
+
+% Run using the origin from the header
+V(1).mat      = M;
+[Affine2,ll2] = spm_maff8(V(1),8,(0+1)*16,tpm,[],'mni'); % Closer to rigid
+
+% Pick the result with the best fit
+if ll1>ll2, Affine  = Affine1; else Affine  = Affine2; end
+
+% Generate mm coordinates of where deformations map from
+x      = affind(rgrid(size(tpm.dat{1})),tpm.M);
+
+% Generate mm coordinates of where deformation maps to
+y1     = affind(x,inv(Affine));
+
+% Weight the transform via GM+WM
+weight = single(exp(tpm.dat{1})+exp(tpm.dat{2}));
+
+% Weighted Procrustes analysis
+[~,R]  = spm_get_closest_affine(x,y1,weight);
+
+% Get best fit in Lie space
+R  = inv(R);
+e  = eig(R);
+if isreal(e) && any(e<=0), disp('Possible problem!'); disp(eig(R)); end
+B1 = reshape(B,[16 size(B,3)]);
+q  = B1\reshape(real(logm(R)),[16 1]);
+end
+%==========================================================================
+
+%==========================================================================
+function x = rgrid(d)
+x = zeros([d(1:3) 3],'single');
+[x1,x2] = ndgrid(single(1:d(1)),single(1:d(2)));
+for i=1:d(3)
+    x(:,:,i,1) = x1;
+    x(:,:,i,2) = x2;
+    x(:,:,i,3) = single(i);
+end
+end
+%==========================================================================
+
+%==========================================================================
+function y1 = affind(y0,M)
+y1 = zeros(size(y0),'single');
+for d=1:3
+    y1(:,:,:,d) = y0(:,:,:,1)*M(d,1) + y0(:,:,:,2)*M(d,2) + y0(:,:,:,3)*M(d,3) + M(d,4);
+end
+end
+%==========================================================================

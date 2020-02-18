@@ -100,7 +100,7 @@ end
 if template_given
     dmu       = spm_mb_io('GetSize',model.shape.template);
     [mu0,Mmu] = spm_mb_io('GetData',model.shape.template);
-    sett      = spm_mb_shape('MuValOutsideFOV',mu0,sett); % For dealing with voxels outside of template's FOV (adds field sett.model.mu_bg)
+%     sett      = spm_mb_shape('MuValOutsideFOV',mu0,sett); % For dealing with voxels outside of template's FOV (adds field sett.model.mu_bg)
 else
     [Mmu,dmu] = spm_mb_shape('SpecifyMean',dat,vx,sett);
 end
@@ -134,7 +134,7 @@ sett.var = spm_mb_io('CopyFields',sz(end), sett.var);
 % Init shape model parameters
 %------------------
 
-dat = spm_mb_shape('InitDef',dat,sett);
+dat = spm_mb_shape('InitDef',dat,model,sett);
 
 %------------------
 % Init apperance model parameters
