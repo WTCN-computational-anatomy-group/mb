@@ -632,14 +632,14 @@ end
 function dat = UpdateAffines(dat,mu,sett)
 
 % Parse function settings
-B           = sett.registr.B;
-groupwise   = sett.model.groupwise;
-num_workers = spm_mb_param('GetNumWork',sett);
+B         = sett.registr.B;
+groupwise = sett.model.groupwise;
+nw        = spm_mb_param('GetNumWork',sett);
 
 % Update the affine parameters
 if ~isempty(B)
-    if num_workers > 1 && numel(dat) > 1 % PARFOR
-        parfor(n=1:numel(dat),num_workers), dat(n) = UpdateAffinesSub(dat(n),mu,sett); end
+    if nw > 1 && numel(dat) > 1 % PARFOR
+        parfor(n=1:numel(dat),nw), dat(n) = UpdateAffinesSub(dat(n),mu,sett); end
     else % FOR
         for n=1:numel(dat), dat(n) = UpdateAffinesSub(dat(n),mu,sett); end
     end
@@ -748,12 +748,12 @@ function [mu,dat] = UpdateMean(dat, mu, sett)
 accel       = sett.gen.accel;
 mu_settings = sett.var.mu_settings;
 s_settings  = sett.gen.s_settings;
-num_workers = spm_mb_param('GetNumWork',sett);
+nw          = spm_mb_param('GetNumWork',sett);
 
 g  = spm_field('vel2mom', mu, mu_settings);
 w  = zeros(sett.var.d,'single');
-if num_workers > 1 && numel(dat) > 1 % PARFOR
-    parfor(n=1:numel(dat),num_workers)
+if nw > 1 && numel(dat) > 1 % PARFOR
+    parfor(n=1:numel(dat),nw)
         [gn,wn,dat(n)] = UpdateMeanSub(dat(n),mu,sett);
         g              = g + gn;
         w              = w + wn;
@@ -927,12 +927,12 @@ function [mu,dat] = UpdateSimpleMean(dat, mu, sett)
 accel       = sett.gen.accel;
 mu_settings = sett.var.mu_settings;
 s_settings  = sett.gen.s_settings;
-num_workers = spm_mb_param('GetNumWork',sett);
+nw          = spm_mb_param('GetNumWork',sett);
 
 w  = zeros(sett.var.d,'single');
 gf = zeros(size(mu),'single');
-if num_workers > 1 && numel(dat) > 1 % PARFOR
-    parfor(n=1:numel(dat),num_workers)
+if nw > 1 && numel(dat) > 1 % PARFOR
+    parfor(n=1:numel(dat),nw)
         [gn,wn,dat(n)] = UpdateSimpleMeanSub(dat(n),mu,sett);
         gf             = gf + gn;
         w              = w  + wn;
@@ -979,8 +979,8 @@ end
 function dat = UpdateVelocities(dat,mu,sett)
 
 % Parse function settings
-accel       = sett.gen.accel;
-num_workers = spm_mb_param('GetNumWork',sett);
+accel = sett.gen.accel;
+nw    = spm_mb_param('GetNumWork',sett);
 
 G  = spm_diffeo('grad',mu);
 H0 = VelocityHessian(mu,G,accel);
@@ -988,8 +988,8 @@ if size(G,3) == 1
     % Data is 2D -> add some regularisation
     H0(:,:,:,3) = H0(:,:,:,3) + mean(reshape(H0(:,:,:,[1 2]),[],1));
 end
-if num_workers > 1 && numel(dat) > 1 % PARFOR
-    parfor(n=1:numel(dat),num_workers), dat(n) = UpdateVelocitiesSub(dat(n),mu,G,H0,sett); end
+if nw > 1 && numel(dat) > 1 % PARFOR
+    parfor(n=1:numel(dat),nw), dat(n) = UpdateVelocitiesSub(dat(n),mu,G,H0,sett); end
 else % FOR
     for n=1:numel(dat), dat(n) = UpdateVelocitiesSub(dat(n),mu,G,H0,sett); end
 end
@@ -1095,15 +1095,15 @@ end
 function dat = UpdateWarps(dat,sett)
 
 % Parse function settings
-groupwise   = sett.model.groupwise;
-v_settings  = sett.var.v_settings;
-num_workers = spm_mb_param('GetNumWork',sett);
+groupwise  = sett.model.groupwise;
+v_settings = sett.var.v_settings;
+nw         = spm_mb_param('GetNumWork',sett);
 
 if groupwise
     % Total initial velocity should be zero (Khan & Beg), so mean correct
     avg_v = single(0);
-    if num_workers > 1 && numel(dat) > 1 % PARFOR
-        parfor(n=1:numel(dat),num_workers), avg_v = avg_v + spm_mb_io('GetData',dat(n).v); end
+    if nw > 1 && numel(dat) > 1 % PARFOR
+        parfor(n=1:numel(dat),nw), avg_v = avg_v + spm_mb_io('GetData',dat(n).v); end
     else % FOR
         for n=1:numel(dat), avg_v = avg_v + spm_mb_io('GetData',dat(n).v); end
     end
@@ -1115,8 +1115,8 @@ else
 end
 
 kernel = Shoot(d,v_settings);
-if num_workers > 1 && numel(dat) > 1 % PARFOR
-    parfor(n=1:numel(dat),num_workers), dat(n) = UpdateWarpsSub(dat(n),avg_v,sett,kernel); end
+if nw > 1 && numel(dat) > 1 % PARFOR
+    parfor(n=1:numel(dat),nw), dat(n) = UpdateWarpsSub(dat(n),avg_v,sett,kernel); end
 else % FOR
     for n=1:numel(dat), dat(n) = UpdateWarpsSub(dat(n),avg_v,sett,kernel); end
 end
@@ -1141,11 +1141,11 @@ end
 function dat = VelocityEnergy(dat,sett)
 
 % Parse function settings
-v_settings  = sett.var.v_settings;
-num_workers = spm_mb_param('GetNumWork',sett);
+v_settings = sett.var.v_settings;
+nw         = spm_mb_param('GetNumWork',sett);
 
-if num_workers > 1 && numel(dat) > 1 % PARFOR
-    parfor(n=1:numel(dat),num_workers)
+if nw > 1 && numel(dat) > 1 % PARFOR
+    parfor(n=1:numel(dat),nw)
         v           = spm_mb_io('GetData',dat(n).v);
         u0          = spm_diffeo('vel2mom', v, v_settings); % Initial momentum
         dat(n).E(2) = 0.5*sum(u0(:).*v(:));                 % Prior term
@@ -1165,9 +1165,9 @@ end
 function [dat,mu] = ZoomVolumes(dat,mu,sett,oMmu)
 
 % Parse function settings
-d           = sett.var.d;
-Mmu         = sett.var.Mmu;
-num_workers = spm_mb_param('GetNumWork',sett);
+d   = sett.var.d;
+Mmu = sett.var.Mmu;
+nw  = spm_mb_param('GetNumWork',sett);
 
 d0    = [size(mu,1) size(mu,2) size(mu,3)];
 z     = single(reshape(d./d0,[1 1 1 3]));
@@ -1176,8 +1176,8 @@ y     = reshape(reshape(Identity(d),[prod(d),3])*Mzoom(1:3,1:3)' + Mzoom(1:3,4)'
 if nargout > 1 || ~isempty(mu), mu = spm_diffeo('pullc',mu,y); end % only resize template if updating it
 
 if ~isempty(dat)
-    if num_workers > 1 && numel(dat) > 1 % PARFOR
-        parfor(n=1:numel(dat),num_workers)
+    if nw > 1 && numel(dat) > 1 % PARFOR
+        parfor(n=1:numel(dat),nw)
             v          = spm_mb_io('GetData',dat(n).v);
             v          = spm_diffeo('pullc',v,y).*z;
             dat(n).v   = ResizeFile(dat(n).v  ,d,Mmu);
