@@ -634,7 +634,7 @@ function dat = UpdateAffines(dat,mu,sett)
 % Parse function settings
 B           = sett.registr.B;
 groupwise   = sett.model.groupwise;
-num_workers = sett.gen.num_workers;
+num_workers = spm_mb_param('GetNumWork',sett);
 
 % Update the affine parameters
 if ~isempty(B)
@@ -748,7 +748,7 @@ function [mu,dat] = UpdateMean(dat, mu, sett)
 accel       = sett.gen.accel;
 mu_settings = sett.var.mu_settings;
 s_settings  = sett.gen.s_settings;
-num_workers = sett.gen.num_workers;
+num_workers = spm_mb_param('GetNumWork',sett);
 
 g  = spm_field('vel2mom', mu, mu_settings);
 w  = zeros(sett.var.d,'single');
@@ -927,7 +927,7 @@ function [mu,dat] = UpdateSimpleMean(dat, mu, sett)
 accel       = sett.gen.accel;
 mu_settings = sett.var.mu_settings;
 s_settings  = sett.gen.s_settings;
-num_workers = sett.gen.num_workers;
+num_workers = spm_mb_param('GetNumWork',sett);
 
 w  = zeros(sett.var.d,'single');
 gf = zeros(size(mu),'single');
@@ -980,7 +980,7 @@ function dat = UpdateVelocities(dat,mu,sett)
 
 % Parse function settings
 accel       = sett.gen.accel;
-num_workers = sett.gen.num_workers;
+num_workers = spm_mb_param('GetNumWork',sett);
 
 G  = spm_diffeo('grad',mu);
 H0 = VelocityHessian(mu,G,accel);
@@ -1097,7 +1097,7 @@ function dat = UpdateWarps(dat,sett)
 % Parse function settings
 groupwise   = sett.model.groupwise;
 v_settings  = sett.var.v_settings;
-num_workers = sett.gen.num_workers;
+num_workers = spm_mb_param('GetNumWork',sett);
 
 if groupwise
     % Total initial velocity should be zero (Khan & Beg), so mean correct
@@ -1142,7 +1142,7 @@ function dat = VelocityEnergy(dat,sett)
 
 % Parse function settings
 v_settings  = sett.var.v_settings;
-num_workers = sett.gen.num_workers;
+num_workers = spm_mb_param('GetNumWork',sett);
 
 if num_workers > 1 && numel(dat) > 1 % PARFOR
     parfor(n=1:numel(dat),num_workers)
@@ -1167,7 +1167,7 @@ function [dat,mu] = ZoomVolumes(dat,mu,sett,oMmu)
 % Parse function settings
 d           = sett.var.d;
 Mmu         = sett.var.Mmu;
-num_workers = sett.gen.num_workers;
+num_workers = spm_mb_param('GetNumWork',sett);
 
 d0    = [size(mu,1) size(mu,2) size(mu,3)];
 z     = single(reshape(d./d0,[1 1 1 3]));

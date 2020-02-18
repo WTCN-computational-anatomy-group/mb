@@ -3,6 +3,7 @@ function varargout = spm_mb_param(varargin)
 %
 % Functions for settings and parameters related.
 %
+% FORMAT nw                                 = spm_mb_param('GetNumWork',sett)
 % FORMAT [template_given,appear_given,sett] = spm_mb_param('SetFit',model,sett)
 % FORMAT sett                               = spm_mb_param('Settings')
 %
@@ -16,6 +17,8 @@ end
 id = varargin{1};
 varargin = varargin(2:end);
 switch id
+    case 'GetNumWork'
+        [varargout{1:nargout}] = GetNumWork(varargin{:});    
     case 'SetFit'
         [varargout{1:nargout}] = SetFit(varargin{:});
     case 'Settings'
@@ -24,6 +27,52 @@ switch id
         help spm_mb_param
         error('Unknown function %s. Type ''help spm_mb_param'' for help.', id)
 end
+end
+%==========================================================================
+
+%==========================================================================
+% GetNumWork()
+function nw = GetNumWork(sett)
+% Estimate number of parfor workers from available system RAM
+% (if sett.gen.num_workers = -1)
+
+% Parse function settings
+MemMax  = sett.gen.memmx;   % max memory usage (in MB)
+NumWork = sett.gen.num_workers;
+dm      = sett.var.d;       % current template dimensions
+K       = sett.model.K;     % template classes
+
+if NumWork >= 0
+    % Only estimates number of workers if sett.gen.num_workers = -1
+    nw = NumWork;
+    return
+end
+
+if MemMax == 0 % default
+    try
+        % Get memory info automatically (in MB)
+        if ispc
+            % Windows
+            [~,meminfo] = memory;
+            MemMax      = meminfo.PhysicalMemory.Available;
+        else         
+            % UNIX
+            [~,meminfo] = system('free --mega');
+            meminfo     = string(meminfo);
+            meminfo     = strsplit(meminfo,' ');
+            MemMax      = str2double(meminfo{14}); % field that holds available RAM (MATLAB 2018a)
+        end
+    catch
+        MemMax = 8096;
+    end
+end
+
+% Get memory requirement (with current template size)
+NumFloats      = 2*prod(dm(1:3))*K;              % times two..we also keep images, etc in memory (rough)
+FloatSizeBytes = 4;                              % One float is four bytes (single precision)
+MemReq         = (NumFloats*FloatSizeBytes)/1e6; % to MB
+
+nw = floor(MemMax/MemReq) - 1; % Number of parfor workers to use (minus one..for main thread)
 end
 %==========================================================================
 
@@ -63,7 +112,7 @@ sdef = struct('appear',  struct('tol_gmm',1e-4),...
               'do',      struct('gmm', true, 'infer',1, 'mu_bg', 0, 'updt_aff', true,...
                                 'updt_bf', true, 'updt_prop', true, 'updt_template', true,...
                                 'updt_vel', true, 'zoom', true, 'updt_int', true),...
-              'gen',     struct('accel', 0.8, 'run2d', 0, 'samp', 3, 'samp_min', 1, 'num_workers', 0, 's_settings', [3 2],'args', 8),...
+              'gen',     struct('accel', 0.8, 'run2d', 0, 'samp', 3, 'samp_min', 1, 'num_workers', 0, 's_settings', [3 2],'args', 8, 'memmx', 0),...
               'labels',  struct('use', false, 'w', 0.99, 'use_initgmm', true),...
               'model',   struct('crop_mu', false, 'groupwise', false, 'init_mu_dm', 16, 'ix_init_pop', 1,...
                                 'K', 6, 'mg_ix', 1, 'mg_ix_intro', true, 'mu_bg', [], 'vx', 1, 'tol_aff', 1e-5,...
