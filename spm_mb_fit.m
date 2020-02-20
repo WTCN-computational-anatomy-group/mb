@@ -216,7 +216,7 @@ for it0=1:nit_aff
     % Show stuff
     spm_mb_show('All',dat,mu,Objective,N,sett);
 
-    if do_gmm && it0 == 1
+    if do_gmm && it0 == 1 && (numel(sett.model.mg_ix_intro) ~= numel(sett.model.mg_ix))
         % Introduce multiple Gaussians per tissue
         [dat,sett] = spm_mb_appearance('IntroduceMG',dat,sett);
     end
