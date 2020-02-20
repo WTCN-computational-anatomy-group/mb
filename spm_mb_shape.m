@@ -231,27 +231,27 @@ for n=1:numel(dat)
     end
 end
 
-template_given = spm_mb_param('SetFit',model,sett);
-
-if template_given && d(3) > 1
-    % If template given and 3D, make quick rigid alignment to MNI space
-    for n=1:numel(dat)
-        if isa(dat(n).f,'nifti')
-            Vn = spm_vol(dat(n).f(1).dat.fname);
-        elseif ~isempty(dat(n).V)
-            Vn = dat(n).V;
-        else
-            continue
-        end    
-        Vn = Vn(1);
-
-        % Get rigid alignment to MNI
-        q = Rigid2MNI(Vn,sett);
-
-        % Set rigid parameters
-        dat(n).q = q;
-    end
-end
+% template_given = spm_mb_param('SetFit',model,sett);
+% 
+% if template_given && d(3) > 1
+%     % If template given and 3D, make quick rigid alignment to MNI space
+%     for n=1:numel(dat)
+%         if isa(dat(n).f,'nifti')
+%             Vn = spm_vol(dat(n).f(1).dat.fname);
+%         elseif ~isempty(dat(n).V)
+%             Vn = dat(n).V;
+%         else
+%             continue
+%         end    
+%         Vn = Vn(1);
+% 
+%         % Get rigid alignment to MNI
+%         q = Rigid2MNI(Vn,sett);
+% 
+%         % Set rigid parameters
+%         dat(n).q = q;
+%     end
+% end
 end
 %==========================================================================
 
