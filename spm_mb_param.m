@@ -37,10 +37,11 @@ function nw = GetNumWork(sett)
 % (if sett.gen.num_workers = -1)
 
 % Parse function settings
-MemMax  = sett.gen.memmx;   % max memory usage (in MB)
-NumWork = sett.gen.num_workers;
-dm      = sett.var.d;       % current template dimensions
-K       = sett.model.K;     % template classes
+MemMax       = sett.gen.memmx;   % max memory usage (in MB)
+NumWork      = sett.gen.num_workers;
+dm           = sett.var.d;       % current template dimensions
+K            = sett.model.K;     % template classes
+print2screen = sett.show.print2screen;
 
 if NumWork >= 0
     % Only estimates number of workers if sett.gen.num_workers = -1
@@ -75,6 +76,8 @@ FloatSizeBytes = 4;                              % One float is four bytes (sing
 MemReq         = (NumFloats*FloatSizeBytes)/1e6; % to MB
 
 nw = floor(MemMax/MemReq) - 1; % Number of parfor workers to use (minus one..for main thread)
+
+if print2screen, printf('Current amount of available RAM allows parfor to use %i workers\n',nw); end
 end
 %==========================================================================
 
