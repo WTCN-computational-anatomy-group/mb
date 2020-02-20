@@ -176,7 +176,7 @@ if updt_aff
 %------------------
 
 spm_mb_show('Speak','Affine',sett);
-spm_mb_show('PrintDateTime');
+spm_mb_show('PrintDateTime',sett);
 
 sett.gen.samp = numel(sz); % coarse-to-fine sampling of observed data
 
@@ -245,7 +245,7 @@ oE = E;
 
 for zm=numel(sz):-1:1 % loop over zoom levels
 
-    spm_mb_show('PrintDateTime');
+    spm_mb_show('PrintDateTime',sett);
     
     sett.gen.samp = max(zm,samp_min); % coarse-to-fine sampling of observed data
 
