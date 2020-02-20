@@ -5,7 +5,6 @@ function varargout = spm_mb_io(varargin)
 %
 % FORMAT fn              = spm_mb_io('GetImage',datn)
 % FORMAT to              = spm_mb_io('CopyFields',from,to)
-% FORMAT pth             = spm_mb_io('CropTemplate',pth,centre,bb)
 % FORMAT [P,datn]        = spm_mb_io('GetClasses',datn,mu,sett)
 % FORMAT [ict,imr1,imr2] = spm_mb_io('GetCTandMRI',dat)
 % FORMAT [out,M]         = spm_mb_io('GetData',in)
@@ -15,6 +14,7 @@ function varargout = spm_mb_io(varargin)
 % FORMAT dat             = spm_mb_io('InitDat',data,sett)
 % FORMAT model           = spm_mb_io('LoadModel',PthModel,sett)
 % FORMAT model           = spm_mb_io('MakeModel',dat,model,sett)
+% FORMAT pth             = spm_mb_io('ModModel',PthModel,centre,bb,ncls,verbose)
 % FORMAT [psi,fpth]      = spm_mb_io('SavePsiSub',datn,sett)
 % FORMAT                   spm_mb_io('SaveTemplate',dat,mu,sett)
 % FORMAT                   spm_mb_io('SetBoundCond')
@@ -36,9 +36,7 @@ switch id
     case 'GetImage'
         [varargout{1:nargout}] = GetImage(varargin{:});
     case 'CopyFields'
-        [varargout{1:nargout}] = CopyFields(varargin{:});
-    case 'CropTemplate'
-        [varargout{1:nargout}] = CropTemplate(varargin{:});
+        [varargout{1:nargout}] = CopyFields(varargin{:});    
     case 'GetClasses'
         [varargout{1:nargout}] = GetClasses(varargin{:});
     case 'GetCTandMRI'
@@ -57,6 +55,8 @@ switch id
         [varargout{1:nargout}] = LoadModel(varargin{:});
     case 'MakeModel'
         [varargout{1:nargout}] = MakeModel(varargin{:});
+    case 'ModModel'
+        [varargout{1:nargout}] = ModModel(varargin{:});        
     case 'SavePsiSub'
         [varargout{1:nargout}] = SavePsiSub(varargin{:});
     case 'SaveTemplate'
@@ -89,22 +89,122 @@ end
 %==========================================================================
 
 %==========================================================================
-% CropTemplate()
-function fout = CropTemplate(fin,centre,bb)
-if nargin < 2, centre = []; end
-if nargin < 3, bb     = 0;  end
+% ModModel()
+function nPthTemplate = ModModel(PthModel,centre,bb,ncls,verbose)
+% Takes a learned shape and appearance model and modifies it
+% PthModel - [char array]      Path to spm_mb_model.mat
+% centre   - [1x3 matrix]      Center voxel for cropping template
+% bb       - [2x3 matrix]      Number of voxels to retain in each direction from 'centre'
+% ncls     - [1xKn cell array] New class `distribution'. For example if
+%            ncls = {[1 2],3,4,5,6}, then the orignal model had K=6 template classes
+%            and the new model will have the template and GMM prior adjusted as to
+%            have Kn=5 classes, according to ncls.
+% verbose  - [bool]            Show modified template with spm_check_reg
+
+if nargin < 2, centre  = []; end
+if nargin < 3, bb      = 0;  end
+if nargin < 4, ncls    = {};  end
+if nargin < 5, verbose = true;  end
 
 if isscalar(bb), bb = bb*ones(2,3); end
 
-[pth,nam,ext] = fileparts(fin);
-fout          = fullfile(pth,['sv' nam ext]);    
+% Load model
+model = LoadModel(PthModel);
 
-bb = [centre - bb(1,:); centre + bb(2,:)]; % [l b d], [r f u]
+if ~(isfield(model,'shape') && isfield(model.shape,'template')) || ...
+   ~(isfield(model,'appear') && isfield(model.appear,'pr'))
+    % Empty model, return
+    return
+end
 
-V = spm_vol(fin);
-for k=1:numel(V), SubVol(V(k),bb); end
+if isfield(model,'shape') && isfield(model.shape,'template')    
+    % Modify shape model
+    %-----------------------
+    
+    % Get path to template
+    PthTemplate = fullfile(fileparts(PthModel),model.shape.template);
+    
+    % New template filename
+    [pth,nam,ext] = fileparts(PthTemplate);
+    fnam          = ['mod_' nam ext];
+    nPthTemplate  = fullfile(pth,fnam);    
 
-spm_check_registration([fout ',1']);
+    % Make bounding box
+    bb = [centre - bb(1,:); centre + bb(2,:)]; % [left, back bottom], [right front top]
+
+    % Apply bounding box
+    V = spm_vol(nPthTemplate);
+    for k=1:numel(V), SubVol(V(k),bb); end           
+    
+    if ~isempty(ncls)
+        % Adjust class distribution according to 'ncls'
+        %-----------------------
+        
+        % Get template data
+        Nii = nifti(nPthTemplate);
+        im  = Nii.dat();
+        dm  = size(im);
+        K   = numel(ncls);
+
+        % Modify template data
+        nim = zeros([dm(1:3) K],'single');
+        for k=1:K
+            k1           = ncls{k};
+            nim(:,:,:,k) = sum(im(:,:,:,k1),4);
+        end
+        nim = log(max(nim(:,:,:,1:K),eps('single')));
+        nim = nim(:,:,:,1:K-1) - nim(:,:,:,K);
+        
+        % Write modified template
+        spm_mb_io('WriteNii',nPthTemplate,nim,Nii.mat,'spm_mb_mu');
+    end
+    
+    % Modify model
+    model.shape.template = fnam;
+    
+    % Show modified template
+    if verbose, spm_check_registration([nPthTemplate ',1']); end
+end
+
+if isfield(model,'appear') && isfield(model.appear,'pr')
+    % Modify appearance model
+    %-----------------------
+    
+    % Get GMM prior
+    pr   = model.appear.pr;
+    keys = pr.keys;
+    K    = numel(ncls);
+    
+    % New indexing for uwing multiple Gaussians per tissue
+    mg_ix = [];
+    for k=1:K
+        k1    = ncls{k};
+        mg_ix = [mg_ix k*ones(1,numel(k1))];
+    end
+        
+    % Adjust GMM prior
+    ncls = cell2mat(ncls);
+    for k=1:numel(keys)
+        prk   = pr(keys{k});
+        
+        prk.m = prk.m(:,ncls);
+        prk.b = prk.b(ncls);
+        prk.W = prk.W(:,:,ncls);
+        prk.n = prk.n(ncls);
+        
+        pr(keys{k}) = prk;
+    end
+
+    % Modify model
+    model.appear.pr    = pr;    
+    model.appear.mg_ix = mg_ix;
+end
+
+% Save modified model
+%-----------------------
+[pth,nam,ext] = fileparts(PthModel);
+nPthModel     = fullfile(pth,['mod_' nam ext]);    
+save(nPthModel,'model');
 end
 %==========================================================================
 
@@ -445,10 +545,19 @@ end
 %==========================================================================
 % LoadModel()
 function model = LoadModel(PthModel,sett)
+if nargin < 2, sett = struct; end
 
 % Parse function settings
-appear_ix  = sett.model.appear_ix;
-appear_chn = sett.model.appear_chn;
+if isfield(sett,'model') && isfield(sett.model,'appear_ix')
+    appear_ix = sett.model.appear_ix;
+else
+    appear_ix = 1;
+end
+if isfield(sett,'model') && isfield(sett.model,'appear_chn')
+    appear_chn = sett.model.appear_chn;
+else
+    appear_chn = [];
+end
 
 model = struct;
 if isempty(PthModel), return; end
