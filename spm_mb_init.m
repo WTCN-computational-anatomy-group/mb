@@ -145,7 +145,7 @@ if appear_given && template_given
         end
 
         % TODO        
-        po = InitSimplePosteriorGMM(dat(n),fn,mu,pr,K1,mg_ix,sett);
+        po = InitSimplePosteriorGMM(dat(n),fn,mu,pr,K1,mg_w,mg_ix,sett);
 
         mog.po   = po;
         mog.pr   = pr;
@@ -846,7 +846,7 @@ end
 
 %==========================================================================
 % InitSimplePosteriorGMM()
-function [po,mx,mn,avg,vr] = InitSimplePosteriorGMM(datn,fn,mu,pr,K1,mg_ix,sett)
+function [po,mx,mn,avg,vr] = InitSimplePosteriorGMM(datn,fn,mu,pr,K1,mg_w,mg_ix,sett)
 % Initialise the posterior parameters of a Gaussian mixture model.
 %
 %   This function is only used to initialise the GMM parameters at the
@@ -935,7 +935,7 @@ if ~isempty(mu)
     if K1 < numel(pr.m)
         % Prior has more Gaussians then tissue classes, incorporate this
         % into template model
-        mu = mu(:,mg_ix);
+        mu = mu(:,mg_ix).*mg_w;
     end
 
     % Compute posterior estimates
