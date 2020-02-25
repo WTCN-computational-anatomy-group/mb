@@ -299,8 +299,11 @@ end
 %==========================================================================
 % ApplyMask()
 function f = ApplyMask(f,is_ct)
-if is_ct, f(~isfinite(f) | f == 0 | f < - 1020 | f > 3000) = NaN;
-else,     f(~isfinite(f) | f == 0)                         = NaN;
+if is_ct
+    f(~isfinite(f) | f == 0 | f < - 1020 | f > 3000) = NaN;
+%     f(f > -990 & f < -200) = NaN;
+else     
+    f(~isfinite(f) | f == 0) = NaN;
 end
 end
 %==========================================================================
@@ -313,8 +316,8 @@ function [ict,imri1,imri2] = GetCTandMRI(dat,sett)
 ix_init = sett.model.ix_init_pop;
 
 N          = numel(dat);
-ict      = [];
-imri2    = [];
+ict        = [];
+imri2      = [];
 ix_pop_mri = [];
 for n=1:N
     if any(dat(n).is_ct == true)
@@ -326,8 +329,7 @@ for n=1:N
 end
 imri1 = imri2(ix_pop_mri == ix_init);
 imri2 = imri2(ix_pop_mri ~= ix_init);
-% ix_mri1 = [ix_mri1 ix_mri2];
-% ix_mri2 = [];
+% imri1 = 1:N;
 end
 %==========================================================================
 
