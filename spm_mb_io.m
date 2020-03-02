@@ -122,18 +122,18 @@ if isfield(model,'shape') && isfield(model.shape,'template')
     %-----------------------
     
     % Get path to template
-    PthTemplate = fullfile(fileparts(PthModel),model.shape.template);
+    PthTemplate = model.shape.template;
     
     % New template filename
     [pth,nam,ext] = fileparts(PthTemplate);
-    fnam          = ['mod_' nam ext];
+    fnam          = ['sv' nam ext];
     nPthTemplate  = fullfile(pth,fnam);    
 
     % Make bounding box
     bb = [centre - bb(1,:); centre + bb(2,:)]; % [left, back bottom], [right front top]
 
     % Apply bounding box
-    V = spm_vol(nPthTemplate);
+    V = spm_vol(PthTemplate);
     for k=1:numel(V), SubVol(V(k),bb); end           
     
     if ~isempty(ncls)
