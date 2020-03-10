@@ -548,8 +548,11 @@ do_updt_template = sett.do.updt_template;
 mu_settings      = sett.var.mu_settings;
 
 if do_updt_template
-    g = spm_field('vel2mom', mu, mu_settings);
-    E = 0.5*mu(:)'*g(:);
+    m0 = sum(mu,4)/(size(mu,4)+1);
+    mu = mu - m0;
+    g  = spm_field('vel2mom', mu, mu_settings);
+    E  = 0.5*mu(:)'*g(:);
+    E  = E + 0.5*sum(sum(sum(m0.*spm_field('vel2mom', m0, mu_settings))));
 else
     E = 0;
 end
@@ -688,7 +691,8 @@ mu_settings = sett.var.mu_settings;
 s_settings  = sett.gen.s_settings;
 nw          = spm_mb_param('GetNumWork',sett);
 
-g  = spm_field('vel2mom', mu, mu_settings);
+m0 = sum(mu,4)/(size(mu,4)+1);
+g  = spm_field('vel2mom', mu - m0, mu_settings);
 w  = zeros(sett.var.d,'single');
 if nw > 1 && numel(dat) > 1 % PARFOR
     parfor(n=1:numel(dat),nw)
@@ -886,7 +890,8 @@ clear gn wn
 for it=1:ceil(4+2*log2(numel(dat)))
     H  = AppearanceHessian(mu,accel,w);
     g  = w.*Softmax(mu,4) - gf;
-    g  = g  + spm_field('vel2mom', mu, mu_settings);
+    m0 = sum(mu,4)/(size(mu,4)+1);
+    g  = g  + spm_field('vel2mom', mu - m0, mu_settings);
     mu = mu - spm_field(H, g, [mu_settings s_settings]);
 end
 end
