@@ -491,8 +491,8 @@ end
 function mu1 = ShrinkTemplate(mu,oMmu,sett)
 % UNTESTED!
 % Parse function settings
-d     = sett.ms.d;
-Mmu   = sett.ms.Mmu;
+d     = sett.var.d;
+Mmu   = sett.var.Mmu;
 d0    = [size(mu,1) size(mu,2) size(mu,3)];
 Mzoom = Mmu\oMmu;
 if norm(Mzoom-eye(4))<1e-4 && all(d0==d)
