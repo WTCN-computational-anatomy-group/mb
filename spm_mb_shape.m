@@ -468,7 +468,7 @@ end
 
 %==========================================================================
 % ShrinkTemplate()
-function mu1 = ShrinkTemplate(mu,oMmu,sett)
+function mu1 = ShrinkTemplate_old(mu,oMmu,sett)
 
 % Parse function settings
 d     = sett.var.d;
@@ -483,6 +483,26 @@ else
     y       = reshape(reshape(Identity(d0),[prod(d0),3])*Mzoom(1:3,1:3)'+Mzoom(1:3,4)',[d0 3]);
     [mu1,c] = Push1(mu,y,d,1,mu_bg);
     mu1     = mu1./(c+eps);
+end
+end
+%==========================================================================
+
+%==========================================================================
+function mu1 = ShrinkTemplate(mu,oMmu,sett)
+% UNTESTED!
+% Parse function settings
+d     = sett.ms.d;
+Mmu   = sett.ms.Mmu;
+d0    = [size(mu,1) size(mu,2) size(mu,3)];
+Mzoom = Mmu\oMmu;
+if norm(Mzoom-eye(4))<1e-4 && all(d0==d)
+    mu1 = mu;
+else
+    y       = reshape(reshape(Identity(d0),[prod(d0),3])*Mzoom(1:3,1:3)'+Mzoom(1:3,4)',[d0 3]);
+    mu1     = exp(mu-LSE(mu,4));
+    [mu1,c] = Push1(mu1,y,d,1);
+    mu1     = mu1./(c+eps);
+    mu1     = log(max(mu1,eps))-log(max(1-sum(mu1,4),eps));
 end
 end
 %==========================================================================
