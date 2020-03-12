@@ -126,14 +126,14 @@ if appear_given && template_given
         fn = spm_mb_io('GetImage',dat(n));        
         fn = reshape(fn,[prod(df(1:3)) C]);
         
-        dc = zeros([1 C]);
-        if do_dc
-            for c=1:C
-                msk   = isfinite(fn(:,c));
-                dc(c) = dc0(c)./mean(mean(mean(fn(msk,c))));
-            end
-            dc = log(dc);
-        end
+        dc = zeros([1 C]);        
+        for c=1:C
+            if ~do_dc(min(c,numel(do_dc))), continue; end
+            
+            msk   = isfinite(fn(:,c));
+            dc(c) = dc0(c)./mean(mean(mean(fn(msk,c))));
+            dc(c) = -log(dc(c));
+        end        
 
         dat(n) = InitBias(dat(n),fwhm,dc);
         if any(dat(n).do_bf == true)
@@ -195,18 +195,17 @@ else
                 
                 fn = spm_mb_io('GetImage',dat(n1));
                 fn = reshape(fn,[prod(df(1:3)) C]);
-                
+        
                 % Set bias field dc scaling
-                if do_dc
-                    dc = ones(1,C);
-                    for c=1:C
-                        msk   = isfinite(fn(:,c));
-                        dc(c) = dc(c)./mean(fn(msk,c));
-                    end
-                    dc = -log(dc);
-                else
-                    dc = zeros(1,C);
+                dc = zeros([1 C]);                            
+                for c=1:C
+                    if ~do_dc(min(c,numel(do_dc))), continue; end
+                    
+                    msk   = isfinite(fn(:,c));
+                    dc(c) = 1/mean(fn(msk,c));
+                    dc(c) = -log(dc(c));
                 end
+                
                 dat(n1) = InitBias(dat(n1),fwhm,dc);
             end
         end
