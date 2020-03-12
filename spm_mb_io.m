@@ -324,12 +324,14 @@ for n=1:N
         ict = [ict n];
     else
         ix_pop_mri = [ix_pop_mri dat(n).ix_pop];
-        imri2    = [imri2 n];
+        imri2      = [imri2 n];
     end
 end
 imri1 = imri2(ix_pop_mri == ix_init);
 imri2 = imri2(ix_pop_mri ~= ix_init);
 % imri1 = 1:N;
+% imri2 = [];
+% ict   = [];
 end
 %==========================================================================
 
