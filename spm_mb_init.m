@@ -268,8 +268,8 @@ use_lab = sett.labels.use_initgmm;
 
 % Parameters
 tol     = 1e-4;  % Convergence tolerance
-nit     = 256;   % Max number of iterations
-nit_sub = 64;    % Max number of sub-iterations to update GMM mu and Sigma
+nit     = 128;   % Max number of iterations
+nit_sub = 16;    % Max number of sub-iterations to update GMM mu and Sigma
 do_dc   = true;
 wp_reg  = 0.01;  % Regularises the GMM proportion by a percentage of the sampled number of voxels
 verbose = any(strcmp(figs,'init'));
@@ -434,11 +434,15 @@ dc = zeros(C,N);
 mn = zeros(C,1);
 mx = zeros(C,1);
 for n=1:N % Loop over subjects
+    do_dcn  = dat(n).do_dc;
+    
     fn         = F{n};
     mn         = min(mn,min(fn,[],2,'omitnan'));
     mx         = max(mx,max(fn,[],2,'omitnan'));
     fn(mn<0,:) = NaN; % For CT so to not optimise dc
     dc(:,n)    = -log(mean(fn,2,'omitnan'));
+    
+    dc(~do_dcn,:) = NaN;
 end
 
 % Make DC component zero mean, across N
@@ -447,7 +451,7 @@ for c=1:C
     msk_dcn = isfinite(dcn);
     if all(msk_dcn == 0) || sum(msk_dcn) == 1, continue; end
 
-    mn_dcn  = mean(dcn(msk_dcn));
+    mn_dcn  = mean(dcn(msk_dcn),2);
     dc(c,:) = dc(c,:) - mn_dcn;
 end
 
@@ -717,7 +721,7 @@ for it=1:nit
             msk_dcn = isfinite(dcn);
             if all(msk_dcn == 0) || sum(msk_dcn) == 1, continue; end
 
-            mn_dcn  = mean(dcn(msk_dcn));
+            mn_dcn  = mean(dcn(msk_dcn),2);
             dc(c,:) = dc(c,:) - mn_dcn;
         end
     end

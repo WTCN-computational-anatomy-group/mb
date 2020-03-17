@@ -515,7 +515,10 @@ for n=1:N
     if isstruct(data(n)) && isfield(data(n),'do_dc') && ~isempty(data(n).do_dc)
         dat(n).do_dc = data(n).do_dc;    
     end
-
+    if numel(dat(n).do_dc) < C
+        dat(n).do_dc = repmat(dat(n).do_dc,[1 C]);
+    end
+    
     % Intensity prior index
     dat(n).ix_pop = 1;
     if isstruct(data(n)) && isfield(data(n),'ix_pop') && ~isempty(data(n).ix_pop)
