@@ -20,6 +20,7 @@ function varargout = spm_mb_io(varargin)
 % FORMAT                   spm_mb_io('SetBoundCond')
 % FORMAT fout            = spm_mb_io('SetData',fin,f)
 % FORMAT                   spm_mb_io('SetPath')
+% FORMAT VO              = spm_mb_io('SubVol',V,bb,prefix,deg)
 % FORMAT                   spm_mb_io('Write2Visualise',datn,im,nam,sett);
 % FORMAT                   spm_mb_io('WriteNii',f,img,Mmu,descrip);
 %
@@ -67,6 +68,8 @@ switch id
         [varargout{1:nargout}] = SetData(varargin{:});
     case 'SetPath'
         [varargout{1:nargout}] = SetPath(varargin{:});
+    case 'SubVol'
+        [varargout{1:nargout}] = SubVol(varargin{:});        
     case 'Write2Visualise'
         [varargout{1:nargout}] = Write2Visualise(varargin{:});        
     case 'WriteNii'
@@ -175,7 +178,7 @@ if isfield(model,'appear') && isfield(model.appear,'pr')
     keys = pr.keys;
     K    = numel(ncls);
     
-    % New indexing for uwing multiple Gaussians per tissue
+    % New indexing for using multiple Gaussians per tissue
     mg_ix = [];
     for k=1:K
         k1    = ncls{k};
