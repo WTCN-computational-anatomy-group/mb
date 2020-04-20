@@ -152,6 +152,7 @@ write_im   = sett.write.im; % image, corrected, warped, warped corrected
 write_tc   = sett.write.tc; % native, warped, warped-mod
 write_vel  = sett.write.vel;
 write_aff  = sett.write.affine;
+has_spine  = sett.gen.has_spine;
 
 % Get parameters
 [df,C] = spm_mb_io('GetSize',datn.f);
@@ -281,7 +282,11 @@ if isfield(datn,'mog') && (any(write_bf(:) == true) || any(write_im(:) == true) 
 
     if ~isempty(gwc_tix) && gwc_level > 0
         % Use an ad hoc brain cleanup procedure
-        zn = CleanGWC(zn,gwc_tix,gwc_level);
+        if has_spine
+            zn = CleanGWCSpine(zn,gwc_tix);
+        else
+            zn = CleanGWC(zn,gwc_tix,gwc_level);
+        end        
     end
 
     if any(write_bf == true) && any(do_bf == true)
@@ -431,5 +436,138 @@ end
 % Clean-up
 if clean_def  && isa(datn.psi,'nifti') && isfile(datn.psi.dat.fname),          delete(datn.psi.dat.fname); end
 if ~write_vel && clean_vel && isa(datn.v,'nifti') && isfile(datn.v.dat.fname), delete(datn.v.dat.fname);   end
+end
+%==========================================================================
+
+%==========================================================================
+% CleanGWCSpine()
+function zn = CleanGWCSpine(zn,ixt)
+if nargin < 2 || isempty(ixt)
+    % Default SPM12 template ordering
+    ixt = struct('gm',1,'wm',2,'csf',3);
+end
+
+% Get GM and WM
+gw = sum(zn(:,:,:,[ixt.gm ixt.wm]),4);
+
+% Get brain mask (inc spine)
+b = gw > 0.5;
+% figure(111);montage(bmsk(:,:,1:8:176))
+
+% Find largest connected component in brain mask
+C    = bwlabeln(b);
+unqC = unique(C);
+vls  = zeros([1 numel(unqC)]);
+for i=1:numel(unqC)
+    vls(i) = sum(sum(sum(C == unqC(i))));
+end
+[~,ix] = sort(vls);
+ix     = (ix(end - 1) - 1);
+b   = C == ix;
+% figure(111);montage(bmsk(:,:,1:8:176))
+
+% Close holes
+b = BinMorph('close',b,6); 
+% bmsk1 = bmsk1 + bmsk;
+% figure(111);montage(bmsk1(:,:,1:8:176));
+% figure(111);clf;imagesc(bmsk1(:,:,8*11));
+
+c = BinMorph('dilate',b,1);
+
+% Modify resps
+th = 0.05;
+for i=1:size(b,3)
+    slices = cell(1,size(zn,4));
+    for k1=1:size(zn,4)
+        slices{k1} = double(zn(:,:,i,k1));
+    end
+    bp           = double(b(:,:,i));
+    bp           = ((bp>th).*(sum(cat(3,slices{ixt.gm}),3)+sum(cat(3,slices{ixt.wm}),3)))>th;
+    for i1=1:numel(ixt.gm)
+        slices{ixt.gm(i1)} = slices{ixt.gm(i1)}.*bp;
+    end
+    for i1=1:numel(ixt.wm)
+        slices{ixt.wm(i1)} = slices{ixt.wm(i1)}.*bp;
+    end
+    
+    cp = double(c(:,:,i));
+    cp = ((cp>th).*(sum(cat(3,slices{ixt.gm}),3)+sum(cat(3,slices{ixt.wm}),3)+sum(cat(3,slices{ixt.csf}),3)))>th;
+
+    for i1=1:numel(ixt.csf)
+        slices{ixt.csf(i1)} = slices{ixt.csf(i1)}.*cp;
+    end
+    
+    tot       = zeros(size(bp))+eps;
+    for k1=1:size(zn,4)
+        tot   = tot + slices{k1};
+    end
+    for k1=1:size(zn,4)
+        zn(:,:,i,k1) = slices{k1}./tot;
+    end
+end
+end
+%==========================================================================
+
+%==========================================================================
+% BinMorph()
+function vol = BinMorph(action,bim,n)
+
+if nargin < 3, n = 1; end % Iterations
+    
+vol = uint8(bim);
+
+kx = [1 1 1];
+ky = [1 1 1];
+kz = [1 1 1];
+
+order = sum(kx(:) ~= 0)*sum(ky(:) ~= 0);
+
+switch lower(action)
+    
+	case 'dilate'
+	
+        sz = size(vol);
+        vol2 = zeros(sz(1)+(2*n),sz(2)+(2*n),sz(3)+(2*n),'uint8');
+        vol2(n+1:sz(1)+n,n+1:sz(2)+n,n+1:sz(3)+n) = vol;
+        for i = 1:n
+            spm_conv_vol(vol2,vol2,kx,ky,kz,-[1 1 1]);
+            vol2 = uint8(vol2~=0);
+            
+%             imagesc3d(vol2); axis off; drawnow
+        end
+        vol = vol2(n+1:sz(1)+n,n+1:sz(2)+n,n+1:sz(3)+n);
+
+	case 'erode'
+
+        for i = 1:n
+            spm_conv_vol(vol,vol,kx,ky,kz,-[1 1 1]);
+            vol = uint8(vol>=order);
+            
+%             imagesc3d(vol); axis off; drawnow
+        end
+        
+	case 'close'
+        
+        sz = size(vol);
+        vol2 = zeros(sz(1)+(2*n),sz(2)+(2*n),sz(3)+(2*n),'uint8');
+        vol2(n+1:sz(1)+n,n+1:sz(2)+n,n+1:sz(3)+n) = vol;
+        for i = 1:n
+            spm_conv_vol(vol2,vol2,kx,ky,kz,-[1 1 1]);
+            vol2 = uint8(vol2~=0);
+            
+%             imagesc3d(vol2); axis off; drawnow
+        end                
+        
+        for i = 1:n - 2
+            spm_conv_vol(vol2,vol2,kx,ky,kz,-[1 1 1]);
+            vol2 = uint8(vol2>=order);
+            
+%             imagesc3d(vol2); axis off; drawnow
+        end
+        vol = vol2(n+1:sz(1)+n,n+1:sz(2)+n,n+1:sz(3)+n);
+        clear vol2                        
+end
+
+vol = logical(vol);
 end
 %==========================================================================
