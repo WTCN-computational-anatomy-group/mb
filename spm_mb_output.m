@@ -10,7 +10,7 @@ function res = spm_mb_output(dat,mu,sett)
 N   = numel(dat);
 cl  = cell(N,1);
 res = struct('bf',cl,'im',cl,'imc',cl,'c',cl,'y',cl,'wim',cl, ...
-             'wimc',cl,'wc',cl,'mwc',cl,'v',cl);
+             'wimc',cl,'wc',cl,'mwc',cl,'v',cl, 'sm', cl);
 
 for n=1:N % Loop over subjects
     res(n) = ProcessSubject(dat(n),res(n),mu,n,sett);
@@ -129,7 +129,7 @@ end
 
 %==========================================================================
 % ProcessSubject()
-function resn = ProcessSubject(datn,resn,mun,ix,sett)
+function resn = ProcessSubject(datn,resn,mun0,ix,sett)
 
 % Parse function settings
 B          = sett.registr.B;
@@ -153,10 +153,11 @@ write_tc   = sett.write.tc; % native, warped, warped-mod
 write_vel  = sett.write.vel;
 write_aff  = sett.write.affine;
 has_spine  = sett.gen.has_spine;
+write_sm   = sett.write.scal_mom;
 
 % Get parameters
 [df,C] = spm_mb_io('GetSize',datn.f);
-K      = size(mun,4);
+K      = size(mun0,4);
 K1     = K + 1;
 Kmg    = numel(mg_ix);
 namn   = datn.nam;
@@ -175,7 +176,7 @@ if size(write_bf,1) == 1 && C  > 1, write_bf = repmat(write_bf,[C  1]); end
 if size(write_im,1) == 1 && C  > 1, write_im = repmat(write_im,[C  1]); end
 if size(write_tc,1) == 1 && K1 > 1, write_tc = repmat(write_tc,[K1 1]); end
 
-if ~(all(write_bf(:) == false) && all(write_im(:) == false) && all(write_tc(:) == false) && all(write_df(:) == false))
+if ~(all(write_bf(:) == false) && all(write_im(:) == false) && all(write_tc(:) == false) && all(write_df(:) == false) && all(write_sm == true))
     psi0 = spm_mb_io('GetData',datn.psi);
 end
 
@@ -199,13 +200,13 @@ if write_aff
     save(fpth,'Mr');
 end
 
-if isfield(datn,'mog') && (any(write_bf(:) == true) || any(write_im(:) == true) || any(write_tc(:) == true))
+if isfield(datn,'mog') && (any(write_bf(:) == true) || any(write_im(:) == true) || any(write_tc(:) == true) || any(write_sm == true))
     % Input data were intensity images
     %------------------
 
     % Get subject-space template (softmaxed K + 1)
     psi = spm_mb_shape('Compose',psi0,spm_mb_shape('Affine',df,Mmu\Mr*Mn));
-    mun = spm_mb_shape('Pull1',mun,psi,mu_bg);
+    mun = spm_mb_shape('Pull1',mun0,psi,mu_bg);
     clear psi
 
     % Make K + 1 template
@@ -350,7 +351,7 @@ else
     zn = cat(4,zn,1 - sum(zn,4));
 end
 
-if any(write_df == true) || any(reshape(write_tc(:,[2 3]),[],1) == true) ||  any(reshape(write_im(:,[3 4]),[],1) == true)
+if any(write_df == true) || any(reshape(write_tc(:,[2 3]),[],1) == true) || any(reshape(write_im(:,[3 4]),[],1) == true) || any(write_sm == true)
     % Write forward deformation and/or normalised images
     %------------------
 
@@ -373,6 +374,7 @@ if any(write_df == true) || any(reshape(write_tc(:,[2 3]),[],1) == true) ||  any
             spm_mb_io('WriteNii',fpth,img./(cnt + eps('single')),Mmu,[descrip 'c=' num2str(c) ')']);
             pths{end + 1} = fpth;
         end
+        clear img cnt
         resn.wim = pths;
     end
 
@@ -388,6 +390,7 @@ if any(write_df == true) || any(reshape(write_tc(:,[2 3]),[],1) == true) ||  any
             spm_mb_io('WriteNii',fpth,img./(cnt + eps('single')),Mmu,[descrip 'c=' num2str(c) ')']);
             pths{end + 1} = fpth;
         end
+        clear img cnt
         resn.wimc = pths;
     end
 
@@ -403,6 +406,7 @@ if any(write_df == true) || any(reshape(write_tc(:,[2 3]),[],1) == true) ||  any
             spm_mb_io('WriteNii',fpth,img./(cnt + eps('single')),Mmu,[descrip 'k=' num2str(k) ')']);
             pths{end + 1} = fpth;
         end
+        clear img cnt
         resn.wc = pths;
     end
 
@@ -419,12 +423,57 @@ if any(write_df == true) || any(reshape(write_tc(:,[2 3]),[],1) == true) ||  any
             spm_mb_io('WriteNii',fpth,img,Mmu,[descrip 'k=' num2str(k) ')']);
             pths{end + 1} = fpth;
         end
+        clear img
         resn.mwc = pths;
     end
 
+    if any(write_sm == true)
+        % Compute scalar momentum (SM)     
+        % See appendix of:        
+        % Monte-Rubio, Gemma C., et al. "A comparison of various MRI
+        % feature types for characterizing whole brain anatomical
+        % differences using linear pattern recognition methods." NeuroImage
+        % 178 (2018): 753-768.
+        
+        Ka     = numel(write_sm);             % Number of classes to compute SM for
+        fwhm_a = 10;                          % FWHM for smoothing of SM
+        vx     = sqrt(sum(Mmu(1:3,1:3).^2));  % template voxel size
+        if Ka == 1
+            % Include all tissue classes
+            write_sm = 1:K1;
+            Ka       = numel(write_sm);             
+        end
+        
+        A    = zeros([dmu(1:3) Ka],'single');      % Stores linear combination of momentum
+        mun0 = spm_mb_shape('TemplateK1',mun0,4);  % All K + 1 classes of template are needed here
+        for k=1:Ka  % Loop over classes
+            [img,cnt]  = spm_mb_shape('Push1',zn(:,:,:,k),psi,dmu,sd);  % Warp z(k) to template space
+            msk        = ~isfinite(img);                                % Identify missing data
+            a          = cnt.*mun0(:,:,:,k) - img;                      % Compute SM
+            a(msk)     = 0;                                             % Assume all values are zero outside FOV
+            spm_smooth(a,a,fwhm_a./vx);                                 % Smooth SM
+            A(:,:,:,k) = a;
+            clear a
+        end        
+        clear img cnt
+        
+        % Write scalar momentum
+        descrip = 'Scalar momentum (';
+        pths    = {};
+        for k=1:Ka
+            if ~write_sm(k), continue; end
+            nam           = ['sm' num2str(k) '_' namn '.nii'];
+            fpth          = fullfile(dir_res,nam);
+            spm_mb_io('WriteNii',fpth,A(:,:,:,k),Mmu,[descrip 'k=' num2str(k) ')']);
+            pths{end + 1} = fpth;
+        end
+        resn.sm = pths;        
+        clear A
+    end
+    
     if write_df(1)
-        % Write forward deformation  (pulls template into subject space, use push to go other way)
-        psi     = reshape(reshape(psi,[prod(df) 3])*Mmu(1:3,1:3)' + Mmu(1:3,4)',[df 1 3]);       
+        % Write forward deformation            
+        psi     = reshape(reshape(psi,[prod(df) 3])*Mmu(1:3,1:3)' + Mmu(1:3,4)',[df 1 3]);  % Map to mm
         descrip = 'Forward deformation';
         nam     = ['y_' namn '.nii'];
         fpth    = fullfile(dir_res,nam);
