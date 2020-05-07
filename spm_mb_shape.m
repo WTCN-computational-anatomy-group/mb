@@ -797,16 +797,19 @@ function dat = UpdateSimpleAffines(dat,mu,sett)
 accel     = sett.gen.accel;
 B         = sett.registr.B;
 groupwise = sett.model.groupwise;
+nw        = spm_mb_param('GetNumWork',sett);
 
 % Update the affine parameters
 G  = spm_diffeo('grad',mu);
 H0 = VelocityHessian(mu,G,accel);
 
 if ~isempty(B)
-    for n=1:numel(dat)
-        dat(n) = UpdateSimpleAffinesSub(dat(n),mu,G,H0,sett);
+    if nw > 1 && numel(dat) > 1 % PARFOR
+        parfor(n=1:numel(dat),nw), dat(n) = UpdateSimpleAffinesSub(dat(n),mu,G,H0,sett); end
+    else
+        for n=1:numel(dat), dat(n) = UpdateSimpleAffinesSub(dat(n),mu,G,H0,sett); end
     end
-
+    
     if groupwise
         % Zero-mean the affine parameters
         mq = sum(cat(2,dat(:).q),2)/numel(dat);
