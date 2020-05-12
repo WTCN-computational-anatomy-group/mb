@@ -141,7 +141,7 @@ end
 
 % Load labels
 labels = spm_mb_io('GetData',datn.labels{1});
-if do_samp && samp > 1
+if do_samp && samp > 0
     % Subsample labels
     Mn     = datn.Mat;
     labels = SubSample(labels,Mn,samp);
@@ -327,7 +327,7 @@ scal_bf      = sett.optim.scal_bf;
 K          = size(mun0,4);
 Kmg        = numel(mg_ix);
 Mn         = datn.Mat;
-scl_samp   = 1; % sampling scaling (defined as W = prod(d0(1:3))/prod(d(1:3)), when samp > 1)
+scl_samp   = 1; % sampling scaling (defined as W = prod(d0(1:3))/prod(d(1:3)), when samp > 0)
 do_bf      = datn.do_bf;
 mg_w       = datn.mog.mg_w;
 
@@ -385,7 +385,7 @@ else
 end
 
 % If labels are provided, use these
-labels = GetLabels(datn,sett,true); % true -> subsample labels (if samp > 1)
+labels = GetLabels(datn,sett,true); % true -> subsample labels (if samp > 0)
 
 % Missing data stuff
 msk_vx = ~isnan(fn);
