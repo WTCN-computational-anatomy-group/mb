@@ -303,9 +303,9 @@ end
 % ApplyMask()
 function f = ApplyMask(f,is_ct)
 if is_ct
-    f(~isfinite(f) | f == 0 | f < - 2000 | f > 3000) = NaN;
+    f(~isfinite(f) | f < - 2000 | f > 3000) = NaN;
 else     
-    f(~isfinite(f) | f == 0) = NaN;
+    f(~isfinite(f)) = NaN;
 end
 end
 %==========================================================================
