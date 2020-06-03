@@ -200,14 +200,19 @@ if write_aff
     save(fpth,'Mr');
 end
 
+if any(write_df == true) || any(reshape(write_tc(:,[2 3]),[],1) == true) || any(reshape(write_im(:,[3 4]),[],1) == true) || any(write_sm == true) ...
+   || (isfield(datn,'mog') && (any(write_bf(:) == true) || any(write_im(:) == true) || any(write_tc(:) == true) || any(write_sm == true)))
+    % Get forward deformation (pulls template into subject space)
+    psi = spm_mb_shape('Compose',psi0,spm_mb_shape('Affine',df,Mmu\Mr*Mn));    
+    clear psi0
+end
+
 if isfield(datn,'mog') && (any(write_bf(:) == true) || any(write_im(:) == true) || any(write_tc(:) == true) || any(write_sm == true))
     % Input data were intensity images
     %------------------
 
-    % Get subject-space template (softmaxed K + 1)
-    psi = spm_mb_shape('Compose',psi0,spm_mb_shape('Affine',df,Mmu\Mr*Mn));
-    mun = spm_mb_shape('Pull1',mun0,psi,mu_bg);
-    clear psi
+    % Get subject-space template (softmaxed K + 1)    
+    mun = spm_mb_shape('Pull1',mun0,psi,mu_bg);    
 
     % Make K + 1 template
     mun = reshape(mun,[prod(df(1:3)) K]);
@@ -222,7 +227,7 @@ if isfield(datn,'mog') && (any(write_bf(:) == true) || any(write_im(:) == true) 
     end
 
     % Get image(s)
-    fn      = spm_mb_io('GetImage',datn);
+    fn = spm_mb_io('GetImage',datn,false);
 
     % Get labels
     labels = spm_mb_appearance('GetLabels',datn,sett);
@@ -350,17 +355,13 @@ else
     zn = spm_mb_io('GetData',datn.f);
     zn = cat(4,zn,1 - sum(zn,4));
 end
-
+    
 if any(write_df == true) || any(reshape(write_tc(:,[2 3]),[],1) == true) || any(reshape(write_im(:,[3 4]),[],1) == true) || any(write_sm == true)
     % Write forward deformation and/or normalised images
     %------------------
 
     % For imporved push - subsampling density in each dimension
     sd = spm_mb_shape('SampDens',Mmu,Mn);
-
-    % Get forward deformation (pulls template into subject space)
-    psi = spm_mb_shape('Compose',psi0,spm_mb_shape('Affine',df,Mmu\Mr*Mn));    
-    clear psi0
     
     if isfield(datn,'mog') && any(write_im(:,3) == true)
         % Write normalised image
@@ -418,8 +419,7 @@ if any(write_df == true) || any(reshape(write_tc(:,[2 3]),[],1) == true) || any(
             if ~write_tc(k,3), continue; end
             nam  = ['mwc' num2str(k) '_' namn '.nii'];
             fpth = fullfile(dir_res,nam);
-            img  = spm_mb_shape('Push1',zn(:,:,:,k),psi,dmu);
-            img  = img*abs(det(Mn(1:3,1:3))/det(Mmu(1:3,1:3)));
+            img  = spm_mb_shape('Push1',zn(:,:,:,k),psi,dmu,sd);
             spm_mb_io('WriteNii',fpth,img,Mmu,[descrip 'k=' num2str(k) ')']);
             pths{end + 1} = fpth;
         end

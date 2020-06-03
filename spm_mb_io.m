@@ -3,7 +3,7 @@ function varargout = spm_mb_io(varargin)
 %
 % Functions for I/O related.
 %
-% FORMAT fn              = spm_mb_io('GetImage',datn)
+% FORMAT fn              = spm_mb_io('GetImage',datn,do_mask)
 % FORMAT to              = spm_mb_io('CopyFields',from,to)
 % FORMAT [P,datn]        = spm_mb_io('GetClasses',datn,mu,sett)
 % FORMAT [ict,imr1,imr2] = spm_mb_io('GetCTandMRI',dat)
@@ -280,12 +280,13 @@ end
 %==========================================================================
 
 %==========================================================================
-function fn = GetImage(datn)
+function fn = GetImage(datn, do_mask)
+if nargin<2, do_mask = true; end
 % This is the place to do various image cleaning steps
 fn = spm_mb_io('GetData',datn.f);
-df = [size(fn,1) size(fn,2) size(fn,3)];
-C  = size(fn,4);
-fn = Mask(fn,datn.is_ct);
+if do_mask
+    fn = Mask(fn,datn.is_ct);
+end
 end
 %==========================================================================
 
