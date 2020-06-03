@@ -58,10 +58,11 @@ end
 function [dat,sett] = Init(dat,model,K,sett)
 
 % Parse function settings
-do_gmm = sett.do.gmm;
-mg_ix  = sett.model.mg_ix;
-fwhm   = sett.bf.fwhm;
-reg    = sett.bf.reg;
+do_gmm       = sett.do.gmm;
+mg_ix        = sett.model.mg_ix;
+fwhm         = sett.bf.fwhm;
+reg          = sett.bf.reg;
+init_with_ct = sett.gen.init_with_ct;
 
 if ~do_gmm, return; end
 
@@ -165,10 +166,81 @@ else
     b  = zeros(1,K1) + 0.01;
     nu = ones(1,K1);
 
-    if ~isempty(ix_ct) && (isempty(ix_mri1) && isempty(ix_mri2))
+    if ~isempty(ix_ct) && ((isempty(ix_mri1) && isempty(ix_mri2)) || init_with_ct)
         % TODO
 
         dat(ix_ct) = InitGMM(dat(ix_ct),sett);
+
+        if ~isempty(ix_mri1)
+            % TODO
+
+            Nmri2 = numel(ix_mri1);
+            for n=1:Nmri2
+
+                n1     = ix_mri1(n);
+                [df,C] = spm_mb_io('GetSize',dat(n1).f);
+                do_dc  = dat(n1).do_dc;
+
+                po       = struct('m',ones(C,K1),'b',b,'W',repmat(eye(C),[1 1 K1])/C,'n',C*nu);
+                mog.po   = po;
+                mog.pr   = po;
+                mog.lb   = lb;
+                mog.mg_w = mg_w;
+
+                dat(n1).mog = mog;
+                
+                fn = spm_mb_io('GetImage',dat(n1));
+                fn = reshape(fn,[prod(df(1:3)) C]);
+        
+                % Set bias field dc scaling
+                dc = zeros([1 C]);                            
+                for c=1:C
+                    if ~do_dc(min(c,numel(do_dc))), continue; end
+                    
+                    msk   = isfinite(fn(:,c));
+                    dc(c) = 1/mean(fn(msk,c));
+                    dc(c) = -log(dc(c));
+                end
+                
+                dat(n1) = InitBias(dat(n1),fwhm,dc);
+            end
+        end
+        
+        if ~isempty(ix_mri2)
+            % TODO
+
+            Nmri2 = numel(ix_mri2);
+            for n=1:Nmri2
+
+                n1     = ix_mri2(n);
+                [df,C] = spm_mb_io('GetSize',dat(n1).f);
+                do_dc  = dat(n1).do_dc;
+
+                po       = struct('m',ones(C,K1),'b',b,'W',repmat(eye(C),[1 1 K1])/C,'n',C*nu);
+                mog.po   = po;
+                mog.pr   = po;
+                mog.lb   = lb;
+                mog.mg_w = mg_w;
+
+                dat(n1).mog = mog;
+                
+                fn = spm_mb_io('GetImage',dat(n1));
+                fn = reshape(fn,[prod(df(1:3)) C]);
+        
+                % Set bias field dc scaling
+                dc = zeros([1 C]);                            
+                for c=1:C
+                    if ~do_dc(min(c,numel(do_dc))), continue; end
+                    
+                    msk   = isfinite(fn(:,c));
+                    dc(c) = 1/mean(fn(msk,c));
+                    dc(c) = -log(dc(c));
+                end
+                
+                dat(n1) = InitBias(dat(n1),fwhm,dc);
+            end
+        end
+
     else
         % TODO
 
