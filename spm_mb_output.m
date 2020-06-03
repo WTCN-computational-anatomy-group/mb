@@ -187,7 +187,7 @@ if write_vel
     fpth    = fullfile(dir_res,nam);    
     if ~isfile(fpth)
         v       = spm_mb_io('GetData',datn.v);
-        spm_mb_io('WriteNii',fpth,v,Mmu,descrip);        
+        WriteNii(fpth,v,Mmu,descrip);        
         clear v
     end
     resn.v  = fpth;
@@ -303,7 +303,7 @@ if isfield(datn,'mog') && (any(write_bf(:) == true) || any(write_im(:) == true) 
             if ~write_bf(c,1), continue; end
             nam  = ['bf' num2str(c) '_' namn '.nii'];
             fpth = fullfile(dir_res,nam);
-            spm_mb_io('WriteNii',fpth,bf(:,:,:,c),Mn,[descrip 'c=' num2str(c) ')']);
+            WriteNii(fpth,bf(:,:,:,c),Mn,[descrip 'c=' num2str(c) ')']);
             pths{end + 1} = fpth;
         end
         resn.bf = pths;
@@ -317,7 +317,7 @@ if isfield(datn,'mog') && (any(write_bf(:) == true) || any(write_im(:) == true) 
             if ~write_im(c,1), continue; end
             nam  = ['im' num2str(c) '_' namn '.nii'];
             fpth = fullfile(dir_res,nam);
-            spm_mb_io('WriteNii',fpth,fn(:,:,:,c)./bf(:,:,:,c),Mn,[descrip 'c=' num2str(c) ')']);
+            WriteNii(fpth,fn(:,:,:,c)./bf(:,:,:,c),Mn,[descrip 'c=' num2str(c) ')'],'int16');
             pths{end + 1} = fpth;
         end
         resn.im = pths;
@@ -329,7 +329,7 @@ if isfield(datn,'mog') && (any(write_bf(:) == true) || any(write_im(:) == true) 
             if ~write_im(c,2), continue; end
             nam  = ['imc' num2str(c) '_' namn '.nii'];
             fpth = fullfile(dir_res,nam);
-            spm_mb_io('WriteNii',fpth,fn(:,:,:,c),Mn,[descrip 'c=' num2str(c) ')']);
+            WriteNii(fpth,fn(:,:,:,c),Mn,[descrip 'c=' num2str(c) ')'],'int16');
             pths{end + 1} = fpth;
         end
         resn.imc = pths;
@@ -343,7 +343,7 @@ if isfield(datn,'mog') && (any(write_bf(:) == true) || any(write_im(:) == true) 
             if ~write_tc(k,1), continue; end
             nam  = ['c' num2str(k) '_' namn '.nii'];
             fpth = fullfile(dir_res,nam);
-            spm_mb_io('WriteNii',fpth,zn(:,:,:,k),Mn,[descrip 'k=' num2str(k) ')']);
+            WriteNii(fpth,zn(:,:,:,k),Mn,[descrip 'k=' num2str(k) ')'],'uint8');
             pths{end + 1} = fpth;
         end
         resn.c = pths;
@@ -372,7 +372,7 @@ if any(write_df == true) || any(reshape(write_tc(:,[2 3]),[],1) == true) || any(
             nam     = ['wim' num2str(c) '_' namn '.nii'];
             fpth    = fullfile(dir_res,nam);
             [img,cnt] = spm_mb_shape('Push1',fn(:,:,:,c)./bf(:,:,:,c),psi,dmu,sd);
-            spm_mb_io('WriteNii',fpth,img./(cnt + eps('single')),Mmu,[descrip 'c=' num2str(c) ')']);
+            WriteNii(fpth,img./(cnt + eps('single')),Mmu,[descrip 'c=' num2str(c) ')'],'int16');
             pths{end + 1} = fpth;
         end
         clear img cnt
@@ -388,7 +388,7 @@ if any(write_df == true) || any(reshape(write_tc(:,[2 3]),[],1) == true) || any(
             nam       = ['wimc' num2str(c) '_' namn '.nii'];
             fpth      = fullfile(dir_res,nam);
             [img,cnt] = spm_mb_shape('Push1',fn(:,:,:,c),psi,dmu,sd);
-            spm_mb_io('WriteNii',fpth,img./(cnt + eps('single')),Mmu,[descrip 'c=' num2str(c) ')']);
+            WriteNii(fpth,img./(cnt + eps('single')),Mmu,[descrip 'c=' num2str(c) ')'],'int16');
             pths{end + 1} = fpth;
         end
         clear img cnt
@@ -404,7 +404,7 @@ if any(write_df == true) || any(reshape(write_tc(:,[2 3]),[],1) == true) || any(
             nam       = ['wc' num2str(k) '_' namn '.nii'];
             fpth      = fullfile(dir_res,nam);
             [img,cnt] = spm_mb_shape('Push1',zn(:,:,:,k),psi,dmu,sd);
-            spm_mb_io('WriteNii',fpth,img./(cnt + eps('single')),Mmu,[descrip 'k=' num2str(k) ')']);
+            WriteNii(fpth,img./(cnt + eps('single')),Mmu,[descrip 'k=' num2str(k) ')'],'uint8');
             pths{end + 1} = fpth;
         end
         clear img cnt
@@ -421,7 +421,7 @@ if any(write_df == true) || any(reshape(write_tc(:,[2 3]),[],1) == true) || any(
             fpth = fullfile(dir_res,nam);
             img  = spm_mb_shape('Push1',zn(:,:,:,k),psi,dmu,sd);
             img  = img*abs(det(Mn(1:3,1:3))/det(Mmu(1:3,1:3)));
-            spm_mb_io('WriteNii',fpth,img,Mmu,[descrip 'k=' num2str(k) ')']);
+            WriteNii(fpth,img,Mmu,[descrip 'k=' num2str(k) ')'],'int16');
             pths{end + 1} = fpth;
         end
         clear img
@@ -465,7 +465,7 @@ if any(write_df == true) || any(reshape(write_tc(:,[2 3]),[],1) == true) || any(
             if ~write_sm(k), continue; end
             nam           = ['sm' num2str(k) '_' namn '.nii'];
             fpth          = fullfile(dir_res,nam);
-            spm_mb_io('WriteNii',fpth,A(:,:,:,k),Mmu,[descrip 'k=' num2str(k) ')']);
+            WriteNii(fpth,A(:,:,:,k),Mmu,[descrip 'k=' num2str(k) ')']);
             pths{end + 1} = fpth;
         end
         resn.sm = pths;        
@@ -478,7 +478,7 @@ if any(write_df == true) || any(reshape(write_tc(:,[2 3]),[],1) == true) || any(
         descrip = 'Forward deformation';
         nam     = ['y_' namn '.nii'];
         fpth    = fullfile(dir_res,nam);
-        spm_mb_io('WriteNii',fpth,psi,Mn,descrip);
+        WriteNii(fpth,psi,Mn,descrip);
         resn.y  = fpth;
     end
 end
@@ -619,5 +619,32 @@ switch lower(action)
 end
 
 vol = logical(vol);
+end
+%==========================================================================
+
+%==========================================================================
+function WriteNii(f,img,M,descrip,typ)
+if nargin<5, typ = 'float32'; end
+switch typ
+case 'float32'
+    fa = file_array(f,size(img),typ,0);
+case 'uint8'
+    mx = max(img(isfinite(img(:))));
+    fa = file_array(f,size(img),typ,0,mx/255,0);
+case 'int16'
+    mx = max(img(isfinite(img(:))));
+    mn = min(img(isfinite(img(:))));
+    s  = max(mx/32767,-mn/32768);
+    fa = file_array(f,size(img),typ,0,s,0);
+otherwise
+    error('Can''t do datatype "%s"', typ);
+end
+Nii         = nifti;
+Nii.dat     = fa;
+Nii.mat     = M;
+Nii.mat0    = M;
+Nii.descrip = descrip;
+create(Nii);
+Nii.dat(:,:,:,:,:,:) = img;
 end
 %==========================================================================
