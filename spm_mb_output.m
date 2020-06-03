@@ -420,6 +420,7 @@ if any(write_df == true) || any(reshape(write_tc(:,[2 3]),[],1) == true) || any(
             nam  = ['mwc' num2str(k) '_' namn '.nii'];
             fpth = fullfile(dir_res,nam);
             img  = spm_mb_shape('Push1',zn(:,:,:,k),psi,dmu,sd);
+            img  = img*abs(det(Mn(1:3,1:3))/det(Mmu(1:3,1:3)));
             spm_mb_io('WriteNii',fpth,img,Mmu,[descrip 'k=' num2str(k) ')']);
             pths{end + 1} = fpth;
         end
