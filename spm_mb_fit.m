@@ -98,13 +98,12 @@ end
 %------------------
 
 if template_given
-    dmu       = spm_mb_io('GetSize',model.shape.template);
-    [mu0,Mmu] = spm_mb_io('GetData',model.shape.template);
-    sett.model.pth_mu = model.shape.template;
-%     sett      = spm_mb_shape('MuValOutsideFOV',mu0,sett); % For dealing with voxels outside of template's FOV (adds field sett.model.mu_bg)
+    dmu               = spm_mb_io('GetSize',model.shape.template);
+    [mu0,Mmu]         = spm_mb_io('GetData',model.shape.template);
+    sett.model.pth_mu = model.shape.template;  % Store path to template
 else
-    [Mmu,dmu] = spm_mb_shape('SpecifyMean',dat,vx,sett);
-    sett.model.pth_mu = fullfile(sett.write.dir_res,'spm_mb_mu.nii');
+    [Mmu,dmu]         = spm_mb_shape('SpecifyMean',dat,vx,sett);
+    sett.model.pth_mu = fullfile(sett.write.dir_res,'spm_mb_mu.nii');  % Store path to template
 end
 if dmu(3) == 1 % for 2D data
     vx  = sqrt(sum(Mmu(1:3,1:3).^2));

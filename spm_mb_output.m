@@ -358,19 +358,30 @@ else
     zn = spm_mb_io('GetData',datn.f);
     zn = cat(4,zn,1 - sum(zn,4));
 end
-
+    
+if write_df(1)
+    % Write forward deformation (map to mm)             
+    descrip = 'Forward deformation';
+    nam     = ['y_' namn '.nii'];
+    fpth    = fullfile(dir_res,nam);
+    WriteNii(fpth,...
+             reshape(reshape(psi,[prod(df) 3])*Mmu(1:3,1:3)' + Mmu(1:3,4)',[df 1 3]),...
+             Mn,descrip);
+    resn.y  = fpth;
+end
 
 if any(isfinite(bb(:))) || any(isfinite(vx_out))
     % If a bounding box is supplied, combine this with the closest
     % bounding box derived from the dimensions and orientations of
-    % the tissue priors.
-    [bb1,vx1] = spm_get_bbox(pth_mu, 'old');
-    bb(~isfinite(bb)) = bb1(~isfinite(bb));
+    % the tissue priors. (from spm_preproc8_write)
+    [bb1,vx1]                    = spm_get_bbox(pth_mu, 'old');
+    bb(~isfinite(bb))            = bb1(~isfinite(bb));
     if ~isfinite(vx_out), vx_out = abs(prod(vx1))^(1/3); end
-    bb(1,:) = vx_out*round(bb(1,:)/vx_out);
-    bb(2,:) = vx_out*round(bb(2,:)/vx_out);
-    dim_bb = abs(round((bb(2,1:3)-bb(1,1:3))/vx_out)) + 1;
-    
+    bb(1,:)                      = vx_out*round(bb(1,:)/vx_out);
+    bb(2,:)                      = vx_out*round(bb(2,:)/vx_out);
+    % Bounding box dimensions
+    dbb = abs(round((bb(2,1:3)-bb(1,1:3))/vx_out)) + 1;
+    % Bounding box orientation matrix
     mm  = [[bb(1,1) bb(1,2) bb(1,3)
             bb(2,1) bb(1,2) bb(1,3)
             bb(1,1) bb(2,2) bb(1,3)
@@ -379,21 +390,20 @@ if any(isfinite(bb(:))) || any(isfinite(vx_out))
             bb(2,1) bb(1,2) bb(2,3)
             bb(1,1) bb(2,2) bb(2,3)
             bb(2,1) bb(2,2) bb(2,3)]'; ones(1,8)];
-    vx3 = [[1       1       1
-            dim_bb(1) 1       1
-            1       dim_bb(2) 1
-            dim_bb(1) dim_bb(2) 1
-            1       1       dim_bb(3)
-            dim_bb(1) 1       dim_bb(3)
-            1       dim_bb(2) dim_bb(3)
-            dim_bb(1) dim_bb(2) dim_bb(3)]'; ones(1,8)];
-        
+    vx3 = [[1      1      1
+            dbb(1) 1      1
+            1      dbb(2) 1
+            dbb(1) dbb(2) 1
+            1      1      dbb(3)
+            dbb(1) 1      dbb(3)
+            1      dbb(2) dbb(3)
+            dbb(1) dbb(2) dbb(3)]'; ones(1,8)];
     Mbb = mm/vx3;
-    
+    % Apply bounding box to deformations
     M = Mbb\Mmu;
-    psi = reshape(reshape(psi,[prod(df) 3])*M(1:3,1:3)' + M(1:3,4)',[df 1 3]);    
-    
-    dmu = dim_bb;
+    psi = reshape(reshape(psi,[prod(df) 3])*M(1:3,1:3)' + M(1:3,4)',[df 3]);    
+    % New normalised dimensions and orientation matrix
+    dmu = dbb;
     Mmu = Mbb;
 end
 
@@ -436,37 +446,36 @@ if any(write_df == true) || any(reshape(write_tc(:,[2 3]),[],1) == true) || any(
         resn.wimc = pths;
     end
 
-    if any(write_tc(:,2) == true)
+    if any(write_tc(:,2) == true) || any(write_tc(:,3) == true)
         % Write normalised segmentations
-        descrip = 'Normalised tissue (';
-        pths    = {};
+        descrip_wc  = 'Normalised tissue (';
+        pths_wc     = {};
+        descrip_mwc = 'Normalised modulated tissue (';
+        pths_mwc    = {};
         for k=1:K1
-            if ~write_tc(k,2), continue; end
-            nam       = ['wc' num2str(k) '_' namn '.nii'];
-            fpth      = fullfile(dir_res,nam);
-            [img,cnt] = spm_mb_shape('Push1',zn(:,:,:,k),psi,dmu,sd);
-            WriteNii(fpth,img./(cnt + eps('single')),Mmu,[descrip 'k=' num2str(k) ')'],'uint8');
-            pths{end + 1} = fpth;
+            if write_tc(k,2) || write_tc(k,3)
+                % Push
+                [img,cnt] = spm_mb_shape('Push1',zn(:,:,:,k),psi,dmu,sd);
+            end            
+            if write_tc(k,2)
+                % Normalised
+                nam              = ['wc' num2str(k) '_' namn '.nii'];
+                fpth             = fullfile(dir_res,nam);                
+                WriteNii(fpth,img./(cnt + eps('single')),Mmu,[descrip_wc 'k=' num2str(k) ')'],'uint8');
+                pths_wc{end + 1} = fpth;
+            end
+            if write_tc(k,3)
+                % Modulated normalised
+                nam               = ['mwc' num2str(k) '_' namn '.nii'];
+                fpth              = fullfile(dir_res,nam);                
+                img               = img*abs(det(Mn(1:3,1:3))/det(Mmu(1:3,1:3)));
+                WriteNii(fpth,img,Mmu,[descrip_mwc 'k=' num2str(k) ')'],'int16');
+                pths_mwc{end + 1} = fpth;
+            end
         end
         clear img cnt
-        resn.wc = pths;
-    end
-
-    if any(write_tc(:,3) == true)
-        % Write normalised modulated segmentations
-        descrip = 'Normalised modulated tissue (';
-        pths    = {};
-        for k=1:K1
-            if ~write_tc(k,3), continue; end
-            nam  = ['mwc' num2str(k) '_' namn '.nii'];
-            fpth = fullfile(dir_res,nam);
-            img  = spm_mb_shape('Push1',zn(:,:,:,k),psi,dmu,sd);
-            img  = img*abs(det(Mn(1:3,1:3))/det(Mmu(1:3,1:3)));
-            WriteNii(fpth,img,Mmu,[descrip 'k=' num2str(k) ')'],'int16');
-            pths{end + 1} = fpth;
-        end
-        clear img
-        resn.mwc = pths;
+        resn.wc = pths_wc;
+        resn.mwc = pths_mwc;
     end
 
     if any(write_sm == true)
@@ -511,17 +520,7 @@ if any(write_df == true) || any(reshape(write_tc(:,[2 3]),[],1) == true) || any(
         end
         resn.sm = pths;        
         clear A
-    end
-    
-    if write_df(1)
-        % Write forward deformation            
-        psi     = reshape(reshape(psi,[prod(df) 3])*Mmu(1:3,1:3)' + Mmu(1:3,4)',[df 1 3]);  % Map to mm
-        descrip = 'Forward deformation';
-        nam     = ['y_' namn '.nii'];
-        fpth    = fullfile(dir_res,nam);
-        WriteNii(fpth,psi,Mn,descrip);
-        resn.y  = fpth;
-    end
+    end    
 end
 
 % Clean-up
