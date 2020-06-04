@@ -154,6 +154,9 @@ write_vel  = sett.write.vel;
 write_aff  = sett.write.affine;
 has_spine  = sett.gen.has_spine;
 write_sm   = sett.write.scal_mom;
+pth_mu     = sett.model.pth_mu;
+bb         = sett.write.bb;
+vx_out     = sett.write.vx;
 
 % Get parameters
 [df,C] = spm_mb_io('GetSize',datn.f);
@@ -355,7 +358,45 @@ else
     zn = spm_mb_io('GetData',datn.f);
     zn = cat(4,zn,1 - sum(zn,4));
 end
+
+
+if any(isfinite(bb(:))) || any(isfinite(vx_out))
+    % If a bounding box is supplied, combine this with the closest
+    % bounding box derived from the dimensions and orientations of
+    % the tissue priors.
+    [bb1,vx1] = spm_get_bbox(pth_mu, 'old');
+    bb(~isfinite(bb)) = bb1(~isfinite(bb));
+    if ~isfinite(vx_out), vx_out = abs(prod(vx1))^(1/3); end
+    bb(1,:) = vx_out*round(bb(1,:)/vx_out);
+    bb(2,:) = vx_out*round(bb(2,:)/vx_out);
+    dim_bb = abs(round((bb(2,1:3)-bb(1,1:3))/vx_out)) + 1;
     
+    mm  = [[bb(1,1) bb(1,2) bb(1,3)
+            bb(2,1) bb(1,2) bb(1,3)
+            bb(1,1) bb(2,2) bb(1,3)
+            bb(2,1) bb(2,2) bb(1,3)
+            bb(1,1) bb(1,2) bb(2,3)
+            bb(2,1) bb(1,2) bb(2,3)
+            bb(1,1) bb(2,2) bb(2,3)
+            bb(2,1) bb(2,2) bb(2,3)]'; ones(1,8)];
+    vx3 = [[1       1       1
+            dim_bb(1) 1       1
+            1       dim_bb(2) 1
+            dim_bb(1) dim_bb(2) 1
+            1       1       dim_bb(3)
+            dim_bb(1) 1       dim_bb(3)
+            1       dim_bb(2) dim_bb(3)
+            dim_bb(1) dim_bb(2) dim_bb(3)]'; ones(1,8)];
+        
+    Mbb = mm/vx3;
+    
+    M = Mbb\Mmu;
+    psi = reshape(reshape(psi,[prod(df) 3])*M(1:3,1:3)' + M(1:3,4)',[df 1 3]);    
+    
+    dmu = dim_bb;
+    Mmu = Mbb;
+end
+
 if any(write_df == true) || any(reshape(write_tc(:,[2 3]),[],1) == true) || any(reshape(write_im(:,[3 4]),[],1) == true) || any(write_sm == true)
     % Write forward deformation and/or normalised images
     %------------------
