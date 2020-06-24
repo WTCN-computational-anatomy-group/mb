@@ -280,34 +280,39 @@ end
 %==========================================================================
 
 %==========================================================================
-function fn = GetImage(datn, do_mask)
+function [fn,msk] = GetImage(datn, do_mask)
 if nargin<2, do_mask = true; end
 % This is the place to do various image cleaning steps
 fn = spm_mb_io('GetData',datn.f);
+msk = true;
 if do_mask
-    fn = Mask(fn,datn.is_ct);
+    [fn,msk] = Mask(fn,datn.is_ct);
+else
+    [~,msk] = Mask(fn,datn.is_ct);
 end
 end
 %==========================================================================
 
 %==========================================================================
 % Mask()
-function fn = Mask(fn,is_ct)
+function [fn,msk] = Mask(fn,is_ct)
 C = size(fn,4);
+msk = true(size(fn));
 for c=1:C
-    fn(:,:,:,c) = ApplyMask(fn(:,:,:,c),is_ct(c));
+    [fn(:,:,:,c),msk(:,:,:,c)] = ApplyMask(fn(:,:,:,c),is_ct(c));
 end
 end
 %==========================================================================
 
 %==========================================================================
 % ApplyMask()
-function f = ApplyMask(f,is_ct)
+function [f,msk] = ApplyMask(f,is_ct)
 if is_ct
-    f(~isfinite(f) | f == 0 | f < - 1020 | f > 3000) = NaN;
-else     
-    f(~isfinite(f) | f == 0) = NaN;
+    msk = ~isfinite(f) | f == 0 | f < - 1020 | f > 3000;
+else  
+    msk = ~isfinite(f) | f == 0;
 end
+f(msk) = NaN;
 end
 %==========================================================================
 
@@ -748,7 +753,7 @@ end
 %==========================================================================
 % SetBoundCond()
 function SetBoundCond
-spm_diffeo('bound',0);
+spm_diffeo('bound',1);
 spm_field('bound',1);
 end
 %==========================================================================

@@ -175,7 +175,10 @@ end
 %==========================================================================
 % Compose()
 function psi = Compose(psi1,psi0)
+bc = spm_diffeo('bound');
+spm_diffeo('bound',1);
 psi = spm_diffeo('comp',psi1,psi0);
+spm_diffeo('bound',bc);
 if size(psi,3) == 1, psi(:,:,:,3) = 1; end % 2D
 end
 %==========================================================================
@@ -336,7 +339,7 @@ elseif isempty(psi)
 else
     if r==1
         if isempty(bg)
-            a1 = spm_diffeo('pullc',a0,psi);
+            a1 = spm_diffeo('pull',a0,psi);
         else
             a1 = spm_diffeo('pull',a0,psi);
 
@@ -408,11 +411,11 @@ if nargin<5, bg = []; end
 if ~isempty(psi)
     if r==1
         if nargout==1
-            if isempty(bg), f1 = spm_diffeo('pushc',f,psi,d);
+            if isempty(bg), f1 = spm_diffeo('push',f,psi,d);
             else,           f1 = spm_diffeo('push',f,psi,d);
             end
             else
-            if isempty(bg), [f1,w1] = spm_diffeo('pushc',f,psi,d);
+            if isempty(bg), [f1,w1] = spm_diffeo('push',f,psi,d);
             else,           [f1,w1] = spm_diffeo('push',f,psi,d);
             end
         end
@@ -431,7 +434,7 @@ if ~isempty(psi)
         for dy=yrange
             for dx=xrange
                 ids       = id + cat(4,dx,dy,dz);
-                psi1      = spm_diffeo('pull',psi-id,    ids)+ids;
+                psi1      = spm_diffeo('pullc',psi-id,    ids)+ids;
                 fs        = spm_diffeo('pull',f, ids);
                %fs=single(f);
                 if nargout==1
@@ -664,7 +667,8 @@ for m=1:M
 end
 clear J mu
 
-msk       = all(isfinite(f),4);
+msk       = all(isfinite(f),4) & all(isfinite(mu1),4);
+mu1(~isfinite(mu1)) = 0;
 a         = Mask(f - Softmax(mu1,4),msk);
 [H,g]     = AffineHessian(mu1,G,a,single(msk),accel);
 g         = double(dM'*g);

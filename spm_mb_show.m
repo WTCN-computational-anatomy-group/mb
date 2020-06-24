@@ -446,6 +446,7 @@ if ~isempty(perm)
     im = permute(im,perm);
 end
 
+dm = size(im);
 nr = floor(sqrt(K));
 nc = ceil(K/nr);
 num_montage = 1:num_montage:dm(3);

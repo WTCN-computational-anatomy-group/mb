@@ -12,6 +12,11 @@ cl  = cell(N,1);
 res = struct('bf',cl,'im',cl,'imc',cl,'c',cl,'y',cl,'wim',cl, ...
              'wimc',cl,'wc',cl,'mwc',cl,'v',cl, 'sm', cl);
 
+% The template can have smaller FOV than the observed data, this makes sure 
+% that the warped template has appropriate values outside its FOV.
+% sett.do.mu_bg = true;
+% sett          = spm_mb_shape('MuValOutsideFOV',mu,sett); % For dealing with voxels outside of template's FOV (adds field sett.model.mu_bg)
+
 for n=1:N % Loop over subjects
     res(n) = ProcessSubject(dat(n),res(n),mu,n,sett);
 end
@@ -216,7 +221,8 @@ if isfield(datn,'mog') && (any(write_bf(:) == true) || any(write_im(:) == true) 
 
     % Get subject-space template (softmaxed K + 1)    
     mun = spm_mb_shape('Pull1',mun0,psi,mu_bg);    
-
+    msk_mu = all(isfinite(mun),4);
+    
     % Make K + 1 template
     mun = reshape(mun,[prod(df(1:3)) K]);
     mun = spm_mb_shape('TemplateK1',mun,2);
@@ -230,8 +236,9 @@ if isfield(datn,'mog') && (any(write_bf(:) == true) || any(write_im(:) == true) 
     end
 
     % Get image(s)
-    fn = spm_mb_io('GetImage',datn,false);
-
+    [fn,msk] = spm_mb_io('GetImage',datn,false);    
+    msk = msk_mu & msk;
+    
     % Get labels
     labels = spm_mb_appearance('GetLabels',datn,sett);
     mun    = mun + labels;
@@ -253,8 +260,18 @@ if isfield(datn,'mog') && (any(write_bf(:) == true) || any(write_im(:) == true) 
     n = datn.mog.po.n;
 
     % Get responsibilities
-    zn  = spm_mb_appearance('Responsibility',m,b,W,n,bffn,mun,msk_chn);
-    zn  = spm_gmm_lib('cell2obs', zn, code_image, msk_chn);
+%     zn  = spm_mb_appearance('Responsibility',m,b,W,n,bffn,mun,msk_chn);
+    const = spm_gmm_lib('Normalisation', {m,b}, {W,n}, msk_chn);
+    zn    = spm_gmm_lib('Marginal', bffn, {m,W,n}, const, msk_chn);
+    zn    = spm_gmm_lib('cell2obs', zn, code_image, msk_chn);
+    for k=1:K1
+        zn(msk,k) = log(1e-3);
+    end
+    %
+    zn = spm_gmm_lib('obs2cell', zn, code_image, false);
+    zn = spm_gmm_lib('Responsibility', zn, mun);
+    %
+    zn = spm_gmm_lib('cell2obs', zn, code_image, msk_chn);
     clear mun msk_chn
 
     % Get bias field modulated image data

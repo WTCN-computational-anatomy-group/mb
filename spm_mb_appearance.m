@@ -334,6 +334,13 @@ mg_w       = datn.mog.mg_w;
 % Get image data
 fn0 = spm_mb_io('GetImage',datn);
 
+msk_vx = any(isnan(mun0),4);
+for c=1:size(fn0,4)
+    fc           = fn0(:,:,:,c);
+    fc(msk_vx)   = NaN;
+    fn0(:,:,:,c) = fc;
+end
+
 % For visualising results (spm_mb_show)
 spm_mb_io('Write2Visualise',datn,mun0,'mu',sett);
 

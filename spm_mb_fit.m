@@ -100,7 +100,7 @@ end
 if template_given
     dmu               = spm_mb_io('GetSize',model.shape.template);
     [mu0,Mmu]         = spm_mb_io('GetData',model.shape.template);
-    sett.model.pth_mu = model.shape.template;  % Store path to template
+    sett.model.pth_mu = model.shape.template;  % Store path to template    
 else
     [Mmu,dmu]         = spm_mb_shape('SpecifyMean',dat,vx,sett);
     sett.model.pth_mu = fullfile(sett.write.dir_res,'spm_mb_mu.nii');  % Store path to template
