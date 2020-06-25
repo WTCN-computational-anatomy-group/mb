@@ -361,7 +361,7 @@ if isfield(datn,'mog') && (any(write_bf(:) == true) || any(write_im(:) == true) 
         pths    = {};
         for k=1:K1
             if ~write_tc(k,1), continue; end
-            nam  = ['c' num2str(k) '_' namn '.nii'];
+            nam  = ['c' num2str(k) namn '.nii'];
             fpth = fullfile(dir_res,nam);
             WriteNii(fpth,zn(:,:,:,k),Mn,[descrip 'k=' num2str(k) ')'],'uint8');
             pths{end + 1} = fpth;
@@ -476,14 +476,14 @@ if any(write_df == true) || any(reshape(write_tc(:,[2 3]),[],1) == true) || any(
             end            
             if write_tc(k,2)
                 % Normalised
-                nam              = ['wc' num2str(k) '_' namn '.nii'];
+                nam              = ['wc' num2str(k) namn '.nii'];
                 fpth             = fullfile(dir_res,nam);                
                 WriteNii(fpth,img./(cnt + eps('single')),Mmu,[descrip_wc 'k=' num2str(k) ')'],'uint8');
                 pths_wc{end + 1} = fpth;
             end
             if write_tc(k,3)
                 % Modulated normalised
-                nam               = ['mwc' num2str(k) '_' namn '.nii'];
+                nam               = ['mwc' num2str(k) namn '.nii'];
                 fpth              = fullfile(dir_res,nam);                
                 img               = img*abs(det(Mn(1:3,1:3))/det(Mmu(1:3,1:3)));
                 WriteNii(fpth,img,Mmu,[descrip_mwc 'k=' num2str(k) ')'],'int16');
