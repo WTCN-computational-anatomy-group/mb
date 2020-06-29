@@ -193,7 +193,7 @@ if write_vel
     descrip = 'Velocity';
     nam     = ['v_' namn '.nii'];
     fpth    = fullfile(dir_res,nam);    
-    if ~isfile(fpth)
+    if ~(exist(fpth, 'file') == 2)
         v       = spm_mb_io('GetData',datn.v);
         WriteNii(fpth,v,Mmu,descrip);        
         clear v
@@ -541,8 +541,8 @@ if any(write_df == true) || any(reshape(write_tc(:,[2 3]),[],1) == true) || any(
 end
 
 % Clean-up
-if clean_def  && isa(datn.psi,'nifti') && isfile(datn.psi.dat.fname),          delete(datn.psi.dat.fname); end
-if ~write_vel && clean_vel && isa(datn.v,'nifti') && isfile(datn.v.dat.fname), delete(datn.v.dat.fname);   end
+if clean_def  && isa(datn.psi,'nifti') && (exist(datn.psi.dat.fname, 'file') == 2), delete(datn.psi.dat.fname); end
+if ~write_vel && clean_vel && isa(datn.v,'nifti') && (exist(datn.v.dat.fname, 'file') == 2), delete(datn.v.dat.fname);   end
 end
 %==========================================================================
 

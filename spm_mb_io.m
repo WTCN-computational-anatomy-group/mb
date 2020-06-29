@@ -576,7 +576,7 @@ end
 
 model = struct;
 if isempty(PthModel), return; end
-if isfile(PthModel)
+if exist(PthModel, 'file') == 2
     var   = load(PthModel,'model');
     model = var.model;
 
