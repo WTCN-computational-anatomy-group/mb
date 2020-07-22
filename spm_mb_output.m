@@ -19,6 +19,15 @@ end
 mu = nifti(mu);
 mu = single(mu.dat(:,:,:,:,:));
 
+% If SPM has been compiled with OpenMP support then the number of threads
+% are here set to speed up the algorithm
+%--------------------------------------------------------------------------
+if sett.nworker > 1
+    setenv('SPM_NUM_THREADS',sprintf('%d',0));
+else
+    setenv('SPM_NUM_THREADS',sprintf('%d',-1));
+end
+
 % struct for saving paths of data written to disk
 N   = numel(dat);
 cl  = cell(N,1);
