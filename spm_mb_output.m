@@ -5,7 +5,7 @@ function res = spm_mb_output(cfg)
 %__________________________________________________________________________
 % Copyright (C) 2019-2020 Wellcome Centre for Human Neuroimaging
 
-% $Id: spm_mb_output.m 7884 2020-07-02 10:13:47Z mikael $
+% $Id: spm_mb_output.m 7896 2020-07-14 09:02:01Z mikael $
 
 res  = load(char(cfg.result));
 sett = res.sett;
@@ -39,14 +39,10 @@ ind = cfg.c;   ind = ind(ind>=1 & ind<=sett.K+1); write_tc(ind,1) = true;
 ind = cfg.wc;  ind = ind(ind>=1 & ind<=sett.K+1); write_tc(ind,2) = true;
 ind = cfg.mwc; ind = ind(ind>=1 & ind<=sett.K+1); write_tc(ind,3) = true;
 
-if ~isfield(cfg,'clean_ix'), cfg.clean_ix = []; end
 opt = struct('write_inu',cfg.inu,...
              'write_im',[cfg.i cfg.mi cfg.wi cfg.wmi],...
              'write_tc',write_tc,...
-             'write_y',cfg.y,...
-             'write_v',cfg.v,...
-             'mrf',cfg.mrf,...
-             'clean_ix',cfg.clean_ix);
+             'mrf',cfg.mrf);
 
 spm_progress_bar('Init',N,'Writing MB output','Subjects complete');
 for n=1:N % Loop over subjects
@@ -77,94 +73,6 @@ zn = single(P)/255;
 %==========================================================================
 
 %==========================================================================
-% CleanGWC()
-function zn = CleanGWC(zn,ixt,level)
-if nargin < 2 || isempty(ixt)
-    % Default SPM12 template ordering
-    ixt = struct('gm',1,'wm',2,'csf',3);
-end
-if nargin < 3, level = 2; end
-
-b = sum(zn(:,:,:,ixt.wm),4);
-
-% Build a 3x3x3 seperable smoothing kernel
-kx=[0.75 1 0.75];
-ky=[0.75 1 0.75];
-kz=[0.75 1 0.75];
-sm=sum(kron(kron(kz,ky),kx))^(1/3);
-kx=kx/sm; ky=ky/sm; kz=kz/sm;
-
-% Erosions and conditional dilations
-th1 = 0.15;
-if level==2, th1 = 0.2; end
-niter  = 32;
-niter2 = 32;
-for j=1:niter
-    if j>2
-        th       = th1;
-    else
-        th       = 0.6;
-    end  % Dilate after two its of erosion
-    for i=1:size(b,3)
-        gp       = double(sum(zn(:,:,i,ixt.gm),4));
-        wp       = double(sum(zn(:,:,i,ixt.wm),4));
-        bp       = double(b(:,:,i));
-        bp       = (bp>th).*(wp+gp);
-        b(:,:,i) = bp;
-    end
-    spm_conv_vol(b,b,kx,ky,kz,-[1 1 1]);
-end
-
-% Also clean up the CSF.
-if niter2 > 0
-    c = b;
-    for j=1:niter2
-        for i=1:size(b,3)
-            gp       = double(sum(zn(:,:,i,ixt.gm),4));
-            wp       = double(sum(zn(:,:,i,ixt.wm),4));
-            cp       = double(sum(zn(:,:,i,ixt.csf),4));
-            bp       = double(c(:,:,i));
-            bp       = (bp>th).*(wp+gp+cp);
-            c(:,:,i) = bp;
-        end
-        spm_conv_vol(c,c,kx,ky,kz,-[1 1 1]);
-    end
-end
-
-th = 0.05;
-for i=1:size(b,3)
-    slices = cell(1,size(zn,4));
-    for k1=1:size(zn,4)
-        slices{k1} = double(zn(:,:,i,k1));
-    end
-    bp           = double(b(:,:,i));
-    bp           = ((bp>th).*(sum(cat(3,slices{ixt.gm}),3)+sum(cat(3,slices{ixt.wm}),3)))>th;
-    for i1=1:numel(ixt.gm)
-        slices{ixt.gm(i1)} = slices{ixt.gm(i1)}.*bp;
-    end
-    for i1=1:numel(ixt.wm)
-        slices{ixt.wm(i1)} = slices{ixt.wm(i1)}.*bp;
-    end
-
-    if niter2>0
-        cp           = double(c(:,:,i));
-        cp           = ((cp>th).*(sum(cat(3,slices{ixt.gm}),3)+sum(cat(3,slices{ixt.wm}),3)+sum(cat(3,slices{ixt.csf}),3)))>th;
-
-        for i1=1:numel(ixt.csf)
-            slices{ixt.csf(i1)} = slices{ixt.csf(i1)}.*cp;
-        end
-    end
-    tot       = zeros(size(bp))+eps;
-    for k1=1:size(zn,4)
-        tot   = tot + slices{k1};
-    end
-    for k1=1:size(zn,4)
-        zn(:,:,i,k1) = slices{k1}./tot;
-    end
-end
-%==========================================================================
-
-%==========================================================================
 % ProcessSubject()
 function resn = ProcessSubject(datn,resn,mu,sett,opt)
 
@@ -177,8 +85,6 @@ mrf        = opt.mrf;
 write_inu  = opt.write_inu; % field
 write_im   = opt.write_im;  % image, corrected, warped, warped corrected
 write_tc   = opt.write_tc;  % native, warped, warped-mod
-write_y    = opt.write_y;   % forward deformation
-write_v    = opt.write_v;   % initial velocity
 
 if ((~any(write_inu(:)) && ~any(write_im(:))) || ~isfield(datn.model,'gmm')) && ~any(write_tc(:))
     return;
@@ -241,25 +147,23 @@ if isfield(datn.model,'gmm')
 end
 
 if any(write_im(:)) || any(write_tc(:))
-    psi    = spm_mb_io('get_data',datn.psi);
-    psi    = MatDefMul(psi,inv(Mmu));
+    Mat = Mmu\spm_dexpm(double(datn.q),sett.B)*datn.Mat;
+    psi = spm_mb_io('get_data',datn.psi);
+    psi = MatDefMul(psi,inv(Mmu));
+    psi = spm_mb_shape('compose',psi,spm_mb_shape('affine',datn.dm,Mat));
 end
 
 
-if isfield(datn.model,'gmm') && any(write_im(:)) || any(write_tc(:))
+if isfield(datn.model,'gmm') && (any(write_im(:)) || any(write_tc(:)))
 
     % Get image(s)
     fn     = spm_mb_io('get_image',gmm);
 
     % Get warped tissue priors
     mun    = spm_mb_shape('pull1',mu,psi);
-    mun    = spm_mb_shape('template_k1',mun,4);
+    mun    = spm_mb_classes('template_k1',mun,4);
+    mun    = mun + spm_mb_classes('get_labels',datn,size(mun,4));
     mun    = reshape(mun,size(mun,1)*size(mun,2)*size(mun,3),size(mun,4));
-
-    % Get labels
-    labels = spm_mb_appearance('get_labels',datn,sett);
-    mun    = mun + labels;
-    clear labels
 
     % Integrate use of multiple Gaussians per tissue
     mg_w = gmm.mg_w;
@@ -381,11 +285,6 @@ if isfield(datn.model,'gmm') && any(write_im(:)) || any(write_tc(:))
         zn = PostProcMRF(zn,Mn,mrf);
     end
 
-    if ~isempty(opt.clean_ix)
-        % Ad-hoc brain cleanup procedure
-        zn = CleanGWC(zn,opt.clean_ix);
-    end
-    
     if any(write_tc(:,1) == true)
         % Write segmentations
         resn.c  = cell(1,sum(write_tc(:,1)));
@@ -406,6 +305,7 @@ if isfield(datn.model,'cat') && (any(write_tc(:,2)) || any(write_tc(:,3)))
     %------------------
     zn = spm_mb_io('get_data',datn.model.cat.f);
     zn = cat(4,zn,1 - sum(zn,4));
+    K1 = sett.K+1;
 end
 
 
@@ -440,10 +340,6 @@ if any(write_tc(:,2)) || any(write_tc(:,3))
         end
     end
 end
-
-% Keep forward deformations and initial velocities?
-if ~write_y && isa(datn.psi,'nifti') && (exist(datn.psi.dat.fname, 'file') == 2), delete(datn.psi.dat.fname); end
-if ~write_v && isa(datn.v,'nifti') && (exist(datn.v.dat.fname, 'file') == 2), delete(datn.v.dat.fname); end
 %==========================================================================
 
 %==========================================================================

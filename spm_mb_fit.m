@@ -75,7 +75,9 @@ end
 %--------------------------------------------------------------------------
 for n=1:numel(dat)
     dat(n).samp  = get_samp(sett.ms.Mmu,dat(n).Mat,sett.sampdens);
-    dat(n).samp2 = [1 1 1];
+    if isfield(dat(n).model,'gmm')
+        dat(n).model.gmm.samp = [1 1 1];
+    end
 end
 updt_int = 'update_prior';
 fprintf('Rigid (zoom=%d): %d x %d x %d\n',2^(numel(sz)-1),sett.ms.d);
@@ -112,7 +114,7 @@ for it0=1:nit_aff
             break;
         end
     else
-        countdown = 4;
+        countdown = 6;
     end
 end
 spm_plot_convergence('Clear');
@@ -126,7 +128,9 @@ for zm=numel(sz):-1:1 % loop over zoom levels
    %spm_plot_convergence('Init',['Diffeomorphic Alignment (' num2str(2^(zm-1)) ')'],'Objective','Iteration');
     for n=1:numel(dat)
         dat(n).samp  = [1 1 1];
-        dat(n).samp2 = get_samp(sett.ms.Mmu,dat(n).Mat,sett.sampdens);
+        if isfield(dat(n).model,'gmm')
+            dat(n).model.gmm.samp = get_samp(sett.ms.Mmu,dat(n).Mat,sett.sampdens);
+        end
     end
 
     if ~updt_mu
