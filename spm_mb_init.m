@@ -5,7 +5,7 @@ function [dat,sett] = spm_mb_init(cfg)
 % Copyright (C) 2018-2020 Wellcome Centre for Human Neuroimaging
 
 
-% $Id: spm_mb_init.m 7885 2020-07-03 14:10:31Z mikael $
+% $Id: spm_mb_init.m 7915 2020-08-05 16:31:49Z mikael $
 
 [dat,sett] = mb_init1(cfg);
 
@@ -32,7 +32,7 @@ if isfield(mu,'exist')
 else
     dmu  = [0 0 0];
     Mmu  = eye(4);
-    K    = cfg.mu.create.K-1;
+    K    = cfg.mu.create.K;
     sett.mu.create    = rmfield(sett.mu.create,'K');
     sett.mu.create.mu = fullfile(sett.odir,['mu_' cfg.onam '.nii']);
 end
@@ -77,8 +77,8 @@ for p=1:numel(cfg.gmm)
 end
 
 cl  = cell(N,1);
-dat = struct('dm',cl, 'Mat',cl, 'samp',[1 1 1], 'samp2',[1 1 1], 'onam','', 'odir','',...
-             'q',cl, 'v',cl, 'psi',cl, 'model',cl, 'E',cl,'nvox',cl);
+dat = struct('dm',cl, 'Mat',cl, 'samp',[1 1 1], 'onam','', 'odir','',...
+             'q',cl, 'v',cl, 'psi',cl, 'model',cl, 'lab',cl, 'E',cl,'nvox',cl);
 n   = 0;
 
 % Process categorical data
@@ -112,8 +112,8 @@ if numel(cfg.cat)>=1
         [~,nam,~]   = fileparts(cl{1});
         dat(n).onam = sprintf('%d_%.5d_%s_%s', 0, np, nam, cfg.onam);
         dat(n).odir = sett.odir;
-        dat(n).v    = fullfile(dat(n).odir,['v_'   dat(n).onam '.nii']);
-        dat(n).psi  = fullfile(dat(n).odir,['psi_' dat(n).onam '.nii']);
+        dat(n).v    = fullfile(dat(n).odir,['v_' dat(n).onam '.nii']);
+        dat(n).psi  = fullfile(dat(n).odir,['y_' dat(n).onam '.nii']);
 
         Kn = 0;
         for c=1:Nc
@@ -127,6 +127,7 @@ if numel(cfg.cat)>=1
             K = Kn;
         end
         dat(n).model = struct('cat',struct('f',f, 'K',K));
+        dat(n).lab   = [];
     end
 end
 
@@ -185,8 +186,8 @@ for p=1:numel(cfg.gmm)
             [~,nam,~]   = fileparts(cl{1});
             dat(n).onam = sprintf('%d_%.5d_%s_%s', p, np, nam, cfg.onam);
             dat(n).odir = sett.odir;
-            dat(n).v    = fullfile(dat(n).odir,['v_'   dat(n).onam '.nii']);
-            dat(n).psi  = fullfile(dat(n).odir,['psi_' dat(n).onam '.nii']);
+            dat(n).v    = fullfile(dat(n).odir,['v_' dat(n).onam '.nii']);
+            dat(n).psi  = fullfile(dat(n).odir,['y_' dat(n).onam '.nii']);
 
             cf = zeros(Nc,1);
             for c=1:Nc
@@ -242,9 +243,11 @@ for p=1:numel(cfg.gmm)
             else
                 lab = [];
             end
+            dat(n).lab   = lab;
 
             lb           = struct('sum', NaN, 'X', [], 'XB', [], 'Z', [], 'P', [], 'MU', [], 'A', []);
-            gmm          = struct('f',f, 'lab',lab, 'pop', p, 'modality', modality, 'T',{T}, 'lb', lb,...
+            gmm          = struct('f',f, 'pop', p, 'samp',[1 1 1],...
+                                  'modality', modality, 'T',{T}, 'lb', lb,...
                                   'm',rand(Cn,K+1),'b',zeros(1,K+1)+1e-6,...
                                   'V',repmat(eye(Cn,Cn),[1 1 K+1]),'n',zeros(1,K+1)+1e-6, 'mg_w',[]);
             dat(n).model = struct('gmm',gmm);
@@ -272,7 +275,7 @@ for p=1:numel(cfg.gmm)
                 error('Incompatible total K dimensions for intensity priors ("%s").',cfg.gmm(p).pr.file{1});
             end
             sett.gmm(p).pr = pr.pr;
-        end 
+        end
     end
 end
 
@@ -304,7 +307,7 @@ for p=1:numel(sett.gmm) % Loop over populations
     for n=1:N % Loop over subjects
         n1  = index(n);                   % Index of this subject
         gmm = dat(n1).model.gmm;          % GMM data for this subject
-        dm  = dat(n1).dm;                 % Image dimensions        
+        dm  = dat(n1).dm;                 % Image dimensions
         f   = spm_mb_io('get_image',gmm); % Image data
         f   = reshape(f,prod(dm),C);      % Vectorise
         T   = gmm.T;                      % INU parameters
@@ -319,7 +322,7 @@ for p=1:numel(sett.gmm) % Loop over populations
             fc    = fc(fc>((mu(c)-mn)/8+mn));      % Voxels above some threshold (c.f. spm_global.m)
             mu(c) = mean(fc);                      % Mean of voxels above the threshold
             vr(c) = var(fc);                       % Variance of voxels above the threshold
-            if ~isempty(T{c}) && m ~= 2            % Should INU or global scaling be done?                
+            if ~isempty(T{c}) && m ~= 2            % Should INU or global scaling be done?
                 s           = 1000;               % Scale means to this value
                 dc          = log(s)-log(mu(c));  % Log of scalefactor
                 bbb         = spm_dctmtx(dm(1),1,1)*spm_dctmtx(dm(2),1,1)*spm_dctmtx(dm(3),1,1);
@@ -356,7 +359,7 @@ for p=1:numel(sett.gmm) % Loop over populations
         % Random mean intensities, roughly sorted. Used to break symmetry.
         rng('default'); rng(1); % Want some reproducibility
        %mu                = diag(sqrt(vr*(1-1/scale)))*randn(C,K1) + mu; % The 1-1/scale is to match V by Pythagorous
-        mu                = bsxfun(@plus,0.01*diag(sqrt(vr)*(1-1/scale))*randn(C,K1), mu); 
+        mu                = bsxfun(@plus,0.01*diag(sqrt(vr)*(1-1/scale))*randn(C,K1), mu);
         d                 = sum(diag(sqrt(vr*(1-1/K1)))\mu,1);           % Heuristic measure of how positive
         [~,o]             = sort(-d); % Order the means, most positive first
         mu                = mu(:,o);

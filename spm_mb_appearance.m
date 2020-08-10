@@ -2,36 +2,14 @@ function varargout = spm_mb_appearance(action,varargin) % Appearance model
 %
 % FORMAT chan       = spm_mb_appearance('inu_basis',T,df,Mat,reg,samp)
 % FORMAT [inu,ll]   = spm_mb_appearance('inu_field',T,chan,d,varargin)
-% FORMAT labels     = spm_mb_appearance('get_labels',dat,sett,do_samp)
 % FORMAT z          = spm_mb_appearance('responsibility',m,b,V,n,f,mu,msk_chn)
 % FORMAT [z,dat]    = spm_mb_appearance('update',dat,mu0,sett)
 % FORMAT dat        = spm_mb_appearance('update_prior',dat,sett)
 %__________________________________________________________________________
 % Copyright (C) 2019-2020 Wellcome Centre for Human Neuroimaging
 
-% $Id: spm_mb_appearance.m 7885 2020-07-03 14:10:31Z mikael $
-
-
-switch action
-    case 'inu_basis'
-        [varargout{1:nargout}] = inu_basis(varargin{:});
-    case 'inu_field'
-        [varargout{1:nargout}] = inu_field(varargin{:});
-    case 'inu_recon'
-        [varargout{1:nargout}] = inu_recon(varargin{:});
-    case 'get_labels'
-        [varargout{1:nargout}] = get_labels(varargin{:});
-    case 'responsibility'
-        [varargout{1:nargout}] = responsibility(varargin{:});
-    case 'update'
-        [varargout{1:nargout}] = update(varargin{:});
-    case 'update_prior'
-        [varargout{1:nargout}] = update_prior(varargin{:});
-    case 'update_shared_prior'
-        [varargout{1:nargout}] = update_shared_prior(varargin{:});
-    otherwise
-        error('Unknown function %s.', action)
-end
+% $Id: spm_mb_appearance.m 7922 2020-08-10 13:15:20Z john $
+[varargout{1:nargout}] = spm_subfun(localfunctions,action,varargin{:});
 %==========================================================================
 
 %==========================================================================
@@ -120,68 +98,6 @@ end
 %==========================================================================
 
 %==========================================================================
-function labels = get_labels(dat,sett,samp)
-if nargin < 3, samp = [1 1 1]; end
-lab = dat.model.gmm.lab;
-if isempty(lab), labels = 0; return; end
-
-cm_map     = lab.cm_map; % cell array that defines the confusion matrix (cm)
-
-% Load labels
-labels = spm_mb_io('get_data',lab.f);
-if any(samp~=1)
-    labels = subsample(labels,samp);
-end
-
-% Use labels2use to keep only labels of interest
-labels = round(labels(:));
-labels(labels<1 | labels>numel(cm_map)) = numel(cm_map);
-
-% Get confusion matrix that maps from label value to probability value
-cm = get_label_conf_matrix(cm_map,lab.w,sett.K);
-
-% Build NxK1 label image using confusion matrix
-labels = cm(labels,:);
-%==========================================================================
-
-%==========================================================================
-function cm = get_label_conf_matrix(cm_map,w,K)
-% FORMAT CM = get_label_cm(cm_map,opt)
-% cm_map - Defines the confusion matrix
-% sett   - Options structure
-% cm     - confusion matrix
-%
-% Build Rater confusion matrix for one subject.
-% This matrix maps template classes to manually segmented classes.
-% Manual labels often do not follow the same convention as the Template,
-% and not all regions may be labelled. Therefore, a manual label may
-% correspond to several Template classes and, conversely, one Template
-% class may correspond to several manual labels.
-%__________________________________________________________________________
-% Copyright (C) 2018 Wellcome Centre for Human Neuroimaging
-
-% Here, we assume that all subjects from the same population (e.g.,
-% a publicily available dataset) have the same labelling protocole and
-% confusion matrix.
-% We allow the rater's sensitivity to change every few acquistion. We would
-% typically start with a high sensitivity, to weight the labels strongly,
-% and then decrease this value to allow the model to correct the rater's
-% mistakes (especially near boundaries).
-
-% Parse function settings
-w  = min(max(w,1e-7),1-1e-7);
-K1 = K + 1;
-L  = numel(cm_map); % Number of labels
-cm = zeros([L K1],'single'); % Allocate confusion matrix
-for l=1:L % Loop over labels
-    ix            = false(1,K1);
-    ix(cm_map{l}) = true;
-    cm(l, ix)     = log(w/sum( ix));
-    cm(l,~ix)     = log((1-w)/sum(~ix));
-end
-%==========================================================================
-
-%==========================================================================
 function [z,lb] = responsibility(m,b,V,n,mf,vf,mu,msk_chn)
 % Compute responsibilities.
 %
@@ -198,9 +114,9 @@ function [z,lb] = responsibility(m,b,V,n,mf,vf,mu,msk_chn)
 
 const  = spm_gmm_lib('Normalisation', {m,b}, {V,n}, msk_chn);
 if ~isempty(vf)
-    z      = spm_gmm_lib('Marginal', mf, {m,V,n}, const, msk_chn, vf);
+    z  = spm_gmm_lib('Marginal', mf, {m,V,n}, const, msk_chn, vf);
 else
-    z      = spm_gmm_lib('Marginal', mf, {m,V,n}, const, msk_chn);
+    z  = spm_gmm_lib('Marginal', mf, {m,V,n}, const, msk_chn);
 end
 [z,lb] = spm_gmm_lib('Responsibility', z, mu);
 %==========================================================================
@@ -251,22 +167,15 @@ Mat          = dat.Mat;
 df           = dat.dm;
 ds           = [size(mu0) 1 1];
 ds           = ds(1:3);
-K1           = sett.K + 1;
 
 % Get image data
 f0    = spm_mb_io('get_image',gmm);
-samp  = dat.samp;
-samp2 = dat.samp2;
-f0    = subsample(f0,dat.samp);
-% Labels are of size [df0 K+1], so cannot be added to template at this stage
-lab0  = get_labels(dat,sett,samp);
-if lab0 ~= 0
-    lab0  = vec2vol(lab0,[size(f0,1) size(f0,2) size(f0,3) K1]);
-end
+samp1 = dat.samp;
+samp2 = gmm.samp;
+f0    = subsample(f0,samp1);
 
 % Intensity priors
 pr   = sett.gmm(gmm.pop).pr;
-gmm  = fix_scaling(gmm,pr,df);
 
 % GMM posterior
 m    = gmm.m;
@@ -279,7 +188,7 @@ mg_w = gmm.mg_w;
 % % Might sometimes help escape local optima. Broadened
 % % more when sample density is lowest. Needs further
 % % testing.
-% scal = prod(samp.*samp2).^(-1/4);
+% scal = prod(samp1.*samp2).^(-1/4);
 % b    = b*scal;
 % n    = (n-C)*scal+C;
 
@@ -302,12 +211,7 @@ clear msk_vx
 % log-likelihood can increase.
 [f,d] = subsample( f0,samp2);
 mu    = subsample(mu0,samp2);
-lab   = vol2vec(subsample(lab0,samp2));
-
-% Template
-mu    = vol2vec(spm_mb_shape('template_k1',mu)); % Make K + 1 template
-mu    = bsxfun(@plus,mu,lab); % Add labels to template
-clear lab
+mu    = vol2vec(mu);
 mu    = mu(:,mg_ix); % Expand, if using multiple Gaussians per tissue
 
 % Bias field related
@@ -320,7 +224,7 @@ end
 
 do_inu = ~cellfun(@isempty,T);
 if any(do_inu)
-    chan          = inu_basis(T,df,Mat,inu_reg,samp.*samp2);
+    chan          = inu_basis(T,df,Mat,inu_reg,samp1.*samp2);
     [llinu,mf,vf] = inu_recon(f,chan,T,Sig);
     lxb           = sum(llinu(:),'double');
 else
@@ -336,7 +240,7 @@ vf                      = spm_gmm_lib('obs2cell', vol2vec(vf), code_image, true)
 code_list               = unique(code_image);
 code_list               = code_list(code_list ~= 0);
 nvox                    = sum(code_image(:)>0);
-lbs = -Inf;
+lbs                     = -Inf;
 
 for it_appear=1:nit_appear
 
@@ -362,7 +266,7 @@ for it_appear=1:nit_appear
     lx     = lb.X;
     lbs    = sum(lb.mu,'double')+sum(lb.A,'double')+lx+lxb;
     %fprintf('%g ', lbs/nvox);
-    if (it_appear==nit_appear) || (lbs-lbso < tol_gmm*nvox) 
+    if (it_appear==nit_appear) || (lbs-lbso < tol_gmm*nvox)
         % Finished
         break
     end
@@ -503,7 +407,7 @@ if nargout > 1
 
         % Compute full-sized responsibilities on original data
         if any(do_inu) % Bias correct
-            chan          = inu_basis(T,df,Mat,inu_reg,samp);
+            chan          = inu_basis(T,df,Mat,inu_reg,samp1);
             [llinu,mf,vf] = inu_recon(f0,chan,T,Sig);
             lxb = sum(llinu(:));
         else
@@ -511,16 +415,9 @@ if nargout > 1
             lxb = 0;
         end
 
-        % Template
-        mu0 = spm_mb_shape('template_k1',mu0);
-        mu0 = bsxfun(@plus,mu0,lab0); % Add labels to template
-        mu0 = bsxfun(@plus, mu0(:,:,:,mg_ix), reshape(log(mg_w),[1 1 1 numel(mg_w)]));
-
-       %[mf1,code_image,msk_chn] = spm_gmm_lib('obs2cell', mask(msk,mf));
-       %mu1     = spm_gmm_lib('obs2cell', mask(msk,mu0), code_image, false);
-       %vf1     = spm_gmm_lib('obs2cell', mask(msk, vf), code_image, true);
-       %[Z1,lx] = responsibility(m,b,V,n,mf1,vf1,mu1,msk_chn);
-        Z       = unmask1(msk,collapse_Z(spm_gmm_lib('cell2obs', Z, code_image, msk_chn),mg_ix));
+       %mu0 = bsxfun(@plus, mu0(:,:,:,mg_ix), reshape(log(mg_w),[1 1 1 numel(mg_w)]));
+        mu0 = reweight_mu(mu0,log(mg_w),mg_ix);
+        Z   = unmask1(msk,collapse_Z(spm_gmm_lib('cell2obs', Z, code_image, msk_chn),mg_ix));
 
         % Compute other responsibilities from a mixture of Student's t distributions.
         % See Eqns. 10.78-10.82 & B.68-B.72 in Bishop's PRML book.
@@ -574,74 +471,6 @@ X4d = reshape(X2d,[dm(1:3) size(X2d,2)]);
 %==========================================================================
 
 %==========================================================================
-function gmm = fix_scaling(gmm,pr,df)
-% This function appears to make things worse for some reason. This will need
-% more thought to understand the reason why.
-
-% Adjust the DC part of INU to best match the GMM posteriors to the priors.
-msk    = ~cellfun(@isempty,gmm.T(:));    % Only rescale when required
-msk    = msk & any(diff(pr{1},[],2),2);  % Only rescale for informative priors
-if ~any(msk), return; end                % Return if nothing to do
-
-po     = {gmm.m, gmm.b, gmm.V, gmm.n};
-r      = zeros(size(pr{1},1),1);
-r(msk) = get_scaling(pr,po,msk);
-s      = exp(r);
-
-% Adjust distributions of mean and precision matrices
-gmm.m  = diag(1./s)*gmm.m;
-for k=1:size(gmm.V,3)
-    gmm.V(:,:,k) = diag(s)*gmm.V(:,:,k)*diag(s);
-end
-
-% Make corresponding change to bias field (accounting for DCT scaling)
-for m=find(msk(:)')
-    gmm.T{m}(1,1,1) = gmm.T{m}(1,1,1) - r(m)*sqrt(prod(df));
-end
-%==========================================================================
-
-%==========================================================================
-function r = get_scaling(pr,po,msk)
-% Determine log of rescaling factor that best matches the priors
-% with the posteriors. This was based on Eq. 10.74 of Bishop's
-% PRML book.
-% Substitute m0 in 10.74 for diag(exp(r))*mu0, and V0 for
-% diag(exp(r))\V0/diag(exp(r)). Then differentiate w.r.t. r
-% to obtain gradients and Hessians for a Newton optimisation.
-
-[mu0,b0,V0,nu0] = deal(pr{:});
-[mu ,~ ,V ,nu ] = deal(po{:});
-[D,K]           = size(mu0);
-if nargin<3, msk = true(D,1); end
-
-% Ad hoc fix to reduce the chance of one class dominating the scaling.
-% Perhaps some form of hyper-priors might be a more elegant solution.
-b0   = min(b0,exp(mean(log(b0)))*10); 
-
-Alph = 0;
-beta = 0;
-gamm = 0;
-for k=1:K
-    Alph = Alph + nu(k)*(inv(V0(:,:,k)).*V(:,:,k)' + ...
-                  b0(k)*diag(mu0(:,k))'*V(:,:,k)*diag(mu0(:,k)));
-    beta = beta + b0(k)*nu(k)*diag(mu0(:,k))'*V(:,:,k)*mu(:,k);
-    gamm = gamm + nu0(k);
-end
-Alph = Alph(msk,msk);
-beta = beta(msk);
-r    = zeros(sum(msk),1);
-for it=1:100
-    s  = exp(r);
-    g  = s.*(Alph*s - beta -  gamm./(s   +eps));
-    H  = (s*s').*(Alph + diag(gamm./(s.^2+eps)));
-    H  = H + eye(size(H))*1e-6*max(diag(H));
-    dr = H\g;
-    r  = r - dr;
-    if sqrt(mean(dr.^2)) < 1e-9, break; end
-end
-%==========================================================================
-
-%==========================================================================
 function sett = update_prior(dat, sett)
 if isempty(sett.gmm), return; end
 
@@ -671,7 +500,8 @@ for p=1:numel(sett.gmm) % Loop over populations
 
         % Update prior
         hp = sett.gmm(p).hyperpriors;
-        sett.gmm(p).pr = spm_gmm_lib('updatehyperpars',po,pr,hp{:});
+        sett.gmm(p).pr = spm_gmm_lib('updatehyperpars',po,pr,hp{:}, ...
+            'verbose',true,'figname',num2str(p),'lkp',sett.gmm(p).mg_ix);
 
         %% Update INU regularisation. Disabled because it under-regularises
         %ss_inu0 = zeros(1,size(pr{1},1));
@@ -688,68 +518,36 @@ end
 %==========================================================================
 
 %==========================================================================
-function sett = update_shared_prior(dat, sett)
-if isempty(sett.gmm), return; end
-
-% Get population indices
-code = zeros(numel(dat),1);
-for n=1:numel(dat)
-    if isfield(dat(n).model,'gmm')
-        code(n) = dat(n).model.gmm.pop;
-    end
-end
-
-for p=1:numel(sett.gmm) % Loop over populations
-    if iscell(sett.gmm(p).hyperpriors)
-        index = find(code==p);
-        N     = numel(index);
-        pr    = sett.gmm(p).pr;
-        K     = size(pr{1},2);
-        pr{1} = mean(pr{1},2);
-        pr{2} = mean(pr{2},2);
-        pr{3} = mean(pr{3},3);
-        pr{4} = mean(pr{4},2);
-
-        % Get all posteriors
-        po    = cell(1,N*K);
-        for n=1:N
-            n1  = index(n);
-            gmm = dat(n1).model.gmm;
-            for k=1:K
-                nk     = (n-1)*K+k;
-                po{nk} = {{gmm.m(:,k),gmm.b(:,k)},{diag(diag(gmm.V(:,:,k))),gmm.n(:,k)}};
-            end
-        end
-
-        % Update prior
-        hp    = sett.gmm(p).hyperpriors;
-        pr    = spm_gmm_lib('updatehyperpars',po,pr,hp{:});
-        pr{1} = repmat(pr{1},1,K);
-        pr{2} = repmat(pr{2},1,K);
-        pr{3} = repmat(pr{3},1,1,K);
-        pr{4} = repmat(pr{4},1,K);
-        sett.gmm(p).pr = pr;
-    end
-end
-%==========================================================================
-
-%==========================================================================
 %
 % Utility functions
 %
 %==========================================================================
 
 %==========================================================================
-function mu = reweight_mu(mu,logmg_w)
+function mu = reweight_mu(mu,logmg_w,mg_ix)
 if sum(logmg_w) == 0, return; end
-for i=1:numel(mu)
-   %mu{i} = mu{i} + logmg_w;
-    mu{i} = bsxfun(@plus, mu{i}, logmg_w);
+if iscell(mu)
+    for i=1:numel(mu)
+        mu{i} = bsxfun(@plus, mu{i}, logmg_w);
+       %mu{i} = bsxfun(@minus,mu{i},LSE1(mu{i},2)); % Not needed
+    end
+else
+    % Do it on the volume
+    mu = bsxfun(@plus, mu(:,:,:,mg_ix), reshape(logmg_w,[1 1 1 numel(logmg_w)]));
+   %mu = bsxfun(@minus,mu,LSE1(mu,4)); % Not needed
 end
 %==========================================================================
 
 %==========================================================================
-function [of,d,w] = subsample(f,samp)
+function l = LSE1(mu,ax)
+% log-sum-exp function
+if nargin<2, ax = 4; end
+mx = max(mu,[],ax);
+l  = log(sum(exp(bsxfun(@minus,mu,mx)),ax)) + mx;
+%==========================================================================
+
+%==========================================================================
+function [of,d] = subsample(f,samp)
 % Subsample a multichannel volume.
 %
 % FORMAT [of,d,scl_samp] = subsample(f,samp);
@@ -757,12 +555,10 @@ function [of,d,w] = subsample(f,samp)
 % samp - Sampling distances in voxels
 % of   - Resampled volume
 % d    - Output dimensions
-% w    - Proportion of sampled voxels
 
 if all(samp==1)
     of = f;
     d  = [size(f,1) size(f,2) size(f,3)];
-    w  = 1;
 else
     % Input image properties
     df   = [size(f) 1];
@@ -771,10 +567,6 @@ else
     ind  = sample_ind(df,samp);
     d    = cellfun(@length,ind);  % New dimensions
     of   = f(ind{:},:,:);
-
-    % For weighting data parts of lowerbound with factor based on amount of
-    % downsampling
-    w    = prod(df)/prod(d);
 end
 %==========================================================================
 
@@ -870,7 +662,7 @@ for c=1:C
                 % -E[ln q(t)]: 0.5*log(det(S)) + 0.5*D*log(2*pi) + 0.5*trace(S\S)
                 ll(1,c) = ll(1,c) + sum(log(diag(C)),'double') + 0.5*size(C,1) + 0.5*size(C,1)*log(2*pi);
                 % make it E[ln p(t|ICO)] instead of just p(t|ICO)
-                ll(1,c) = ll(1,c) - 0.5*sum(sum(ICO.*S,'double'),'double'); 
+                ll(1,c) = ll(1,c) - 0.5*sum(sum(ICO.*S,'double'),'double');
                 C       = reshape(C',[dt size(C,1)]);
             else
                if approx==0  % Diagonal approximation
@@ -892,7 +684,7 @@ for c=1:C
                     [V,D]  = eigs(double(S),approx);
                     U      = single(V*diag(sqrt(diag(D))));
                     s      = reshape(single(diag(S - U*U')),dt);
-                    U      = reshape(U,[dt approx]); 
+                    U      = reshape(U,[dt approx]);
                 end
 
                 % Basis functions for diagonal (part of the ) approximation
@@ -902,7 +694,7 @@ for c=1:C
             end
 
             for z=1:nz % Loop over slices
- 
+
                 %% Symbolic workings for E[f.*exp(x)] & Var[f.*exp(x)]
                 %  syms m x em1 real
                 %  syms f S positive
@@ -917,7 +709,7 @@ for c=1:C
                         vl = vl + inu_transform(B1,B2,B3(z,:),C(:,:,:,ii)).^2;
                     end
                 else
-                    % Approximate voxl-wise variance estimates from covariance matrix S 
+                    % Approximate voxl-wise variance estimates from covariance matrix S
                     vl = inu_transform(B1s,B2s,B3s(z,:),s); % Diagonal approximation
                     for ii=1:size(U,4)
                         vl = vl + inu_transform(B1,B2,B3(z,:),U(:,:,:,ii)).^2;
