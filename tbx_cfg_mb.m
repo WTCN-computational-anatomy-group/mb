@@ -553,7 +553,6 @@ function  out = run_mb(cfg)
 [dat,sett]    = spm_mb_init(cfg);
 if ~isempty(dat)
     [dat,sett,mu] = spm_mb_fit(dat,sett);
-    dat           = spm_mb_io('save_psi',dat,sett);
     out           = out_mb_run(sett,dat);
     save(out.fit{1},'sett','dat');
 else
