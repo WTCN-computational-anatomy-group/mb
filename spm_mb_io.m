@@ -83,6 +83,11 @@ if any(jitter~=0)
     rng('default'); rng(1);
     fn = fn + bsxfun(@times,rand(size(fn)) - 1/2,jitter);
 end
+for c=1:numel(gmm.modality)
+    if gmm.modality(c)==2
+        fn(:,:,:,c) = fn(:,:,:,c) + 1000;
+    end
+end
 %==========================================================================
 
 %==========================================================================
