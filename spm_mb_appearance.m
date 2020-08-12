@@ -269,7 +269,6 @@ for it_appear=1:nit_appear
         % Finished
         break
     end
-olbs = lbs;
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Update bias field parameters
@@ -354,7 +353,6 @@ olbs = lbs;
 
             % Actual Hessian is greater than the expected Hessian at some voxels,
             % so take the maximum of the expected and actual.
-           %H_im(gr_im<0) = H_im(gr_im<0) - gr_im(gr_im<0);
             H_im(gr_im>0) = H_im(gr_im>0) + gr_im(gr_im>0);
 
             % Compute gradient and Hessian
