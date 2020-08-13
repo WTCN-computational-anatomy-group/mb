@@ -324,13 +324,11 @@ P   = bsxfun(@rdivide,E,den);
 
 %==========================================================================
 function E = template_energy(mu,mu_settings)
+% mu(:)'*kron(eye(K)-1/(K+1),L)*mu(:), where L is the vel2mom regulariser
 if ~isempty(mu_settings)
     spm_field('bound',1);
-    m0 = sum(mu,4)/(size(mu,4)+1);
-    mu = bsxfun(@minus,mu,m0);
-    g  = spm_field('vel2mom', mu, mu_settings);
+    g  = reg_mu(mu, mu_settings);
     E  = 0.5*mu(:)'*g(:);
-    E = E + 0.5*sum(sum(sum(m0.*spm_field('vel2mom', m0, mu_settings))));
 else
     E  = 0;
 end
@@ -471,7 +469,7 @@ s_settings  = [2 2];
 nw          = get_num_workers(sett,4*sett.K+4);
 
 spm_field('bound',1);
-g  = spm_field('vel2mom', bsxfun(@minus,mu, sum(mu,4)/(size(mu,4)+1)), mu_settings);
+g  = reg_mu(mu,mu_settings);
 w  = zeros(sett.ms.d,'single');
 if nw > 1 && numel(dat) > 1 % PARFOR
     parfor(n=1:numel(dat),nw)
@@ -488,9 +486,42 @@ else
 end
 clear gn wn
 H  = appearance_hessian(mu,accel,w);
+
 % Note that spm_field could be re-written to make these updates
-% converge more effectively.
-mu = mu - spm_field(H, g, [mu_settings s_settings]);
+% converge more effectively. Currently, spm_field assumes that
+% the regulariser is of the form kron(eye(K),L), whereas the
+% form of regularisation needed here is kron(eye(K)-1/(K+1),L).
+% The latter can be obtained iteratively via the following...
+dmu   = spm_field(H, g, [mu_settings s_settings]);
+nrm_g = norm(g(:));
+for it=1:16
+    g1     = g   - reg_mu(dmu, mu_settings) - matfieldmul(H, dmu);
+    dmu    = dmu + spm_field(H, g1, [mu_settings s_settings]);
+    nrm_g1 = norm(g1(:));
+    if nrm_g1/nrm_g < 1e-3, break; end
+end
+mu  = mu - dmu;
+%==========================================================================
+
+%==========================================================================
+function g = reg_mu(mu,mu_settings)
+K = size(mu,4);
+g = spm_field('vel2mom', bsxfun(@minus,mu, sum(mu,4)/(K+1)), mu_settings);
+%==========================================================================
+
+%==========================================================================
+function q = matfieldmul(A,p)
+% q = spm_field('Atimesp', A, p); % May need compiling
+q = zeros(size(p),'like',p);
+K = size(p,4);
+I = horder(K);
+for k1=1:K
+    tmp = zeros([size(p,1),size(p,2),size(p,3)],'like',p);
+    for k2=1:K
+        tmp = tmp + A(:,:,:,I(k1,k2)).*p(:,:,:,k2);
+    end
+    q(:,:,:,k1) = tmp;
+end
 %==========================================================================
 
 %==========================================================================
@@ -668,7 +699,7 @@ for it=1:ceil(4+2*log2(numel(dat)))
     H  = appearance_hessian(mu,accel,w);
     g  = w.*softmax(mu,4) - gf;
     spm_field('bound',1);
-    g  = g  + spm_field('vel2mom', bsxfun(@minus,mu,sum(mu,4)/(size(mu,4)+1)), mu_settings);
+    g  = g  + reg_mu(mu, mu_settings);
     % Note that spm_field could be re-written to make the updates slightly
     % more effective.
     mu = mu - spm_field(H, g, [mu_settings s_settings]);
