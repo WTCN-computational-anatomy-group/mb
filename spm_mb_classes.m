@@ -75,9 +75,9 @@ lab    = lab(1:sk(1):end, 1:sk(2):end, 1:sk(3):end);
 dm     = [size(lab) 1 1];
 lab    = round(lab(:));
 cm_map = dat.lab.cm_map; % cell array that defines the confusion matrix
-lab(~isfinite(lab) | lab<1 | lab>numel(cm_map)) = numel(cm_map)+1; % Prevent crash
+lab(~isfinite(lab) | lab<1 | lab>=numel(cm_map)) = numel(cm_map); % Prevent crash
 
-% Get confusion matrix that maps from label value to probability value
+% Get confusion matrix that maps from label value to (log) probability value
 cm = get_label_conf_matrix(cm_map, dat.lab.w, K1);
 
 % Build "one-hot" representation using confusion matrix
@@ -102,7 +102,7 @@ function cm = get_label_conf_matrix(cm_map, w, K1)
 % Parse function settings
 w  = min(max(w, 1e-7), 1-1e-7);
 L  = numel(cm_map);             % Number of labels
-cm = zeros([L+1 K1], 'single'); % Allocate confusion matrix (including unknown)
+cm = zeros([L K1], 'single'); % Allocate confusion matrix (including unknown)
 for l=1:L % Loop over labels
     ix            = false(1, K1);
     ix(cm_map{l}) = true;
