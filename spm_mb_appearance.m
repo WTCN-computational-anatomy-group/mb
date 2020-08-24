@@ -8,7 +8,7 @@ function varargout = spm_mb_appearance(action,varargin) % Appearance model
 %__________________________________________________________________________
 % Copyright (C) 2019-2020 Wellcome Centre for Human Neuroimaging
 
-% $Id: spm_mb_appearance.m 7927 2020-08-12 16:07:42Z john $
+% $Id: spm_mb_appearance.m 7938 2020-08-24 11:26:41Z mikael $
 [varargout{1:nargout}] = spm_subfun(localfunctions,action,varargin{:});
 %==========================================================================
 
@@ -497,8 +497,9 @@ for p=1:numel(sett.gmm) % Loop over populations
 
         % Update prior
         hp = sett.gmm(p).hyperpriors;
+        verbose = false;
         sett.gmm(p).pr = spm_gmm_lib('updatehyperpars',po,pr,hp{:}, ...
-            'verbose',true,'figname',num2str(p),'lkp',sett.gmm(p).mg_ix);
+            'verbose',verbose,'figname',num2str(p),'lkp',sett.gmm(p).mg_ix);
 
         % Attempt to increase stability by avoiding singular precision matrices
         V  = sett.gmm(p).pr{3};

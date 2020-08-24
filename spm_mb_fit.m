@@ -11,7 +11,7 @@ function [dat,sett,mu] = spm_mb_fit(dat,sett)
 %__________________________________________________________________________
 % Copyright (C) 2020 Wellcome Centre for Human Neuroimaging
 
-% $Id: spm_mb_fit.m 7907 2020-07-23 16:10:52Z john $
+% $Id: spm_mb_fit.m 7938 2020-08-24 11:26:41Z mikael $
 
 
 % Repeatable random numbers
@@ -44,37 +44,6 @@ sett.ms = sz(end);
 % Init shape model parameters
 %--------------------------------------------------------------------------
 dat = spm_mb_shape('init_def',dat,sett.ms);
-
-
-% % Modulate GMM posteriors with template
-% %--------------------------------------------------------------------------
-% 
-% for n=1:numel(dat)
-%     % Parse function settings
-%     B     = sett.B;
-%     Mmu   = sett.ms.Mmu;
-% 
-%     q    = double(dat(n).q);
-%     Mn   = dat(n).Mat;
-%     samp = dat(n).samp;
-%     Mr   = spm_dexpm(q,B);
-% 
-%     df   = dat(n).dm;
-%     psi0 = spm_mb_shape('affine',df,Mmu\Mr*Mn,samp);
-%     psi1 = spm_mb_shape('get_def',dat(n),sett.ms.Mmu);
-%     if ~isempty(psi1)
-%         psi  = spm_mb_shape('compose',psi1,psi0);
-%     else
-%         psi  = psi0;
-%     end
-%     clear psi0  psi1
-% 
-%     mu1 = spm_mb_shape('pull1',mu0, psi);
-%     mu1 = spm_mb_classes('template_k1',mu1,4);
-%     mu1 = exp(mu1);
-% %     smu1  = spm_mb_shape('softmax',mu1,4);
-% end
-
 
 % Init template
 %--------------------------------------------------------------------------
@@ -114,38 +83,7 @@ updt_int = 'update_prior';
 fprintf('Rigid (zoom=%d): %d x %d x %d\n',2^(numel(sz)-1),sett.ms.d);
 spm_plot_convergence('Init','Rigid Alignment','Objective','Iteration');
 E      = Inf;
-verbose = true;
 for it0=1:nit_aff
-    if verbose
-        tmp1 = mu(:,:,round(0.5*size(mu,3)),:); 
-        tmp1 = spm_mb_classes('template_k1',tmp1,4);
-        [~,ml1] = max(tmp1,[],4); 
-        tmp2 = mu(:,round(0.5*size(mu,2)),:,:); 
-        tmp2 = spm_mb_classes('template_k1',tmp2,4);
-        [~,ml2] = max(tmp2,[],4);
-        ml2 = squeeze(ml2);
-        tmp3 = mu(round(0.5*size(mu,1)),:,:,:); 
-        tmp3 = spm_mb_classes('template_k1',tmp3,4);
-        [~,ml3] = max(tmp3,[],4); 
-        ml3 = squeeze(ml3);
-        
-        f = findobj('Type', 'Figure', 'Name', 'Template');
-        if isempty(f)
-            f = figure('Name', 'Template', 'NumberTitle', 'off');
-        end
-        set(0, 'CurrentFigure', f);
-        clf(f);
-
-        colormap(hsv(7))
-        subplot(131)
-        imagesc(ml1); axis off image;
-        subplot(132)
-        imagesc(ml2); axis off image;
-        title(['Affine, it=' num2str(it0)])
-        subplot(133)
-        imagesc(ml3); axis off image; 
-    end
-    
     if it0>1
         oE  = E/nvox(dat);
     else
@@ -153,6 +91,7 @@ for it0=1:nit_aff
     end
     if updt_mu
         [mu,sett,dat,te,E] = iterate_mean(mu,sett,dat,te,E,updt_int);
+        show_mu(mu, ['Affine (it=' num2str(it0) ' | N=' num2str(numel(dat)) ')']);
     end
 
     if true
@@ -199,8 +138,9 @@ for zm=numel(sz):-1:1 % loop over zoom levels
         mu = spm_mb_shape('shrink_template',mu0,Mmu,sett);
     else
         [mu,sett,dat,te,E] = iterate_mean(mu,sett,dat,te,E);
-    end
-
+        show_mu(mu, ['Diffeo (it=' num2str(zm) ' ' num2str(0) ')']);
+    end    
+    
     if updt_aff
         % UPDATE: rigid
         dat   = spm_mb_shape('update_affines',dat,mu,sett);
@@ -215,36 +155,6 @@ for zm=numel(sz):-1:1 % loop over zoom levels
     nit_zm = nit_zm0 + (zm - 1); % use nit_zm0 only for zm = 1
     for it0=1:nit_zm
 
-    if verbose
-        tmp1 = mu(:,:,round(0.5*size(mu,3)),:); 
-        tmp1 = spm_mb_classes('template_k1',tmp1,4);
-        [~,ml1] = max(tmp1,[],4); 
-        tmp2 = mu(:,round(0.5*size(mu,2)),:,:); 
-        tmp2 = spm_mb_classes('template_k1',tmp2,4);
-        [~,ml2] = max(tmp2,[],4);
-        ml2 = squeeze(ml2);
-        tmp3 = mu(round(0.5*size(mu,1)),:,:,:); 
-        tmp3 = spm_mb_classes('template_k1',tmp3,4);
-        [~,ml3] = max(tmp3,[],4); 
-        ml3 = squeeze(ml3);
-        
-        f = findobj('Type', 'Figure', 'Name', 'Template');
-        if isempty(f)
-            f = figure('Name', 'Template', 'NumberTitle', 'off');
-        end
-        set(0, 'CurrentFigure', f);
-        clf(f);
-
-        colormap(hsv(7))
-        subplot(131)
-        imagesc(ml1); axis off image;
-        subplot(132)
-        imagesc(ml2); axis off image;
-        title(['Affine, zm=' num2str(zm) ', it=' num2str(it0)])
-        subplot(133)
-        imagesc(ml3); axis off image; 
-    end
-    
        %oEE = EE;
         i   = 1;   % For tracking objfun
 
@@ -252,8 +162,9 @@ for zm=numel(sz):-1:1 % loop over zoom levels
             [mu,sett,dat,te,E] = iterate_mean(mu,sett,dat,te,E);
             EE(i)  = E;
             i      = i+1;
-        end
-
+            show_mu(mu, ['Diffeo (it=' num2str(zm) ' ' num2str(it0) ' | N=' num2str(numel(dat)) ')']);
+        end        
+        
         if updt_diff
             % UPDATE: diffeo
             dat   = spm_mb_shape('update_velocities',dat,mu,sett);
@@ -348,4 +259,48 @@ if isfield(sett,'save') && sett.save
    %sett = rmfield(sett,{'ms'});
     save(fullfile(sett.odir,['mb_fit_' sett.onam '.mat']),'sett','dat');
 end
+%==========================================================================
+
+%==========================================================================
+function show_mu(mu, titl, fig_name, do)    
+% Shows the template..
+if nargin < 2, titl = ''; end
+if nargin < 3, fig_name = 'Template'; end
+if nargin < 4, do = false; end
+
+if ~do, return; end
+% What slice index (ix) to show
+dm = size(mu);
+ix = round(0.5*dm);
+% Axis z
+mu1 = mu(:,:,ix(3),:); 
+mu1 = spm_mb_classes('template_k1',mu1,4);
+[~,ml1] = max(mu1,[],4); 
+% Axis y
+mu1 = mu(:,ix(2),:,:); 
+mu1 = spm_mb_classes('template_k1',mu1,4);
+[~,ml2] = max(mu1,[],4);
+ml2 = squeeze(ml2);
+% Axis x
+mu1 = mu(ix(1),:,:,:); 
+mu1 = spm_mb_classes('template_k1',mu1,4);
+[~,ml3] = max(mu1,[],4); 
+ml3 = squeeze(ml3);
+% Create/find figure
+f = findobj('Type', 'Figure', 'Name', fig_name);
+if isempty(f)
+    f = figure('Name', fig_name, 'NumberTitle', 'off');
+end
+set(0, 'CurrentFigure', f);
+clf(f);
+% Show figure
+colormap(hsv(dm(4)))
+subplot(131)
+imagesc(ml1); axis off image;
+subplot(132)
+imagesc(ml2); axis off image;
+title(titl)
+subplot(133)
+imagesc(ml3); axis off image; 
+drawnow
 %==========================================================================
