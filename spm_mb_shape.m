@@ -273,10 +273,9 @@ sd    = max(round(2.0*vx_f./vx_mu),1);
 %==========================================================================
 
 %==========================================================================
-function mu = shrink_template(mu,oMmu,sett,smo_wt)
+function mu = shrink_template(mu,oMmu,sett)
 
 % Parse function settings
-if nargin<4, smo_wt = 1; end
 d     = sett.ms.d;
 Mmu   = sett.ms.Mmu;
 d0    = [size(mu,1) size(mu,2) size(mu,3)];
@@ -290,24 +289,6 @@ if any(d0~=d) || norm(Mzoom-eye(4))>1e-4
     e      = eps('single');
     mu     = bsxfun(@rdivide,mu,max(c,e));
     mu     = bsxfun(@minus,log(max(mu,e)),log(max(1-sum(mu,4),e)));
-end
-smo_wt = min(max(smo_wt,0),1);
-if smo_wt~=0
-    smo = single([0.25 0.5 0.25]);
-    if d(3)>1
-        smo = reshape(kron(kron(smo,smo),smo),[3 3 3]);
-        del = zeros([3 3 3],'single');
-        del(2,2,2) = 1;
-        smo = smo*smo_wt+del*(1-smo_wt);
-    else
-        smo = smo'*smo;
-        del = zeros([3 3],'single');
-        del(2,2) = 1;
-        smo = smo*smo_wt+del*(1-smo_wt);
-    end
-    for k=1:size(mu,4)
-        mu(:,:,:,k) = convn(mu(:,:,:,k),smo,'same');
-    end
 end
 %==========================================================================
 
