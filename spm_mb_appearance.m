@@ -614,7 +614,7 @@ if nargin<3
     vol_out = zeros([dm dt],'like',vec_in);
 end
 for n1=1:prod(dt)
-    tmp         = zeros([dm 1],'like',vec_in);
+    tmp         = vol_out(ind{:},n1);
     tmp(msk(:)) = vec_in(:,n1);
     vol_out(ind{:},n1) = tmp;
 end
