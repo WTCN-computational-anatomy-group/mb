@@ -266,7 +266,6 @@ for it_appear=1:nit_appear
     n      = mog.n;
     lx     = lb.X;
     lbs    = sum(lb.mu,'double')+sum(lb.A,'double')+lx+lxb;
-    %fprintf('%g ', lbs/nvox);
     if (it_appear==nit_appear) || (lbs-lbso < tol_gmm*nvox)
         % Finished
         break
@@ -439,7 +438,6 @@ end
 dat.E(1)      = -lbs; %*scl_samp;
 dat.nvox      = nvox;
 dat.model.gmm = gmm;
-%fprintf(' [%g] ', dat.E(1)/dat.nvox);
 %==========================================================================
 
 %==========================================================================
