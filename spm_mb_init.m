@@ -364,10 +364,12 @@ for p=1:numel(sett.gmm) % Loop over populations
     end
 
     % Fill in entirely missing values with means
-    vr_c = repmat(mean(vr_all,2,'omitnan'),1,N);
-    vr_all(~isfinite(vr_all)) = vr_c(~isfinite(vr_all));
-    mu_c = repmat(mean(mu_all,2,'omitnan'),1,N);
-    mu_all(~isfinite(mu_all)) = mu_c(~isfinite(mu_all));
+    for c=1:C
+        msk  = isfinite(vr_all(c,:));
+        vr_all(c,~msk) = sum(vr_all(c,msk),2)/sum(msk,2);
+        msk  = isfinite(mu_all(c,:));
+        mu_all(c,~msk) = sum(mu_all(c,msk),2)/sum(msk,2);
+    end
 
     K1 = numel(sett.gmm(p).mg_ix); % Total number of Gaussians (some tissues may have more than one)
     if isempty(sett.gmm(p).pr)
