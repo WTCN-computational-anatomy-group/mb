@@ -3,7 +3,7 @@ function cfg = tbx_cfg_mb
 %__________________________________________________________________________
 % Copyright (C) 2019-2020 Wellcome Centre for Human Neuroimaging
 
-% $Id: tbx_cfg_mb.m 7924 2020-08-10 15:27:44Z john $
+% $Id: tbx_cfg_mb.m 7904 2020-07-20 16:18:59Z john $
 
 if ~isdeployed, addpath(fullfile(spm('dir'),'toolbox','mb')); end
 

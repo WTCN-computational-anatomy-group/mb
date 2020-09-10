@@ -153,12 +153,12 @@ end
 sett.gmm  = struct('pr',cell(num_priors,1),'hyperpriors',true, ....
                    'mg_ix', [], 'C',0, 'tol_gmm',[],'nit_gmm_miss',[],'nit_gmm',[],'nit_appear',[]);
 for p=1:numel(cfg.gmm)
-    
+
     ix_gmm = p;
     if one_gmm_prior
         ix_gmm = 1;
     end
-    
+
     sett.gmm(ix_gmm).tol_gmm      = cfg.gmm(p).tol_gmm;
     sett.gmm(ix_gmm).nit_gmm_miss = cfg.gmm(p).nit_gmm_miss;
     sett.gmm(ix_gmm).nit_gmm      = cfg.gmm(p).nit_gmm;
@@ -341,11 +341,11 @@ for p=1:numel(sett.gmm) % Loop over populations
             m     = dat(n1).model.gmm.modality(c); % Get modality
             fc    = f(:,c);                        % Image for this channel
             fc    = fc(isfinite(fc));              % Ignore non-finite values
-            if isempty(fc) 
+            if isempty(fc)
                 T{c} = []; % No observations in channel => do not model bias field
             end
             mn    = min(fc);                       % Minimum needed for e.g. CT
-            mu(c) = sum(fc)/size(f,1);             % Mean (assuming missing values are zero)            
+            mu(c) = sum(fc)/size(f,1);             % Mean (assuming missing values are zero)
             fc    = fc(fc>((mu(c)-mn)/8+mn));      % Voxels above some threshold (c.f. spm_global.m)
             mu(c) = mean(fc);                      % Mean of voxels above the threshold
             vr(c) = var(fc);                       % Variance of voxels above the threshold
@@ -368,7 +368,7 @@ for p=1:numel(sett.gmm) % Loop over populations
     vr_all(~isfinite(vr_all)) = vr_c(~isfinite(vr_all));
     mu_c = repmat(mean(mu_all,2,'omitnan'),1,N);
     mu_all(~isfinite(mu_all)) = mu_c(~isfinite(mu_all));
-    
+
     K1 = numel(sett.gmm(p).mg_ix); % Total number of Gaussians (some tissues may have more than one)
     if isempty(sett.gmm(p).pr)
 
