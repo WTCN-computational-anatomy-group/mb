@@ -15,7 +15,7 @@ function varargout = spm_mb_classes(varargin)
 %__________________________________________________________________________
 % Copyright (C) 2019-2020 Wellcome Centre for Human Neuroimaging
 
-% $Id$
+% $Id: spm_mb_classes.m 7940 2020-09-10 18:14:43Z john $
 
 if isa(varargin{1},'char')
     [varargout{1:nargout}] = spm_subfun(localfunctions,varargin{:});
@@ -26,7 +26,6 @@ end
 
 %==========================================================================
 function [P,dat] = get_classes(dat,mu,sett)
-
 
 if isfield(dat.model,'cat')
     % Categorical model
@@ -66,30 +65,31 @@ dat.nvox =  sum(msk(:));
 %==========================================================================
 
 %==========================================================================
-function lab = get_labels(dat,K1)
+function lab = get_labels(dat, K1)
 if isempty(dat.lab), lab = 0; return; end
 
 % Load labels
-lab    = spm_mb_io('get_data',dat.lab.f);
+lab    = spm_mb_io('get_data', dat.lab.f);
 sk     = dat.samp;
-lab    = lab(1:sk:end,1:sk:end,1:sk:end);
+lab    = lab(1:sk(1):end, 1:sk(2):end, 1:sk(3):end);
 dm     = [size(lab) 1 1];
 lab    = round(lab(:));
 cm_map = dat.lab.cm_map; % cell array that defines the confusion matrix
-lab(lab<1 | lab>numel(cm_map)) = numel(cm_map); % Prevent crash
+lab(~isfinite(lab) | lab<1 | lab>numel(cm_map)) = numel(cm_map) + 1; % Prevent crash
 
-% Get confusion matrix that maps from label value to probability value
-cm = get_label_conf_matrix(cm_map,dat.lab.w,K1);
+% Get confusion matrix that maps from label value to (log) probability value
+cm = get_label_conf_matrix(cm_map, dat.lab.w, K1);
 
 % Build "one-hot" representation using confusion matrix
-lab = reshape(cm(lab,:),[dm(1:3) K1]);
+lab = reshape(cm(lab,:), [dm(1:3) K1]);
 %==========================================================================
 
 %==========================================================================
-function cm = get_label_conf_matrix(cm_map,w,K1)
-% FORMAT CM = get_label_cm(cm_map,opt)
+function cm = get_label_conf_matrix(cm_map, w, K1)
+% FORMAT CM = get_label_cm(cm_map, w, K1)
 % cm_map - Defines the confusion matrix
-% sett   - Options structure
+% w      - Weighting probability
+% K1     - Number of classes
 % cm     - confusion matrix
 %
 % Build Rater confusion matrix for one subject.
@@ -100,11 +100,11 @@ function cm = get_label_conf_matrix(cm_map,w,K1)
 % class may correspond to several manual labels.
 
 % Parse function settings
-w  = min(max(w,1e-7),1-1e-7);
-L  = numel(cm_map);           % Number of labels
-cm = zeros([L K1],'single');  % Allocate confusion matrix
+w  = min(max(w, 1e-7), 1-1e-7);
+L  = numel(cm_map);              % Number of labels
+cm = zeros([L+1, K1], 'single'); % Allocate confusion matrix (including unknown)
 for l=1:L % Loop over labels
-    ix            = false(1,K1);
+    ix            = false(1, K1);
     ix(cm_map{l}) = true;
     cm(l, ix)     = log(w/sum( ix));
     cm(l,~ix)     = log((1-w)/sum(~ix));
@@ -125,9 +125,6 @@ function mu = template_k1(mu,ax)
 if nargin<2, ax = 4; end
 lse  = LSE(mu,ax);
 mu   = cat(ax,bsxfun(@minus,mu,lse), -lse);
-%d     = size(mu);
-%d(ax) = 1;
-%mu    = cat(ax,mu,zeros(d,'single'));
 %==========================================================================
 
 %==========================================================================

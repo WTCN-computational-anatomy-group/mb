@@ -176,7 +176,6 @@ f0    = subsample(f0,samp1);
 
 % Intensity priors
 pr   = sett.gmm(gmm.pop).pr;
-gmm  = fix_scaling(gmm,pr,df);
 
 % GMM posterior
 m    = gmm.m;
@@ -212,7 +211,7 @@ clear msk_vx
 % log-likelihood can increase.
 [f,d] = subsample( f0,samp2);
 mu    = subsample(mu0,samp2);
-mu    = vol2vec(mu); 
+mu    = vol2vec(mu);
 mu    = mu(:,mg_ix); % Expand, if using multiple Gaussians per tissue
 
 % Bias field related
@@ -285,13 +284,14 @@ for it_appear=1:nit_appear
 
         % Update bias field parameters for each channel separately
         for c=1:C % Loop over channels
+
             if isempty(T{c}), continue; end
 
             % Compute mode, rather than expectations for the parameters
             % to update.
             [~,mf_c,vf_c] = inu_recon(f(:,:,:,c),chan(c),T(c));
-            mf = insert2cell(mf,code_image,vol2vec(mf_c),c);
-            vf = insert2cell(vf,code_image,vol2vec(vf_c),c);
+            mf = insert2cell(mf,code_image,vol2vec(mf_c),C,c);
+            vf = insert2cell(vf,code_image,vol2vec(vf_c),C,c);
 
             % Compute gradient and Hessian (in image space)
             gr_im = zeros(d(1:3),'single');
@@ -353,7 +353,7 @@ for it_appear=1:nit_appear
 
             % Actual Hessian is greater than the expected Hessian at some voxels,
             % so take the maximum of the expected and actual.
-            H_im(gr_im<0) = H_im(gr_im<0) - gr_im(gr_im<0);
+            H_im(gr_im>0) = H_im(gr_im>0) + gr_im(gr_im>0);
 
             % Compute gradient and Hessian
             d3 = numel(T{c}); % Number of DCT parameters
@@ -379,15 +379,14 @@ for it_appear=1:nit_appear
 
             % Compute new expectations (only for channel c)
             [llinu(:,c),mf_c,vf_c] = inu_recon(f(:,:,:,c),chan(c),T(c),Sig(c));
-            mf     = insert2cell(mf,code_image,vol2vec(mf_c),c);
-            vf     = insert2cell(vf,code_image,vol2vec(vf_c),c);
+            mf     = insert2cell(mf, code_image, vol2vec(mf_c), C, c);
+            vf     = insert2cell(vf, code_image, vol2vec(vf_c), C, c);
             lxb    = sum(llinu(:),'double');
             Z      = responsibility(m,b,V,n,mf,vf,reweight_mu(mu,log(mg_w)),msk_chn);
         end
     end
 end
 clear f mu
-
 % Update dat
 lbs      = lx+lxb+sum(lb.mu,'double')+sum(lb.A,'double');
 gmm.T    = T;
@@ -398,7 +397,6 @@ gmm.V    = V;
 gmm.n    = n;
 gmm.lb   = lb;
 gmm.mg_w = mg_w;
-
 if nargout > 1
 
     % Compute full size resps
@@ -412,10 +410,10 @@ if nargout > 1
             lxb = sum(llinu(:));
         else
             mf  = f0;
+            vf  = zeros(size(mf),'single');
             lxb = 0;
         end
 
-       %mu0 = bsxfun(@plus, mu0(:,:,:,mg_ix), reshape(log(mg_w),[1 1 1 numel(mg_w)]));
         mu0 = reweight_mu(mu0,log(mg_w),mg_ix);
         Z   = unmask1(msk,collapse_Z(spm_gmm_lib('cell2obs', Z, code_image, msk_chn),mg_ix));
 
@@ -423,10 +421,10 @@ if nargout > 1
         % See Eqns. 10.78-10.82 & B.68-B.72 in Bishop's PRML book.
         % In practice, it only improves probabilities by a tiny amount.
         msk      = ~msk;
-        [mf1,code_image,msk_chn] = spm_gmm_lib('obs2cell', mask(msk,mf));
+        [mf,code_image,msk_chn] = spm_gmm_lib('obs2cell', mask(msk,mf));
         mu1      = spm_gmm_lib('obs2cell', mask(msk,mu0), code_image, false);
-        vf1      = spm_gmm_lib('obs2cell', mask(msk, vf), code_image, true);
-        [Z2,lx2] = responsibility_t(m,b,V,n,mf1,vf1,mu1,msk_chn);
+        vf       = spm_gmm_lib('obs2cell', mask(msk, vf), code_image, true);
+        [Z2,lx2] = responsibility_t(m,b,V,n,mf,vf,mu1,msk_chn);
         Z        = unmask1(msk,collapse_Z(spm_gmm_lib('cell2obs', Z2, code_image, msk_chn),mg_ix),Z);
         nvox     = nvox + sum(code_image(:)>0);
         lbs      = lx+lx2+lxb+lb.mu+lb.A;
@@ -435,7 +433,7 @@ if nargout > 1
         Z = vec2vol(collapse_Z(spm_gmm_lib('cell2obs', Z, code_image, msk_chn),mg_ix),ds);
     end
 end
-dat.E(1)      = -lbs; %*scl_samp;
+dat.E(1)      = -lbs; 
 dat.nvox      = nvox;
 dat.model.gmm = gmm;
 %==========================================================================
@@ -470,74 +468,6 @@ X4d = reshape(X2d,[dm(1:3) size(X2d,2)]);
 %==========================================================================
 
 %==========================================================================
-function gmm = fix_scaling(gmm,pr,df)
-% This function appears to make things worse for some reason. This will need
-% more thought to understand the reason why.
-
-% Adjust the DC part of INU to best match the GMM posteriors to the priors.
-msk    = ~cellfun(@isempty,gmm.T(:));    % Only rescale when required
-msk    = msk & any(diff(pr{1},[],2),2);  % Only rescale for informative priors
-if ~any(msk), return; end                % Return if nothing to do
-
-po     = {gmm.m, gmm.b, gmm.V, gmm.n};
-r      = zeros(size(pr{1},1),1);
-r(msk) = get_scaling(pr,po,msk);
-s      = exp(r);
-
-% Adjust distributions of mean and precision matrices
-gmm.m  = diag(1./s)*gmm.m;
-for k=1:size(gmm.V,3)
-    gmm.V(:,:,k) = diag(s)*gmm.V(:,:,k)*diag(s);
-end
-
-% Make corresponding change to bias field (accounting for DCT scaling)
-for m=find(msk(:)')
-    gmm.T{m}(1,1,1) = gmm.T{m}(1,1,1) - r(m)*sqrt(prod(df));
-end
-%==========================================================================
-
-%==========================================================================
-function r = get_scaling(pr,po,msk)
-% Determine log of rescaling factor that best matches the priors
-% with the posteriors. This was based on Eq. 10.74 of Bishop's
-% PRML book.
-% Substitute m0 in 10.74 for diag(exp(r))*mu0, and V0 for
-% diag(exp(r))\V0/diag(exp(r)). Then differentiate w.r.t. r
-% to obtain gradients and Hessians for a Newton optimisation.
-
-[mu0,b0,V0,nu0] = deal(pr{:});
-[mu ,~ ,V ,nu ] = deal(po{:});
-[D,K]           = size(mu0);
-if nargin<3, msk = true(D,1); end
-
-% Ad hoc fix to reduce the chance of one class dominating the scaling.
-% Perhaps some form of hyper-priors might be a more elegant solution.
-b0   = min(b0,exp(mean(log(b0)))*10);
-
-Alph = 0;
-beta = 0;
-gamm = 0;
-for k=1:K
-    Alph = Alph + nu(k)*(inv(V0(:,:,k)).*V(:,:,k)' + ...
-                  b0(k)*diag(mu0(:,k))'*V(:,:,k)*diag(mu0(:,k)));
-    beta = beta + b0(k)*nu(k)*diag(mu0(:,k))'*V(:,:,k)*mu(:,k);
-    gamm = gamm + nu0(k);
-end
-Alph = Alph(msk,msk);
-beta = beta(msk);
-r    = zeros(sum(msk),1);
-for it=1:100
-    s  = exp(r);
-    g  = s.*(Alph*s - beta -  gamm./(s   +eps));
-    H  = (s*s').*(Alph + diag(gamm./(s.^2+eps)));
-    H  = H + eye(size(H))*1e-6*max(diag(H));
-    dr = H\g;
-    r  = r - dr;
-    if sqrt(mean(dr.^2)) < 1e-9, break; end
-end
-%==========================================================================
-
-%==========================================================================
 function sett = update_prior(dat, sett)
 if isempty(sett.gmm), return; end
 
@@ -567,7 +497,16 @@ for p=1:numel(sett.gmm) % Loop over populations
 
         % Update prior
         hp = sett.gmm(p).hyperpriors;
-        sett.gmm(p).pr = spm_gmm_lib('updatehyperpars',po,pr,hp{:});
+        verbose = false;
+        sett.gmm(p).pr = spm_gmm_lib('updatehyperpars',po,pr,hp{:}, ...
+            'verbose',verbose,'figname',num2str(p),'lkp',sett.gmm(p).mg_ix);
+
+        % Attempt to increase stability by avoiding singular precision matrices
+        V  = sett.gmm(p).pr{3};
+        for k=1:size(V,3)
+            S        = inv(V(:,:,k));
+            V(:,:,k) = inv(0.999*S + 0.001*mean(diag(S))*eye(size(S)));
+        end
 
         %% Update INU regularisation. Disabled because it under-regularises
         %ss_inu0 = zeros(1,size(pr{1},1));
@@ -579,52 +518,6 @@ for p=1:numel(sett.gmm) % Loop over populations
         %end
         %sett.gmm(p).inu_reg = ss_inu1./ss_inu2;
 
-    end
-end
-%==========================================================================
-
-%==========================================================================
-function sett = update_shared_prior(dat, sett)
-if isempty(sett.gmm), return; end
-
-% Get population indices
-code = zeros(numel(dat),1);
-for n=1:numel(dat)
-    if isfield(dat(n).model,'gmm')
-        code(n) = dat(n).model.gmm.pop;
-    end
-end
-
-for p=1:numel(sett.gmm) % Loop over populations
-    if iscell(sett.gmm(p).hyperpriors)
-        index = find(code==p);
-        N     = numel(index);
-        pr    = sett.gmm(p).pr;
-        K     = size(pr{1},2);
-        pr{1} = mean(pr{1},2);
-        pr{2} = mean(pr{2},2);
-        pr{3} = mean(pr{3},3);
-        pr{4} = mean(pr{4},2);
-
-        % Get all posteriors
-        po    = cell(1,N*K);
-        for n=1:N
-            n1  = index(n);
-            gmm = dat(n1).model.gmm;
-            for k=1:K
-                nk     = (n-1)*K+k;
-                po{nk} = {{gmm.m(:,k),gmm.b(:,k)},{diag(diag(gmm.V(:,:,k))),gmm.n(:,k)}};
-            end
-        end
-
-        % Update prior
-        hp    = sett.gmm(p).hyperpriors;
-        pr    = spm_gmm_lib('updatehyperpars',po,pr,hp{:});
-        pr{1} = repmat(pr{1},1,K);
-        pr{2} = repmat(pr{2},1,K);
-        pr{3} = repmat(pr{3},1,1,K);
-        pr{4} = repmat(pr{4},1,K);
-        sett.gmm(p).pr = pr;
     end
 end
 %==========================================================================
@@ -659,7 +552,7 @@ l  = log(sum(exp(bsxfun(@minus,mu,mx)),ax)) + mx;
 %==========================================================================
 
 %==========================================================================
-function [of,d,w] = subsample(f,samp)
+function [of,d] = subsample(f,samp)
 % Subsample a multichannel volume.
 %
 % FORMAT [of,d,scl_samp] = subsample(f,samp);
@@ -667,12 +560,10 @@ function [of,d,w] = subsample(f,samp)
 % samp - Sampling distances in voxels
 % of   - Resampled volume
 % d    - Output dimensions
-% w    - Proportion of sampled voxels
 
 if all(samp==1)
     of = f;
     d  = [size(f,1) size(f,2) size(f,3)];
-    w  = 1;
 else
     % Input image properties
     df   = [size(f) 1];
@@ -681,10 +572,6 @@ else
     ind  = sample_ind(df,samp);
     d    = cellfun(@length,ind);  % New dimensions
     of   = f(ind{:},:,:);
-
-    % For weighting data parts of lowerbound with factor based on amount of
-    % downsampling
-    w    = prod(df)/prod(d);
 end
 %==========================================================================
 
@@ -727,7 +614,7 @@ if nargin<3
     vol_out = zeros([dm dt],'like',vec_in);
 end
 for n1=1:prod(dt)
-    tmp         = zeros([dm 1],'like',vec_in);
+    tmp         = vol_out(ind{:},n1);
     tmp(msk(:)) = vec_in(:,n1);
     vol_out(ind{:},n1) = tmp;
 end
@@ -745,7 +632,7 @@ function [ll,mf,vf] = inu_recon(f,chan,T,Sig)
 d  = [size(chan(1).B1,1) size(chan(1).B2,1) size(chan(1).B3,1)];
 nz = d(3);
 C  = numel(T);
-if nargin<4,  Sig = cell(1,C); end
+if nargin<4 || isempty(Sig), Sig = cell(1,C); end
 if nargout>1, mf  = zeros([d C],'single'); end
 if nargout>2, vf  = zeros([d C],'single'); end
 ll = zeros(2,C);
@@ -827,7 +714,7 @@ for c=1:C
                         vl = vl + inu_transform(B1,B2,B3(z,:),C(:,:,:,ii)).^2;
                     end
                 else
-                    % Approximate voxl-wise variance estimates from covariance matrix S
+                    % Approximate voxel-wise variance estimates from covariance matrix S
                     vl = inu_transform(B1s,B2s,B3s(z,:),s); % Diagonal approximation
                     for ii=1:size(U,4)
                         vl = vl + inu_transform(B1,B2,B3(z,:),U(:,:,:,ii)).^2;
@@ -855,14 +742,14 @@ end
 %==========================================================================
 
 %==========================================================================
-function Xo = insert2cell(Xo,C,X,c)
+function Xo = insert2cell(Xo,C,X,nc,c)
 codes = unique(C);
 codes = codes(codes ~= 0);
 for i=1:numel(codes)
-    msk    = (C == codes(i));
-    io     = code2bin(codes(i),size(X,2));
+    msk = (C == codes(i));
+    io  = find(code2bin(codes(i),nc));
     if any(io==c)
-        Xo{i}(:,io==c) = X(msk);
+        Xo{i}(:,find(io==c)) = X(msk);
     end
 end
 %==========================================================================

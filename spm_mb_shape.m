@@ -26,7 +26,7 @@ function varargout = spm_mb_shape(action,varargin)
 %__________________________________________________________________________
 % Copyright (C) 2019-2020 Wellcome Centre for Human Neuroimaging
 
-% $Id: spm_mb_shape.m 7892 2020-07-10 16:39:18Z john $
+% $Id: spm_mb_shape.m 7940 2020-09-10 18:14:43Z john $
 [varargout{1:nargout}] = spm_subfun(localfunctions,action,varargin{:});
 %==========================================================================
 
@@ -39,7 +39,6 @@ end
 d     = [d 1 1];
 d     = d(1:3);
 id    = identity(d,samp);
-%psi0 = vec2vol(vol2vec(id)*Mat(1:3,1:3)' + Mat(1:3,4)',size(id));
 psi0  = vec2vol(bsxfun(@plus,vol2vec(id)*Mat(1:3,1:3)',Mat(1:3,4)'),size(id));
 if d(3) == 1, psi0(:,:,:,3) = 1; end
 %==========================================================================
@@ -146,7 +145,6 @@ function l = LSE(mu,ax)
 
 if nargin<2, ax = 4; end
 mx = max(mu,[],ax);
-%l = log(exp(-mx) + sum(exp(mu - mx),ax)) + mx;
 l  = log(exp(-mx) + sum(exp(bsxfun(@minus,mu,mx)),ax)) + mx;
 %==========================================================================
 
@@ -237,11 +235,9 @@ if ~isempty(psi)
     for dz=zrange
         for dy=yrange
             for dx=xrange
-               %ids       = id + cat(4,dx,dy,dz);
                 ids       = bsxfun(@plus, id, cat(4,dx,dy,dz));
                 psi1      = spm_diffeo('pullc',psi-id,    ids)+ids;
                 fs        = spm_diffeo('pull',single(f), ids);
-               %fs=single(f);
                 if nargout==1
                     fs        = spm_diffeo('push',fs,        psi1,d);
                     f1        = f1  + fs;
@@ -277,46 +273,22 @@ sd    = max(round(2.0*vx_f./vx_mu),1);
 %==========================================================================
 
 %==========================================================================
-function mu = shrink_template(mu,oMmu,sett,smo_wt)
+function mu = shrink_template(mu,oMmu,sett)
 
 % Parse function settings
-if nargin<4, smo_wt = 1; end
 d     = sett.ms.d;
 Mmu   = sett.ms.Mmu;
 d0    = [size(mu,1) size(mu,2) size(mu,3)];
 Mzoom = Mmu\oMmu;
 if any(d0~=d) || norm(Mzoom-eye(4))>1e-4
-   %y      = reshape(reshape(identity(d0),[prod(d0),3])*Mzoom(1:3,1:3)'...
-   %                 +Mzoom(1:3,4)',[d0 3]);
     y      = reshape(bsxfun(@plus,...
              reshape(identity(d0),[prod(d0),3])*Mzoom(1:3,1:3)',...
              Mzoom(1:3,4)'),[d0 3]);
-   %mu     = exp(mu-LSE(mu,4));
     mu     = exp(bsxfun(@minus,mu,LSE(mu,4)));
     [mu,c] = push1(mu,y,d,1);
     e      = eps('single');
-   %mu     = mu./max(c,e);
     mu     = bsxfun(@rdivide,mu,max(c,e));
-   %mu     = log(max(mu,e))-log(max(1-sum(mu,4),e));
     mu     = bsxfun(@minus,log(max(mu,e)),log(max(1-sum(mu,4),e)));
-end
-smo_wt = min(max(smo_wt,0),1);
-if smo_wt~=0
-    smo = single([0.25 0.5 0.25]);
-    if d(3)>1
-        smo = reshape(kron(kron(smo,smo),smo),[3 3 3]);
-        del = zeros([3 3 3],'single');
-        del(2,2,2) = 1;
-        smo = smo*smo_wt+del*(1-smo_wt);
-    else
-        smo = smo'*smo;
-        del = zeros([3 3],'single');
-        del(2,2) = 1;
-        smo = smo*smo_wt+del*(1-smo_wt);
-    end
-    for k=1:size(mu,4)
-        mu(:,:,:,k) = convn(mu(:,:,:,k),smo,'same');
-    end
 end
 %==========================================================================
 
@@ -326,23 +298,18 @@ function P = softmax(mu,ax)
 
 if nargin<2, ax = 4; end
 mx  = max(mu,[],ax);
-%E  = exp(mu-mx);
 E   = exp(bsxfun(@minus,mu,mx));
 den = sum(E,ax)+exp(-mx);
-%P  = E./den;
 P   = bsxfun(@rdivide,E,den);
 %==========================================================================
 
 %==========================================================================
 function E = template_energy(mu,mu_settings)
+% mu(:)'*kron(eye(K)-1/(K+1),L)*mu(:), where L is the vel2mom regulariser
 if ~isempty(mu_settings)
     spm_field('bound',1);
-    m0 = sum(mu,4)/(size(mu,4)+1);
-   %mu = mu - m0;
-    mu = bsxfun(@minus,mu,m0);
-    g  = spm_field('vel2mom', mu, mu_settings);
+    g  = reg_mu(mu, mu_settings);
     E  = 0.5*mu(:)'*g(:);
-    E = E + 0.5*sum(sum(sum(m0.*spm_field('vel2mom', m0, mu_settings))));
 else
     E  = 0;
 end
@@ -404,7 +371,7 @@ end
 df   = datn.dm;
 psi0 = affine(df,Mmu\Mr*Mn,samp);
 ds   = [size(psi0,1),size(psi0,2),size(psi0,3)];
-psi1 = get_def(datn,sett.ms.Mmu);
+psi1 = get_def(datn,Mmu);
 if ~isempty(psi1)
     J    = spm_diffeo('jacobian',psi1);
     J    = reshape(pull1(reshape(J,[d 3*3]),psi0),[ds 3 3]);
@@ -458,9 +425,7 @@ g  = zeros(12, 1);
 [x{1:4}] = ndgrid(((1:d(1))-1)*samp(1)+1,((1:d(2))-1)*samp(2)+1,1,1);
 for i=1:d(3)
     x{3} = x{3}*0+(i-1)*samp(3)+1;
-   %gv   = reshape(sum(a(:,:,i,:).*G(:,:,i,:,:),4),[d(1:2) 1 3]);
     gv   = reshape(sum(bsxfun(@times,a(:,:,i,:),G(:,:,i,:,:)),4),[d(1:2) 1 3]);
-   %Hv   = w(:,:,i).*velocity_hessian(mu(:,:,i,:),G(:,:,i,:,:),accel);
     Hv   = bsxfun(@times,w(:,:,i),velocity_hessian(mu(:,:,i,:),G(:,:,i,:,:),accel));
     for i1=1:12
         k1g   = rem(i1-1,3)+1;
@@ -481,13 +446,10 @@ function [mu,dat] = update_mean(dat, mu, sett)
 % Parse function settings
 accel       = sett.accel;
 mu_settings = sett.ms.mu_settings;
-s_settings  = [2 2];
 nw          = get_num_workers(sett,4*sett.K+4);
 
 spm_field('bound',1);
-m0 = sum(mu,4)/(size(mu,4)+1);
-%g = spm_field('vel2mom', mu-m0, mu_settings);
-g  = spm_field('vel2mom', bsxfun(@minus,mu,m0), mu_settings);
+g  = reg_mu(mu,mu_settings);
 w  = zeros(sett.ms.d,'single');
 if nw > 1 && numel(dat) > 1 % PARFOR
     parfor(n=1:numel(dat),nw)
@@ -503,10 +465,56 @@ else
     end
 end
 clear gn wn
-H  = appearance_hessian(mu,accel,w);
-% Note that spm_field could be re-written to make these updates
-% converge more effectively.
-mu = mu - spm_field(H, g, [mu_settings s_settings]);
+mu = gn_mu_update(mu,g,w,mu_settings,accel);
+%==========================================================================
+
+%==========================================================================
+function mu = gn_mu_update(mu,g,w,mu_settings,accel)
+% Use Gauss-Seidel method for computing updates
+% https://en.wikipedia.org/wiki/Gauss%E2%80%93Seidel_method
+spm_field('bound',1);
+K   = size(mu,4);
+update_settings = [mu_settings(1:3) mu_settings(4:end)*(1-1/(K+1)) 2 2];
+if accel>0, s   = softmax(mu); end
+dmu = zeros(size(mu),'like',mu);
+for it=1:16
+    for k=1:K
+
+        % Diagonal elements of Hessian
+        if accel==0
+            h_kk = (0.5*(1-1/(K+1)))*w;
+        else
+            h_kk = (accel*(s(:,:,:,k)-s(:,:,:,k).^2) + (1-accel)*0.5*(1-1/(K+1))).*w;
+        end
+
+        % Dot product betwen off-diagonals of likelihood Hessian and dmu
+        g_k = zeros([size(mu,1),size(mu,2),size(mu,3)],'like',g);
+        for k1=1:K
+            if k1~=k
+                % Off-diaginal elements of Hessian
+                if accel==0
+                    g_k = g_k - dmu(:,:,:,k1).*(0.5/(K+1));
+                else
+                    g_k = g_k - dmu(:,:,:,k1).*(accel*(s(:,:,:,k).*s(:,:,:,k1)) + ((1-accel)*0.5/(K+1)));
+                end
+            end
+        end
+        g_k          = g_k.*w;
+
+        % Dot product between off-diagonals of regularisation Hessian and dmu
+        g_k          = g_k - spm_field('vel2mom', (sum(dmu,4)-dmu(:,:,:,k))/(K+1), mu_settings);
+
+        % Gauss-Seidel update
+        dmu(:,:,:,k) = spm_field(h_kk, g(:,:,:,k) - g_k, update_settings);
+    end
+end
+mu = mu - dmu;
+%==========================================================================
+
+%==========================================================================
+function g = reg_mu(mu,mu_settings)
+K = size(mu,4);
+g = spm_field('vel2mom', bsxfun(@minus,mu, sum(mu,4)/(K+1)), mu_settings);
 %==========================================================================
 
 %==========================================================================
@@ -521,7 +529,7 @@ q        = double(datn.q);
 Mn       = datn.Mat;
 samp     = datn.samp;
 
-psi      = compose(get_def(datn,sett.ms.Mmu),affine(df, Mmu\spm_dexpm(q,B)*Mn,samp));
+psi      = compose(get_def(datn,Mmu),affine(df, Mmu\spm_dexpm(q,B)*Mn,samp));
 mu       = pull1(mu,psi);
 [f,datn] = spm_mb_classes(datn,mu,sett);
 [g,w]    = push1(softmax(mu,4) - f,psi,d,1);
@@ -639,10 +647,7 @@ g  = zeros(12, 1);
 [x{1:4}] = ndgrid(1:d(1),1:d(2),1,1);
 for i=1:d(3)
     x{3} = x{3}*0+i;
-   %gv   = reshape(sum(a(:,:,i,:).*G(:,:,i,:,:),4),[d(1:2) 1 3]);
     gv   = reshape(sum(bsxfun(@times,a(:,:,i,:),G(:,:,i,:,:)),4),[d(1:2) 1 3]);
-
-   %Hv   = w(:,:,i).*H0(:,:,i,:);
     Hv   = bsxfun(@times,w(:,:,i),H0(:,:,i,:));
     for i1=1:12
         k1g   = rem(i1-1,3)+1;
@@ -659,6 +664,7 @@ end
 
 %==========================================================================
 function [mu,dat] = update_simple_mean(dat, mu, sett)
+% Unused functionality
 
 % Parse function settings
 accel       = sett.accel;
@@ -686,8 +692,7 @@ for it=1:ceil(4+2*log2(numel(dat)))
     H  = appearance_hessian(mu,accel,w);
     g  = w.*softmax(mu,4) - gf;
     spm_field('bound',1);
-    m0 = sum(mu,4)/(size(mu,4)+1);
-    g  = g  + spm_field('vel2mom', mu-m0, mu_settings);
+    g  = g  + reg_mu(mu, mu_settings);
     % Note that spm_field could be re-written to make the updates slightly
     % more effective.
     mu = mu - spm_field(H, g, [mu_settings s_settings]);
@@ -695,8 +700,8 @@ end
 %==========================================================================
 
 %==========================================================================
-% update_simple_mean_sub()
 function [g,w,datn] = update_simple_mean_sub(datn,mu,sett)
+% Unused functionality
 
 % Parse function settings
 B     = sett.B;
@@ -707,7 +712,7 @@ q     = double(datn.q);
 Mn    = datn.Mat;
 samp  = datn.samp;
 
-psi      = compose(get_def(datn,sett.ms.Mmu),affine(df,Mmu\spm_dexpm(q,B)*Mn,samp));
+psi      = compose(get_def(datn,Mmu),affine(df,Mmu\spm_dexpm(q,B)*Mn,samp));
 mu       = pull1(mu,psi);
 [f,datn] = spm_mb_classes(datn,mu,sett);
 [g,w]    = push1(f,psi,d,1);
@@ -751,15 +756,13 @@ samp      = datn.samp;
 Mr        = spm_dexpm(q,B);
 Mat       = Mmu\Mr*Mn;
 df        = datn.dm;
-psi       = compose(get_def(datn,sett.ms.Mmu),affine(df,Mat,samp));
+psi       = compose(get_def(datn,Mmu),affine(df,Mat,samp));
 mu        = pull1(mu,psi);
 [f,datn]  = spm_mb_classes(datn,mu,sett);
 [a,w]     = push1(f - softmax(mu,4),psi,d,1);
 clear psi f mu
 
-%g        = reshape(sum(a.*G,4),[d 3]);
 g         = reshape(sum(bsxfun(@times,a,G),4),[d 3]);
-%H        = w.*H0;
 H         = bsxfun(@times,w,H0);
 clear a w
 
@@ -779,50 +782,52 @@ datn.v = spm_mb_io('set_data',datn.v,v);
 function H = velocity_hessian(mu,G,accel)
 d  = [size(mu,1),size(mu,2),size(mu,3)];
 M  = size(mu,4);
-if accel>0, s  = softmax(mu,4); end
 Ab = 0.5*(eye(M)-1/(M+1)); % See Bohning's paper
-H1 = zeros(d,'single');
-H2 = H1;
-H3 = H1;
-H4 = H1;
-H5 = H1;
-H6 = H1;
-for m1=1:M
-    Gm11 = G(:,:,:,m1,1);
-    Gm12 = G(:,:,:,m1,2);
-    Gm13 = G(:,:,:,m1,3);
-    if accel==0
-        tmp = Ab(m1,m1);
-    else
-        sm1 = s(:,:,:,m1);
-        tmp = (max(sm1.*(1-sm1),0))*accel + (1-accel)*Ab(m1,m1);
-    end
-    H1 = H1 + tmp.*Gm11.*Gm11;
-    H2 = H2 + tmp.*Gm12.*Gm12;
-    H3 = H3 + tmp.*Gm13.*Gm13;
-    H4 = H4 + tmp.*Gm11.*Gm12;
-    H5 = H5 + tmp.*Gm11.*Gm13;
-    H6 = H6 + tmp.*Gm12.*Gm13;
-    for m2=(m1+1):M
+H  = zeros([d 6],'single');
+for i=1:d(3)
+    if accel>0, s = softmax(mu(:,:,i,:),4); end
+    H11 = zeros(d(1:2));
+    H22 = H11;
+    H33 = H11;
+    H12 = H11;
+    H13 = H11;
+    H23 = H11;
+    for m1=1:M
+        Gm11 = G(:,:,i,m1,1);
+        Gm12 = G(:,:,i,m1,2);
+        Gm13 = G(:,:,i,m1,3);
         if accel==0
-            tmp = Ab(m1,m2);
+            tmp = Ab(m1,m1);
         else
-            sm2 = s(:,:,:,m2);
-            tmp = (-sm1.*sm2)*accel + (1-accel)*Ab(m1,m2);
+            sm1 = s(:,:,1,m1);
+            tmp = (max(sm1.*(1-sm1),0))*accel + (1-accel)*Ab(m1,m1);
         end
-        Gm21 = G(:,:,:,m2,1);
-        Gm22 = G(:,:,:,m2,2);
-        Gm23 = G(:,:,:,m2,3);
-        H1 = H1 + 2*tmp.* Gm11.*Gm21;
-        H2 = H2 + 2*tmp.* Gm12.*Gm22;
-        H3 = H3 + 2*tmp.* Gm13.*Gm23;
-        H4 = H4 +   tmp.*(Gm11.*Gm22 + Gm21.*Gm12);
-        H5 = H5 +   tmp.*(Gm11.*Gm23 + Gm21.*Gm13);
-        H6 = H6 +   tmp.*(Gm12.*Gm23 + Gm22.*Gm13);
+        H11 = H11 + tmp.*Gm11.*Gm11;
+        H22 = H22 + tmp.*Gm12.*Gm12;
+        H33 = H33 + tmp.*Gm13.*Gm13;
+        H12 = H12 + tmp.*Gm11.*Gm12;
+        H13 = H13 + tmp.*Gm11.*Gm13;
+        H23 = H23 + tmp.*Gm12.*Gm13;
+        for m2=(m1+1):M
+            if accel==0
+                tmp = Ab(m1,m2);
+            else
+                sm2 = s(:,:,1,m2);
+                tmp = (-sm1.*sm2)*accel + (1-accel)*Ab(m1,m2);
+            end
+            Gm21 = G(:,:,i,m2,1);
+            Gm22 = G(:,:,i,m2,2);
+            Gm23 = G(:,:,i,m2,3);
+            H11  = H11 + 2*tmp.* Gm11.*Gm21;
+            H22  = H22 + 2*tmp.* Gm12.*Gm22;
+            H33  = H33 + 2*tmp.* Gm13.*Gm23;
+            H12  = H12 +   tmp.*(Gm11.*Gm22 + Gm21.*Gm12);
+            H13  = H13 +   tmp.*(Gm11.*Gm23 + Gm21.*Gm13);
+            H23  = H23 +   tmp.*(Gm12.*Gm23 + Gm22.*Gm13);
+        end
     end
+    H(:,:,i,:) = cat(4, H11, H22, H33, H12, H13, H23);
 end
-clear Gm11 Gm12 Gm13 Gm21 Gm22 Gm23 sm1 sm2 tmp
-H = cat(4, H1, H2, H3, H4, H5, H6);
 %==========================================================================
 
 %==========================================================================
@@ -882,7 +887,6 @@ nw    = get_num_workers(sett,6+0.5*6);
 d0    = [size(mu,1) size(mu,2) size(mu,3)];
 z     = single(reshape(d./d0,[1 1 1 3]));
 Mzoom = oMmu\Mmu;
-%y    = reshape(reshape(identity(d),[prod(d),3])*Mzoom(1:3,1:3)' + Mzoom(1:3,4)',[d 3]);
 y     = reshape(bsxfun(@plus,reshape(identity(d),[prod(d),3])*Mzoom(1:3,1:3)',Mzoom(1:3,4)'),[d 3]);
 if nargout > 1 || ~isempty(mu), mu = spm_diffeo('pullc',mu,y); end % only resize template if updating it
 
@@ -890,7 +894,6 @@ if ~isempty(dat)
     if nw > 1 && numel(dat) > 1 % PARFOR
         parfor(n=1:numel(dat),nw)
             v          = spm_mb_io('get_data',dat(n).v);
-           %v          = spm_diffeo('pullc',v.*z,y);
             v          = spm_diffeo('pullc',bsxfun(@times,v,z),y);
             dat(n).v   = resize_file(dat(n).v  ,d,Mmu);
             dat(n).v   = spm_mb_io('set_data',dat(n).v,v);
@@ -904,7 +907,6 @@ if ~isempty(dat)
     else % FOR
         for n=1:numel(dat)
             v          = spm_mb_io('get_data',dat(n).v);
-           %v          = spm_diffeo('pullc',v.*z,y);
             v          = spm_diffeo('pullc',bsxfun(@times,v,z),y);
             dat(n).v   = resize_file(dat(n).v  ,d,Mmu);
             dat(n).v   = spm_mb_io('set_data',dat(n).v,v);
@@ -941,7 +943,6 @@ end
 %==========================================================================
 function f = mask(f,msk)
 f(~isfinite(f)) = 0;
-%f = f.*msk;
 f  = bsxfun(@times,f,msk);
 %==========================================================================
 
@@ -1127,7 +1128,6 @@ function nw = get_num_workers(sett,NumVol)
 MemMax         = 0;          % max memory usage (in MB)
 NumWork        = sett.nworker;
 dm             = sett.ms.d;  % current template dimensions
-K              = sett.K;     % template classes
 
 if NumWork <= 1
     nw = 0;
@@ -1143,6 +1143,7 @@ end
 
 % Get memory requirement (with current template size)
 if nargin<2
+    K          = sett.K; % template classes
     NumVol     = (K*(K+1)/2+4*K);
 end
 NumFloats      = NumVol*prod(dm(1:3));            % float size of mean Hessian + padding (we also keep images, etc in memory (rough))

@@ -30,4 +30,3 @@ names = cellfun(@(x)lower(char(x)),funs,'UniformOutput',false);
 c     = {names{:}; funs{:}};
 varargout{1} = struct(c{:});
 %==========================================================================
-
