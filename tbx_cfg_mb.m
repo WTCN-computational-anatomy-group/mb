@@ -32,7 +32,6 @@ cm        = cfg_repeat;
 cm.tag    = 'cm';
 cm.name   = 'Confusion matrix';
 cm.values = {cm_map};
-%cm.val   = {};
 cm.help   = {'Specify rows of a confusion matrix, where each row corresponds to label values of 1, 2, ..., L + 1, etc in a label map.'...
              'L are the number of labels in the label map. The last row (L + 1) needs to specify what classes unlabeled voxels can take.',''};
 % ---------------------------------------------------------------------
@@ -191,7 +190,6 @@ pop.name  = 'Pop. of scans';
 pop.val   = {chans, has_labels, pr,...
              const('tol_gmm', 0.0005), const('nit_gmm_miss',32), const('nit_gmm',8), const('nit_appear', 4)};
 pop.check = @check_pop;
-%pop.val  = {chans};
 pop.help  = {'Information about a population of subjects that all have the same set of scans.',''};
 % ---------------------------------------------------------------------
 
@@ -536,7 +534,6 @@ cfg        = cfg_choice;
 cfg.tag    = 'mb';
 cfg.name   = 'Multi-Brain toolbox';
 cfg.values = {mb,mrg,out};
-%cfg.val   = {};
 cfg.help   = {'Welcome to the Multi-Brain toolbox.',''};
 %_______________________________________________________________________
 %

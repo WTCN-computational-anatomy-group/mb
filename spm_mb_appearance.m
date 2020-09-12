@@ -534,12 +534,10 @@ if sum(logmg_w) == 0, return; end
 if iscell(mu)
     for i=1:numel(mu)
         mu{i} = bsxfun(@plus, mu{i}, logmg_w);
-       %mu{i} = bsxfun(@minus,mu{i},LSE1(mu{i},2)); % Not needed
     end
 else
     % Do it on the volume
     mu = bsxfun(@plus, mu(:,:,:,mg_ix), reshape(logmg_w,[1 1 1 numel(logmg_w)]));
-   %mu = bsxfun(@minus,mu,LSE1(mu,4)); % Not needed
 end
 %==========================================================================
 
