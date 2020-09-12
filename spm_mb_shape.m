@@ -17,7 +17,6 @@ function varargout = spm_mb_shape(action,varargin)
 % FORMAT dat       = spm_mb_shape('update_affines',dat,mu,sett)
 % FORMAT [mu,dat]  = spm_mb_shape('update_mean',dat, mu, sett)
 % FORMAT dat       = spm_mb_shape('update_simple_affines',dat,mu,sett)
-% FORMAT [mu,dat]  = spm_mb_shape('update_simple_mean',dat, mu, sett)
 % FORMAT dat       = spm_mb_shape('update_velocities',dat,mu,sett)
 % FORMAT dat       = spm_mb_shape('update_warps',dat,sett)
 % FORMAT [dat,mu]  = spm_mb_shape('zoom_volumes',dat,mu,sett,oMmu)
@@ -534,34 +533,6 @@ mu       = pull1(mu,psi);
 %==========================================================================
 
 %==========================================================================
-function H = appearance_hessian(mu,accel,w)
-M  = size(mu,4);
-d  = [size(mu,1) size(mu,2) size(mu,3)];
-if accel>0, s  = softmax(mu,4); end
-Ab = 0.5*(eye(M)-1/(M+1)); % See Bohning's paper
-I  = horder(M);
-H  = zeros([d (M*(M+1))/2],'single');
-for m1=1:M
-    for m2=m1:M
-        if accel==0
-            tmp = Ab(m1,m2)*ones(d,'single');
-        else
-            if m2~=m1
-                tmp = accel*(-s(:,:,:,m1).*s(:,:,:,m2))           + (1-accel)*Ab(m1,m2);
-            else
-                tmp = accel*(max(s(:,:,:,m1).*(1-s(:,:,:,m1)),0)) + (1-accel)*Ab(m1,m2);
-            end
-        end
-        if nargin>=3
-            H(:,:,:,I(m1,m2)) = tmp.*w;
-        else
-            H(:,:,:,I(m1,m2)) = tmp;
-        end
-    end
-end
-%==========================================================================
-
-%==========================================================================
 function dat = update_simple_affines(dat,mu,sett)
 
 % Parse function settings
@@ -657,62 +628,6 @@ for i=1:d(3)
         end
     end
 end
-%==========================================================================
-
-%==========================================================================
-function [mu,dat] = update_simple_mean(dat, mu, sett)
-% Unused functionality
-
-% Parse function settings
-accel       = sett.accel;
-mu_settings = sett.ms.mu_settings;
-s_settings  = [2 2];
-nw          = get_num_workers(sett,4*sett.K+4);
-
-w  = zeros(sett.ms.d,'single');
-gf = zeros(size(mu),'single');
-if nw > 1 && numel(dat) > 1 % PARFOR
-    parfor(n=1:numel(dat),nw)
-        [gn,wn,dat(n)] = update_simple_mean_sub(dat(n),mu,sett);
-        gf             = gf + gn;
-        w              = w  + wn;
-    end
-else
-    for n=1:numel(dat) % FOR
-        [gn,wn,dat(n)] = update_simple_mean_sub(dat(n),mu,sett);
-        gf             = gf + gn;
-        w              = w  + wn;
-    end
-end
-clear gn wn
-for it=1:ceil(4+2*log2(numel(dat)))
-    H  = appearance_hessian(mu,accel,w);
-    g  = w.*softmax(mu,4) - gf;
-    spm_field('bound',1);
-    g  = g  + reg_mu(mu, mu_settings);
-    % Note that spm_field could be re-written to make the updates slightly
-    % more effective.
-    mu = mu - spm_field(H, g, [mu_settings s_settings]);
-end
-%==========================================================================
-
-%==========================================================================
-function [g,w,datn] = update_simple_mean_sub(datn,mu,sett)
-% Unused functionality
-
-% Parse function settings
-B    = sett.B;
-d    = sett.ms.d;
-Mmu  = sett.ms.Mmu;
-df   = datn.dm;
-q    = double(datn.q);
-Mn   = datn.Mat;
-samp = datn.samp;
-
-psi      = compose(get_def(datn,Mmu),affine(df,Mmu\spm_dexpm(q,B)*Mn,samp));
-mu       = pull1(mu,psi);
-[f,datn] = spm_mb_classes(datn,mu,sett);
-[g,w]    = push1(f,psi,d,1);
 %==========================================================================
 
 %==========================================================================
