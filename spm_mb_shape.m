@@ -349,7 +349,6 @@ function datn = update_affines_sub(datn,mu,sett)
 % This could be made more efficient.
 
 % Parse function settings
-accel = sett.accel;
 accel = 0.99;
 B     = sett.B;
 d     = sett.ms.d;
@@ -474,7 +473,7 @@ K   = size(mu,4);
 update_settings = [mu_settings(1:3) mu_settings(4:end)*(1-1/(K+1)) 2 2];
 if accel>0, s   = softmax(mu); end
 dmu = zeros(size(mu),'like',mu);
-for it=1:16
+for it=1:20
     for k=1:K
 
         % Diagonal elements of Hessian
@@ -536,7 +535,6 @@ mu       = pull1(mu,psi);
 function dat = update_simple_affines(dat,mu,sett)
 
 % Parse function settings
-accel = sett.accel;
 accel = 0.99;
 B     = sett.B;
 if ~isempty(B)
@@ -634,7 +632,6 @@ end
 function dat = update_velocities(dat,mu,sett)
 
 % Parse function settings
-accel = sett.accel;
 accel = 0.99; % Speed up the registration
 nw    = get_num_workers(sett,4*sett.K+4*3);
 

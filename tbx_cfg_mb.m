@@ -166,7 +166,8 @@ pr_upd         = cfg_menu;
 pr_upd.tag     = 'hyperpriors';
 pr_upd.name    = 'Optimise';
 pr_upd.labels  = {'Yes','No'};
-pr_upd.values  = {{'b0_priors',{1000,10}}, []};
+%pr_upd.values = {{'b0_priors',{1000,10}}, []};
+pr_upd.values  = {{}, []};
 pr_upd.val     = {pr_upd.values{1}};
 pr_upd.help    = {['Specify whether the Gaussian-Wishart priors be updated at each iteration. '...
                    'Enabling this can slow down convergence if there are small numbers of subjects. '...

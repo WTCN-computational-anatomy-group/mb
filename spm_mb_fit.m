@@ -167,7 +167,7 @@ for zm=numel(sz):-1:1 % loop over zoom levels
         end
         fprintf('\n');
 
-        if it0==nit_max || (oE-E/nvox(dat) < sett.tol && it0>=nit_zm0)
+        if it0==nit_max || (oE-E/nvox(dat) < sett.tol*4 && it0>=nit_zm0)
             break;
         else
             % Compute deformations from velocities (unless this is to be done
