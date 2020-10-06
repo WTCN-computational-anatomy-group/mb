@@ -5,7 +5,7 @@ function [dat,sett] = spm_mb_init(cfg)
 % Copyright (C) 2018-2020 Wellcome Centre for Human Neuroimaging
 
 
-% $Id: spm_mb_init.m 7938 2020-08-24 11:26:41Z mikael $
+% $Id: spm_mb_init.m 7940 2020-09-10 18:14:43Z john $
 
 [dat,sett] = mb_init1(cfg);
 
@@ -153,12 +153,12 @@ end
 sett.gmm  = struct('pr',cell(num_priors,1),'hyperpriors',true, ....
                    'mg_ix', [], 'C',0, 'tol_gmm',[],'nit_gmm_miss',[],'nit_gmm',[],'nit_appear',[]);
 for p=1:numel(cfg.gmm)
-    
+
     ix_gmm = p;
     if one_gmm_prior
         ix_gmm = 1;
     end
-    
+
     sett.gmm(ix_gmm).tol_gmm      = cfg.gmm(p).tol_gmm;
     sett.gmm(ix_gmm).nit_gmm_miss = cfg.gmm(p).nit_gmm_miss;
     sett.gmm(ix_gmm).nit_gmm      = cfg.gmm(p).nit_gmm;
@@ -341,14 +341,14 @@ for p=1:numel(sett.gmm) % Loop over populations
             m     = dat(n1).model.gmm.modality(c); % Get modality
             fc    = f(:,c);                        % Image for this channel
             fc    = fc(isfinite(fc));              % Ignore non-finite values
-            if isempty(fc) 
+            if isempty(fc)
                 T{c} = []; % No observations in channel => do not model bias field
             end
             mn    = min(fc);                       % Minimum needed for e.g. CT
-            mu(c) = sum(fc)/size(f,1);             % Mean (assuming missing values are zero)            
+            mu(c) = sum(fc)/size(f,1);             % Mean (assuming missing values are zero)
             fc    = fc(fc>((mu(c)-mn)/8+mn));      % Voxels above some threshold (c.f. spm_global.m)
             mu(c) = mean(fc);                      % Mean of voxels above the threshold
-            vr(c) = var(fc);                       % Variance of voxels above the threshold            
+            vr(c) = var(fc);                       % Variance of voxels above the threshold
             if ~isempty(T{c}) && m ~= 2            % Should INU or global scaling be done?
                 s           = 1000;               % Scale means to this value
                 dc          = log(s)-log(mu(c));  % Log of scalefactor
@@ -364,11 +364,13 @@ for p=1:numel(sett.gmm) % Loop over populations
     end
 
     % Fill in entirely missing values with means
-    vr_c = repmat(mean(vr_all,2,'omitnan'),1,N);
-    vr_all(~isfinite(vr_all)) = vr_c(~isfinite(vr_all));
-    mu_c = repmat(mean(mu_all,2,'omitnan'),1,N);
-    mu_all(~isfinite(mu_all)) = mu_c(~isfinite(mu_all));
-    
+    for c=1:C
+        msk  = isfinite(vr_all(c,:));
+        vr_all(c,~msk) = sum(vr_all(c,msk),2)/sum(msk,2);
+        msk  = isfinite(mu_all(c,:));
+        mu_all(c,~msk) = sum(mu_all(c,msk),2)/sum(msk,2);
+    end
+
     K1 = numel(sett.gmm(p).mg_ix); % Total number of Gaussians (some tissues may have more than one)
     if isempty(sett.gmm(p).pr)
 
@@ -390,7 +392,6 @@ for p=1:numel(sett.gmm) % Loop over populations
 
         % Random mean intensities, roughly sorted. Used to break symmetry.
         rng('default'); rng(1); % Want some reproducibility
-       %mu                = diag(sqrt(vr*(1-1/scale)))*randn(C,K1) + mu; % The 1-1/scale is to match V by Pythagorous
         mu                = bsxfun(@plus,0.01*diag(sqrt(vr)*(1-1/scale))*randn(C,K1), mu);
         d                 = sum(diag(sqrt(vr*(1-1/K1)))\mu,1);           % Heuristic measure of how positive
         [~,o]             = sort(-d); % Order the means, most positive first
@@ -406,19 +407,21 @@ for p=1:numel(sett.gmm) % Loop over populations
         end
     else
         for n=1:N
-            % Set GMM starting estimates based on priors
-            n1                  = index(n);
-            m    = sett.gmm(p).pr{1};
-            b    = sett.gmm(p).pr{2};
-            V    = sett.gmm(p).pr{3};
-            nu   = sett.gmm(p).pr{4};
-            % Modify the estimates slightly. If the b values are too variable
-            % then the smaller ones might cause responsibilities that are
-            % very close to zero, never identifying tissue in that class.
-            b    = b*0+1e-3;
-            nval = size(m,1)-1+1e-3;
-            V    = bsxfun(@times,V,reshape(nu,[1 1 numel(nu)])./nval);
-            nu   = nu*0+nval;
+            n1   = index(n);
+
+            % Initial distribution for mean
+            m    = sett.gmm(p).pr{1};      % Use prior mean
+            b    = ones(1,K1)*1e-3;        % Uninformative
+
+            % Initial distribution for precision
+            nu0  = size(m,1)-1+1e-3;
+            nu   = ones(1,K1)*nu0;
+
+            vr   = double(mean(vr_all,2));
+            scal = max(K1-1,1).^(2/C);     % Crude heuristic
+            V    = diag(1./vr)*(scal/nu0); % Low precision
+            V    = repmat(V,[1 1 K1]);
+
             dat(n1).model.gmm.m = m;
             dat(n1).model.gmm.b = b;
             dat(n1).model.gmm.V = V;
