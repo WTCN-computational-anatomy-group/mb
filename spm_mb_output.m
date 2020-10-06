@@ -169,25 +169,29 @@ if isfield(datn.model,'gmm') && (any(write_im(:)) || any(write_tc(:)))
     mg_w = gmm.mg_w;
     mun  = mun(:,mg_ix);
     mun  = bsxfun(@plus, mun, log(mg_w));
-
+   
     % Format for spm_gmm
-    chan                     = spm_mb_appearance('inu_basis',gmm.T,df,datn.Mat,ones(1,C));
-    [~,mf,vf]                = spm_mb_appearance('inu_recon',fn,chan,gmm.T,gmm.Sig);
-    mf                       = reshape(mf,[prod(df) C]);
-    vf                       = reshape(vf,[prod(df) C]);
-    [mfc,code_image,msk_chn] = spm_gmm_lib('obs2cell', mf);
-    mun                      = spm_gmm_lib('obs2cell', mun, code_image, false);
-    vfc                      = spm_gmm_lib('obs2cell', vf,  code_image, true);
+    chan                   = spm_mb_appearance('inu_basis',gmm.T,df,datn.Mat,ones(1,C));
+    [~,mf,vf]              = spm_mb_appearance('inu_recon',fn,chan,gmm.T,gmm.Sig);
+    clear fn
+    mf                     = reshape(mf,[prod(df) C]);
+    vf                     = reshape(vf,[prod(df) C]);
+    [~,code_image,msk_chn] = spm_gmm_lib('obs2cell', reshape(mf,[prod(df) C]));    
 
     % Get responsibilities, making sure that missing values are 'filled in'
     % by the template. For example, for CT, CSF can have intensity zero;
     % but we consider this value as missing as background values can also be
     % zero, which would bias the fitting of the GMM.
-    zn      = spm_mb_appearance('responsibility',gmm.m,gmm.b,gmm.V,gmm.n,mfc,vfc,mun,msk_chn);
-    zn      = spm_gmm_lib('cell2obs', zn, code_image, msk_chn);
-    clear mun msk_chn vfc mfc
-
-    % Get bias field modulated image data
+    const             = spm_gmm_lib('Normalisation', {gmm.m,gmm.b}, {gmm.V,gmm.n}, msk_chn);
+    if ~isempty(vf)
+        zn            = spm_gmm_lib('Marginal', mf, {gmm.m,gmm.V,gmm.n}, const, msk_chn, vf);
+    else
+        zn            = spm_gmm_lib('Marginal', mf, {gmm.m,gmm.V,gmm.n}, const, msk_chn);
+    end
+    zn(~isfinite(zn)) = min(zn(:));  % NaN assumed to have small (log) probability
+    zn                = spm_gmm_lib('Responsibility', zn, mun);    
+    clear mun msk_chn vf
+    
     if do_infer
         % Infer missing values
         sample_post = do_infer > 1;
