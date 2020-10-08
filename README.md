@@ -180,8 +180,6 @@ run.mu.exist    = {pth_mu};
 run.gmm.pr.file = {pth_int_prior};
 ```
 
-TODO
-
 ## References
 * Ashburner J, Friston KJ. Unified segmentation. Neuroimage. 2005 Jul 1;26(3):839-51.
 * Ashburner J. A fast diffeomorphic image registration algorithm. Neuroimage. 2007 Oct 15;38(1):95-113.
