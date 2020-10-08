@@ -35,6 +35,7 @@ pth_im  = spm_select('FPList',dir_data,'^.*\_3.nii$');
 
 % Create MB cfg struct. There are a bunch of settings here, they should all
 % work well by default.
+% -----------------
 % spm_mb_init
 run = struct;
 run.mu.create.K = K;
@@ -116,6 +117,7 @@ dir_out = 'warped';
 
 % 1. Use forward deformation (pth_y1) to warp image 1 (pth_img1) to 
 %    template space (pth_mu)
+% -----------------
 matlabbatch = {};
 matlabbatch{1}.spm.util.defs.comp{1}.inv.comp{1}.def     = {pth_y1};
 matlabbatch{1}.spm.util.defs.comp{1}.inv.space           = {pth_mu};
@@ -129,6 +131,7 @@ spm_jobman('run',matlabbatch);
 
 % 2. Use forward deformation (pth_y1) to template (pth_mu) to  image 
 %    space (pth_img1) 
+% -----------------
 matlabbatch = {};
 matlabbatch{1}.spm.util.defs.comp{1}.comp{1}.def         = {pth_y1};
 matlabbatch{1}.spm.util.defs.comp{1}.space               = {pth_img1};
@@ -142,6 +145,7 @@ spm_jobman('run',matlabbatch);
 
 % 3. Compose both forward deformations (pth_y1, pth_y2) via template space
 %    to register image 2 (pth_img2) to image 1 (pth_img1).
+% -----------------
 matlabbatch = {};
 matlabbatch{1}.spm.util.defs.comp{1}.inv.comp{1}.def     = {pth_y2};
 matlabbatch{1}.spm.util.defs.comp{1}.inv.space           = {pth_mu};
