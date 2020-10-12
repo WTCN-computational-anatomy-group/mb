@@ -564,7 +564,17 @@ mwc.name    = 'Warped mod. tissues';
 mwc.strtype = 'n';
 mwc.num     = [0 Inf];
 mwc.val     = {[]};
-wmc.help    = {'Specify the indices of any spatially normalised and Jacobian-scaled (``modulated'') tissue class images to be written.',''};
+mwc.help    = {'Specify the indices of any spatially normalised and Jacobian-scaled (``modulated'') tissue class images to be written.',''};
+% ---------------------------------------------------------------------
+
+% ---------------------------------------------------------------------
+sm         = cfg_entry;
+sm.tag     = 'sm';
+sm.name    = 'Scalar momentum';
+sm.strtype = 'n';
+sm.num     = [0 Inf];
+sm.val     = {[]};
+sm.help    = {'Specify the indices of any scalar momentums to be written.',''};
 % ---------------------------------------------------------------------
 
 %--------------------------------------------------------------------------
@@ -581,7 +591,7 @@ mrf.val     = {1};
 out      = cfg_exbranch;
 out.tag  = 'out';
 out.name = 'Output';
-out.val  = {res_file, i, mi, wi, wmi, inu, c, wc, mwc, mrf};
+out.val  = {res_file, i, mi, wi, wmi, inu, c, wc, mwc, sm, mrf};
 out.prog = @spm_mb_output;
 out.help = {[...
 'When ``Fit Multi-Brain model'' is run, the resulting model fit contains ' ...

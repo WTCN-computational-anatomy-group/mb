@@ -75,6 +75,7 @@ out.mrf = 0;
 out.c = true(1,K + 1); % writes tissue classes in native space
 out.wc = true(1,K + 1); % writes tissue classes in template space
 out.mwc = true(1,K + 1); % writes tissue classes in modulated template space
+out.sm = true(1,K + 1); % writes scalar momentum
 
 % Init MB
 [dat,sett] = spm_mb_init(run);

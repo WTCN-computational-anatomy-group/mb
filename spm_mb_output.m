@@ -32,17 +32,23 @@ end
 N   = numel(dat);
 cl  = cell(N,1);
 res = struct('inu',cl,'i',cl,'mi',cl,'c',cl,'wi',cl, ...
-             'wmi',cl,'wc',cl,'mwc',cl);
+             'wmi',cl,'wc',cl,'mwc',cl,'sm',cl);
 
-write_tc = false(sett.K+1,3);
+write_tc = false(sett.K+1,4);
 ind = cfg.c;   ind = ind(ind>=1 & ind<=sett.K+1); write_tc(ind,1) = true;
 ind = cfg.wc;  ind = ind(ind>=1 & ind<=sett.K+1); write_tc(ind,2) = true;
 ind = cfg.mwc; ind = ind(ind>=1 & ind<=sett.K+1); write_tc(ind,3) = true;
+ind = cfg.sm;  ind = ind(ind>=1 & ind<=sett.K+1); write_tc(ind,4) = true;
+
+if ~isfield(cfg,'fwhm')
+    cfg.fwhm = 0; % Hidden option for smoothing of scalar momentum
+end
 
 opt = struct('write_inu',cfg.inu,...
              'write_im',[cfg.i cfg.mi cfg.wi cfg.wmi],...
              'write_tc',write_tc,...
-             'mrf',cfg.mrf);
+             'mrf',cfg.mrf,...
+             'fwhm',cfg.fwhm);
 
 spm_progress_bar('Init',N,'Writing MB output','Subjects complete');
 for n=1:N % Loop over subjects
@@ -84,7 +90,8 @@ do_infer   = true;
 mrf        = opt.mrf;
 write_inu  = opt.write_inu; % field
 write_im   = opt.write_im;  % image, corrected, warped, warped corrected
-write_tc   = opt.write_tc;  % native, warped, warped-mod
+write_tc   = opt.write_tc;  % native, warped, warped-mod, scalar momentum
+fwhm       = opt.fwhm;   % FWHM for smoothing of SM
 
 if ((~any(write_inu(:)) && ~any(write_im(:))) || ~isfield(datn.model,'gmm')) && ~any(write_tc(:))
     return;
@@ -308,15 +315,21 @@ end
 
 
 % For improved push - subsampling density in each dimension
-sd = spm_mb_shape('samp_dens',Mmu,Mn);
+sd    = spm_mb_shape('samp_dens',Mmu,Mn);
+vx_mu = sqrt(sum(Mmu(1:3,1:3).^2));
 
-if any(write_tc(:,2)) || any(write_tc(:,3))
+if any(write_tc(:,2)) || any(write_tc(:,3)) || any(write_tc(:,4))
     if any(write_tc(:,2)), resn.wc  = cell(1,sum(write_tc(:,2))); end
     if any(write_tc(:,3)), resn.mwc = cell(1,sum(write_tc(:,3))); end
+    if any(write_tc(:,4)), resn.sm  = cell(1,sum(write_tc(:,4))); end
     kwc  = 0;
     kmwc = 0;
+    ksm  = 0;
+    if write_tc(end,4)
+        mu = spm_mb_classes('template_k1',mu,4);
+    end
     for k=1:K1
-        if write_tc(k,2) || write_tc(k,3)
+        if write_tc(k,2) || write_tc(k,3) || write_tc(k,4)
             [img,cnt] = spm_mb_shape('push1',zn(:,:,:,k),psi,dmu,sd);
             if write_tc(k,2)
                 % Write normalised segmentation
@@ -333,6 +346,17 @@ if any(write_tc(:,2)) || any(write_tc(:,3))
                 resn.mwc{kmwc} = fpth;
                 img  = img*abs(det(Mn(1:3,1:3))/det(Mmu(1:3,1:3)));
                 write_nii(fpth,img, Mmu, sprintf('Norm. mod. tissue (%d)',k), 'int16');
+            end
+            if write_tc(k,4)
+                % Write scalar momentum
+                ksm      = ksm + 1;
+                fpth     = fullfile(dir_res,sprintf('sm%.2d_%s.nii',k,onam));
+                resn.sm{ksm} = fpth;
+                msk      = ~isfinite(img);         % Identify missing data
+                smk      = cnt.*mu(:,:,:,k) - img; % Compute SM
+                smk(msk) = 0;                      % Assume all values are zero outside FOV
+                spm_smooth(smk,smk,fwhm./vx_mu);   % Smooth SM
+                write_nii(fpth,smk, Mmu, sprintf('Scalar momentum (%d)',k), 'float32');
             end
             clear img cnt
         end
