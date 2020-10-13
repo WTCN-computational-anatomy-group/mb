@@ -5,7 +5,7 @@ function res = spm_mb_output(cfg)
 %__________________________________________________________________________
 % Copyright (C) 2019-2020 Wellcome Centre for Human Neuroimaging
 
-% $Id: spm_mb_output.m 7922 2020-08-10 13:15:20Z john $
+% $Id: spm_mb_output.m 7985 2020-10-13 16:55:15Z mikael $
 
 res  = load(char(cfg.result));
 sett = res.sett;
@@ -40,10 +40,16 @@ ind = cfg.wc;  ind = ind(ind>=1 & ind<=sett.K+1); write_tc(ind,2) = true;
 ind = cfg.mwc; ind = ind(ind>=1 & ind<=sett.K+1); write_tc(ind,3) = true;
 ind = cfg.sm;  ind = ind(ind>=1 & ind<=sett.K+1); write_tc(ind,4) = true;
 
-if ~isfield(cfg,'fwhm')
-    cfg.fwhm = 0; % Hidden option for smoothing of scalar momentum
+% Hidden option for smoothing of warped data
+if ~isfield(cfg,'fwhm')    
+    cfg.fwhm = 0;
 end
-
+if size(cfg.fwhm,2) == 1
+    % warped, warped modulated and scalar momentum can have individual
+    % FWHMs
+    cfg.fwhm = repmat(cfg.fwhm,1,size(write_tc,2) - 1);
+end
+    
 opt = struct('write_inu',cfg.inu,...
              'write_im',[cfg.i cfg.mi cfg.wi cfg.wmi],...
              'write_tc',write_tc,...
@@ -91,7 +97,7 @@ mrf        = opt.mrf;
 write_inu  = opt.write_inu; % field
 write_im   = opt.write_im;  % image, corrected, warped, warped corrected
 write_tc   = opt.write_tc;  % native, warped, warped-mod, scalar momentum
-fwhm       = opt.fwhm;   % FWHM for smoothing of SM
+fwhm       = opt.fwhm;   % FWHM for smoothing of warped tissues
 
 if ((~any(write_inu(:)) && ~any(write_im(:))) || ~isfield(datn.model,'gmm')) && ~any(write_tc(:))
     return;
@@ -176,29 +182,25 @@ if isfield(datn.model,'gmm') && (any(write_im(:)) || any(write_tc(:)))
     mg_w = gmm.mg_w;
     mun  = mun(:,mg_ix);
     mun  = bsxfun(@plus, mun, log(mg_w));
-   
+
     % Format for spm_gmm
-    chan                   = spm_mb_appearance('inu_basis',gmm.T,df,datn.Mat,ones(1,C));
-    [~,mf,vf]              = spm_mb_appearance('inu_recon',fn,chan,gmm.T,gmm.Sig);
-    clear fn
-    mf                     = reshape(mf,[prod(df) C]);
-    vf                     = reshape(vf,[prod(df) C]);
-    [~,code_image,msk_chn] = spm_gmm_lib('obs2cell', reshape(mf,[prod(df) C]));    
+    chan                     = spm_mb_appearance('inu_basis',gmm.T,df,datn.Mat,ones(1,C));
+    [~,mf,vf]                = spm_mb_appearance('inu_recon',fn,chan,gmm.T,gmm.Sig);
+    mf                       = reshape(mf,[prod(df) C]);
+    vf                       = reshape(vf,[prod(df) C]);
+    [mfc,code_image,msk_chn] = spm_gmm_lib('obs2cell', mf);
+    mun                      = spm_gmm_lib('obs2cell', mun, code_image, false);
+    vfc                      = spm_gmm_lib('obs2cell', vf,  code_image, true);
 
     % Get responsibilities, making sure that missing values are 'filled in'
     % by the template. For example, for CT, CSF can have intensity zero;
     % but we consider this value as missing as background values can also be
     % zero, which would bias the fitting of the GMM.
-    const             = spm_gmm_lib('Normalisation', {gmm.m,gmm.b}, {gmm.V,gmm.n}, msk_chn);
-    if ~isempty(vf)
-        zn            = spm_gmm_lib('Marginal', mf, {gmm.m,gmm.V,gmm.n}, const, msk_chn, vf);
-    else
-        zn            = spm_gmm_lib('Marginal', mf, {gmm.m,gmm.V,gmm.n}, const, msk_chn);
-    end
-    zn(~isfinite(zn)) = min(zn(:));  % NaN assumed to have small (log) probability
-    zn                = spm_gmm_lib('Responsibility', zn, mun);    
-    clear mun msk_chn vf
-    
+    zn      = spm_mb_appearance('responsibility',gmm.m,gmm.b,gmm.V,gmm.n,mfc,vfc,mun,msk_chn);
+    zn      = spm_gmm_lib('cell2obs', zn, code_image, msk_chn);
+    clear mun msk_chn vfc mfc
+
+    % Get bias field modulated image data
     if do_infer
         % Infer missing values
         sample_post = do_infer > 1;
@@ -207,7 +209,7 @@ if isfield(datn.model,'gmm') && (any(write_im(:)) || any(write_tc(:)))
                                   zn,{gmm.m,A},code_image,sample_post);
         clear code
     end
-    clear code_image 
+    clear code_image
 
     mf = reshape(mf,[df(1:3) C]);
 
@@ -313,7 +315,6 @@ if isfield(datn.model,'cat') && (any(write_tc(:,2)) || any(write_tc(:,3)))
     K1 = sett.K+1;
 end
 
-
 % For improved push - subsampling density in each dimension
 sd    = spm_mb_shape('samp_dens',Mmu,Mn);
 vx_mu = sqrt(sum(Mmu(1:3,1:3).^2));
@@ -325,40 +326,55 @@ if any(write_tc(:,2)) || any(write_tc(:,3)) || any(write_tc(:,4))
     kwc  = 0;
     kmwc = 0;
     ksm  = 0;
-    if write_tc(end,4)
-        mu = spm_mb_classes('template_k1',mu,4);
+    if any(write_tc(:,4))
+        % The scalar momentum residuals are computed in native space and then
+        % pushed. We therefore here compute the softmaxed K + 1 template in
+        % native space.
+        mun = spm_mb_shape('pull1',mu,psi);
+        clear mu
+        mun = spm_mb_shape('softmax',mun,4);
+        mun = cat(4,mun,max(1 - sum(mun,4),0));
     end
     for k=1:K1
         if write_tc(k,2) || write_tc(k,3) || write_tc(k,4)
-            [img,cnt] = spm_mb_shape('push1',zn(:,:,:,k),psi,dmu,sd);
+            if write_tc(k,2) || write_tc(k,3)
+                [img,cnt] = spm_mb_shape('push1',zn(:,:,:,k),psi,dmu,sd);
+            end
             if write_tc(k,2)
                 % Write normalised segmentation
-                kwc  = kwc + 1;
-                fpth = fullfile(dir_res, sprintf('wc%.2d_%s.nii',k,onam));
+                kwc          = kwc + 1;
+                fpth         = fullfile(dir_res, sprintf('wc%.2d_%s.nii',k,onam));
                 resn.wc{kwc} = fpth;
-                write_nii(fpth, img./(cnt + eps('single')),...
+                wimg         = img./(cnt + eps('single'));
+                spm_smooth(wimg,wimg,fwhm(1)./vx_mu);  % Smooth
+                write_nii(fpth, wimg,...
                          Mmu, sprintf('Norm. tissue (%d)',k), 'uint8');
             end
             if write_tc(k,3)
                 % Write normalised modulated segmentation
-                kmwc = kmwc + 1;
-                fpth = fullfile(dir_res,sprintf('mwc%.2d_%s.nii',k,onam));
+                kmwc           = kmwc + 1;
+                fpth           = fullfile(dir_res,sprintf('mwc%.2d_%s.nii',k,onam));
                 resn.mwc{kmwc} = fpth;
-                img  = img*abs(det(Mn(1:3,1:3))/det(Mmu(1:3,1:3)));
-                write_nii(fpth,img, Mmu, sprintf('Norm. mod. tissue (%d)',k), 'int16');
-            end
-            if write_tc(k,4)
-                % Write scalar momentum
-                ksm      = ksm + 1;
-                fpth     = fullfile(dir_res,sprintf('sm%.2d_%s.nii',k,onam));
-                resn.sm{ksm} = fpth;
-                msk      = ~isfinite(img);         % Identify missing data
-                smk      = cnt.*mu(:,:,:,k) - img; % Compute SM
-                smk(msk) = 0;                      % Assume all values are zero outside FOV
-                spm_smooth(smk,smk,fwhm./vx_mu);   % Smooth SM
-                write_nii(fpth,smk, Mmu, sprintf('Scalar momentum (%d)',k), 'float32');
+                wimg           = img*abs(det(Mn(1:3,1:3))/det(Mmu(1:3,1:3)));
+                spm_smooth(wimg,wimg,fwhm(2)./vx_mu);  % Smooth
+                write_nii(fpth,wimg, Mmu, sprintf('Norm. mod. tissue (%d)',k), 'int16');
             end
             clear img cnt
+            if write_tc(k,4)
+                % Write scalar momentum, reference:                   
+                % "A comparison of various MRI feature types for characterizing 
+                %  whole brain anatomical differences using linear pattern 
+                %  recognition methods." Monte-Rubio, et al. NeuroImage (2018)
+                ksm          = ksm + 1;
+                fpth         = fullfile(dir_res,sprintf('sm%.2d_%s.nii',k,onam));
+                resn.sm{ksm} = fpth;
+                % Compute scalar momentum
+                wimg                   = spm_mb_shape('push1',zn(:,:,:,k) - mun(:,:,:,k),psi,dmu,sd);
+                wimg(~isfinite(wimg))  = 0;           % Assume all values are zero outside FOV
+                spm_smooth(wimg,wimg,fwhm(3)./vx_mu); % Smooth
+                write_nii(fpth,wimg, Mmu, sprintf('Scalar momentum (%d)',k), 'int16');
+            end
+            clear wimg
         end
     end
 end

@@ -3,7 +3,7 @@ function cfg = tbx_cfg_mb
 %__________________________________________________________________________
 % Copyright (C) 2019-2020 Wellcome Centre for Human Neuroimaging
 
-% $Id: tbx_cfg_mb.m 7970 2020-10-02 11:02:46Z john $
+% $Id: tbx_cfg_mb.m 7985 2020-10-13 16:55:15Z mikael $
 
 if ~isdeployed, addpath(fullfile(spm('dir'),'toolbox','mb')); end
 
@@ -175,7 +175,7 @@ pr_upd         = cfg_menu;
 pr_upd.tag     = 'hyperpriors';
 pr_upd.name    = 'Optimise';
 pr_upd.labels  = {'Yes','No'};
-pr_upd.values = {{'b0_priors',{0.1,0.01}}, []};
+pr_upd.values = {{'b0_priors',{0.01,0.01}}, []};
 %pr_upd.values  = {{}, []};
 pr_upd.val     = {pr_upd.values{1}};
 pr_upd.help    = {['Specify whether the Gaussian-Wishart priors should be updated at each iteration. ' ...
@@ -564,7 +564,7 @@ mwc.name    = 'Warped mod. tissues';
 mwc.strtype = 'n';
 mwc.num     = [0 Inf];
 mwc.val     = {[]};
-mwc.help    = {'Specify the indices of any spatially normalised and Jacobian-scaled (``modulated'') tissue class images to be written.',''};
+wmc.help    = {'Specify the indices of any spatially normalised and Jacobian-scaled (``modulated'') tissue class images to be written.',''};
 % ---------------------------------------------------------------------
 
 % ---------------------------------------------------------------------
@@ -584,7 +584,7 @@ mrf.name    = 'MRF Parameter';
 mrf.help    = {'When tissue class images are written out, a few iterations of a simple Markov random field (MRF) cleanup procedure are run.  This parameter controls the strength of the MRF. Setting the value to zero will disable the cleanup.'};
 mrf.strtype = 'r';
 mrf.num     = [1 1];
-mrf.val     = {1};
+mrf.val     = {0};
 % ---------------------------------------------------------------------
 
 % ---------------------------------------------------------------------
