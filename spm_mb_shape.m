@@ -1066,7 +1066,11 @@ if NumWork <= 1
 end
 
 if MemMax == 0
-    MemMax     = spm_platform('memory','available') / 1024 / 1024;
+    try
+        MemMax = spm_platform('memory','available') / 1024 / 1024;
+    catch
+        MemMax = NaN;
+    end
     if isnan(MemMax)
         MemMax = 1024;
     end
