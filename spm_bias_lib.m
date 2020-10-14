@@ -30,9 +30,6 @@ function varargout = spm_bias_lib(action,varargin)
 %__________________________________________________________________________
 % Copyright (C) 2018-2020 Wellcome Centre for Human Neuroimaging
 
-% $Id: spm_bias_lib.m 7856 2020-05-19 22:54:41Z spm $
-
-
 switch lower(action)
     case 'fwhm2nbcomp'
         [varargout{1:nargout}] = fwhm2nbcomp(varargin{:});

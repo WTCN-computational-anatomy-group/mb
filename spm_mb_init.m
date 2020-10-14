@@ -4,9 +4,6 @@ function [dat,sett] = spm_mb_init(cfg)
 %__________________________________________________________________________
 % Copyright (C) 2018-2020 Wellcome Centre for Human Neuroimaging
 
-
-% $Id: spm_mb_init.m 7982 2020-10-12 11:07:27Z john $
-
 [dat,sett] = mb_init1(cfg);
 
 % Done if there are no GMMs to fit

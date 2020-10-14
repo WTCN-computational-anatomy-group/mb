@@ -25,7 +25,6 @@ function varargout = spm_mb_shape(varargin)
 %__________________________________________________________________________
 % Copyright (C) 2019-2020 Wellcome Centre for Human Neuroimaging
 
-% $Id: spm_mb_shape.m 7983 2020-10-13 09:50:50Z mikael $
 [varargout{1:nargout}] = spm_subfun(localfunctions,varargin{:});
 %==========================================================================
 

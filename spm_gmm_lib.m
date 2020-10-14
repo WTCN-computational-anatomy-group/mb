@@ -37,8 +37,6 @@ function varargout = spm_gmm_lib(action,varargin)
 %__________________________________________________________________________
 % Copyright (C) 2018-2020 Wellcome Centre for Human Neuroimaging
 
-% $Id: spm_gmm_lib.m 7982 2020-10-12 11:07:27Z john $
-
 %--------------------------------------------------------------------------
 % Convention
 % ----------

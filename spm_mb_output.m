@@ -5,8 +5,6 @@ function res = spm_mb_output(cfg)
 %__________________________________________________________________________
 % Copyright (C) 2019-2020 Wellcome Centre for Human Neuroimaging
 
-% $Id: spm_mb_output.m 7985 2020-10-13 16:55:15Z mikael $
-
 res  = load(char(cfg.result));
 sett = res.sett;
 dat  = res.dat;

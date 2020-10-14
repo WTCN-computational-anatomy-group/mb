@@ -8,7 +8,6 @@ function varargout = spm_mb_appearance(varargin) % Appearance model
 %__________________________________________________________________________
 % Copyright (C) 2019-2020 Wellcome Centre for Human Neuroimaging
 
-% $Id: spm_mb_appearance.m 7982 2020-10-12 11:07:27Z john $
 [varargout{1:nargout}] = spm_subfun(localfunctions,varargin{:});
 %==========================================================================
 

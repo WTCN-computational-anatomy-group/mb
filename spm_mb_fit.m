@@ -11,9 +11,6 @@ function [dat,sett,mu] = spm_mb_fit(dat,sett)
 %__________________________________________________________________________
 % Copyright (C) 2020 Wellcome Centre for Human Neuroimaging
 
-% $Id: spm_mb_fit.m 7984 2020-10-13 10:05:34Z john $
-
-
 % Repeatable random numbers
 %--------------------------------------------------------------------------
 rng('default'); rng(1);
