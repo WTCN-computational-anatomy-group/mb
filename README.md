@@ -63,7 +63,7 @@ spm_jobman('run', jobs);
 % 3. Warp one image to another image.
 
 % Path to a MB tissue template (this is dir_out in Example 1)
-pth_mu = fullfile(dir_out,'mu_mb.nii');
+pth_mu = fullfile(dir_out,'mu_mb_test.nii');
 % Paths to two subject MRIs to which MB has been fitted
 pth_img1 = '/directory/with/some/MRIs/img1.nii';
 pth_img2 = '/directory/with/some/MRIs/img2.nii';
