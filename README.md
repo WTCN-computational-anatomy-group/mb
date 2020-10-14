@@ -25,74 +25,31 @@ This section contains example code demonstrating how the MB toolbox can be used 
 % Data directory, assumed to contain MRI nifti images of the same contrast.
 dir_data = '/directory/with/some/MRIs';
 
-% MB settings
-K        = 9;           % Template classes (there are K + 1 Gaussians)
-vx       = 1.5;         % Template voxel size (smaller = slower)
-dir_out  = 'mb-output'; % Directory where to write results
-
 % Get paths to data
-pth_im  = spm_select('FPList',dir_data,'^.*\_3.nii$');
+pth_im  = spm_select('FPList',dir_data,'^.*\.nii$'); % Selects all nifti files in dir_data
 
-% Create MB cfg struct. There are a bunch of settings here, they should all
-% work well by default.
-% -----------------
-% spm_mb_init
-run = struct;
-run.mu.create.K = K;
-run.mu.create.vx = vx;
-run.mu.create.mu_settings = [1e-05 0.5 0];
-run.aff = 'SE(3)';
-run.v_settings = [0.0001 0 0.4 0.1 0.4];
-run.onam = 'mb';
-run.odir = {dir_out};
-run.cat = {{}};
-run.accel = 0.8;
-run.min_dim = 16;
-run.tol = 0.001;
-run.sampdens = 2;
-run.save = true;
-run.nworker = Inf;
-run.gmm.chan.images = cellstr(pth_im);
-run.gmm.chan.inu.inu_reg = 1e4;
-run.gmm.chan.inu.inu_co = 40;
-run.gmm.chan.modality = 1;
-run.gmm.labels.false = [];
-run.gmm.pr.file = {};
-run.gmm.pr.hyperpriors = {'b0_priors',{0.01,0.01}};
-run.gmm.mg_ix = 1:K + 1;
-run.gmm.tol_gmm = 0.0005;
-run.gmm.nit_gmm_miss = 32;
-run.gmm.nit_gmm = 8;
-run.gmm.nit_appear = 4;
-% spm_mb_output
-out = struct;
-out.i = false;
-out.mi = true; % writes bias-field corrected version
-out.wi = false;
-out.wmi = false;
-out.inu = false;
-out.mrf = 0;
-out.c = true(1,K + 1); % writes tissue classes in native space
-out.wc = true(1,K + 1); % writes tissue classes in template space
-out.mwc = true(1,K + 1); % writes tissue classes in modulated template space
-out.sm = true(1,K + 1); % writes scalar momentum
+% RUN module (fits  the model)
+run              = struct;
+run.mu.create.K  = 5;                        % Number of classes in the TPMs. The actual TPMs will contain one more (implicit) class
+run.mu.create.vx = 1.5;                      % Voxel size of the template -> smaller == faster, but less precise
+run.onam         = 'mb_test';                % A name for the model
+run.odir         = {'mb-output'};            % Output directory (to write model files)
+run.nworker      = Inf;                      % Number of parallel workers
+run.save         = true;                     % Save model at each 'epoch'
+run.gmm(1).chan(1).images = cellstr(pth_im); % Image files
 
-% Init MB
-[dat,sett] = spm_mb_init(run);
+% OUT module (writes different outputs)
+out        = struct;
+out.result = {fullfile(run.odir{1},  ['mb_fit_' run.onam '.mat'])};
+out.c      = ones(1, run.mu.create.K + 1);  % write classes in native space
+out.wc     = ones(1, run.mu.create.K + 1);  % write classes in template space
+out.mwc    = ones(1, run.mu.create.K + 1);  % write classes in modulated template space
+out.sm     = ones(1, run.mu.create.K + 1);  % write scalar momentum
 
-if ~isempty(dat)
-    % Fit MB
-    fprintf('Fitting MB to %i subjects...\n', numel(dat))
-    [dat,sett] = spm_mb_fit(dat,sett);
-    
-    % Save results
-    pth_res    = fullfile(sett.odir,['mb_fit_' sett.onam '.mat']);
-    save(pth_res,'dat','sett');
-    out.result = pth_res;
-
-    % Write output
-    spm_mb_output(out);   
-end
+% Run jobs
+jobs{1}.spm.tools.mb.run = run;
+jobs{2}.spm.tools.mb.out = out;
+spm_jobman('run', jobs);
 ```
 
 ### 2. Warping with MB deformations
