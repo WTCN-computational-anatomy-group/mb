@@ -41,10 +41,10 @@ run.gmm(1).chan(1).images = cellstr(pth_im); % Image files
 % OUT module (writes different outputs)
 out        = struct;
 out.result = {fullfile(run.odir{1},  ['mb_fit_' run.onam '.mat'])};
-out.c      = ones(1, run.mu.create.K + 1);  % write classes in native space
-out.wc     = ones(1, run.mu.create.K + 1);  % write classes in template space
-out.mwc    = ones(1, run.mu.create.K + 1);  % write classes in modulated template space
-out.sm     = ones(1, run.mu.create.K + 1);  % write scalar momentum
+out.c      = true(1, run.mu.create.K + 1);  % write classes in native space
+out.wc     = true(1, run.mu.create.K + 1);  % write classes in template space
+out.mwc    = true(1, run.mu.create.K + 1);  % write classes in modulated template space
+out.sm     = true(1, run.mu.create.K + 1);  % write scalar momentum
 
 % Run jobs
 jobs{1}.spm.tools.mb.run = run;
