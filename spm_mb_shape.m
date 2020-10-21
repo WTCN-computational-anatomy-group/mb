@@ -1094,7 +1094,14 @@ if NumWork <= 1
 end
 
 if MemMax == 0
-    MemMax     = spm_platform('memory','available') / 1024 / 1024;
+    try
+        % Users of the GitHub version of this code can get errors because
+        % spm_platform('memory','available') is only available in recent
+        % versions of SPM.
+        MemMax = spm_platform('memory','available') / 1024 / 1024;
+    catch
+        MemMax = NaN;
+    end
     if isnan(MemMax)
         MemMax = 1024;
     end
