@@ -45,6 +45,7 @@ opt = struct('write_inu',cfg.inu,...
              'vx',cfg.vox,...
              'bb',cfg.bb,...
              'fwhm',cfg.fwhm);
+opt.proc_zn = cfg.proc_zn;
 
 spm_progress_bar('Init',N,'Writing MB output','Subjects complete');
 for n=1:N % Loop over subjects
@@ -90,6 +91,11 @@ write_tc   = opt.write_tc;  % native, warped, warped-mod, scalar momentum
 fwhm       = opt.fwhm;      % FWHM for smoothing of warped tissues
 vx         = opt.vx;        % Template space voxel size
 bb         = opt.bb;        % Template space bounding box
+proc_zn    = opt.proc_zn;   % Function for processing native space responsibilities
+
+cl   = cell(1,1);
+resn = struct('inu',cl,'i',cl,'mi',cl,'c',cl,'wi',cl, ...
+              'wmi',cl,'wc',cl,'mwc',cl,'sm',cl);
 
 if ((~any(write_inu(:)) && ~any(write_im(:))) || ~isfield(datn.model,'gmm')) && ~any(write_tc(:))
     return;
@@ -212,15 +218,15 @@ if isfield(datn.model,'gmm') && (any(write_im(:)) || any(write_tc(:)))
 
     if any(write_im(:,1))
         % Write image
-        resn.im = cell(1,sum(write_im(:,1)));
-        c1      = 0;
+        resn.i = cell(1,sum(write_im(:,1)));
+        c1     = 0;
         for c=1:C
             if ~write_im(c,1), continue; end
             nam  = sprintf('i%d_%s.nii',c,onam);
             fpth = fullfile(dir_res,nam);
             write_nii(fpth,mf(:,:,:,c)./inu(:,:,:,c), Mn, sprintf('Image (%d)',c), 'int16');
             c1          = c1 + 1;
-            resn.m{c1} = fpth;
+            resn.i{c1} = fpth;
         end
     end
 
@@ -289,6 +295,15 @@ if isfield(datn.model,'gmm') && (any(write_im(:)) || any(write_tc(:)))
         zn = PostProcMRF(zn,Mn,mrf);
     end
 
+    if iscell(proc_zn) && ~isempty(proc_zn) && isa(proc_zn{1},'function_handle')
+        % Applies a function that processes the native space responsibilities
+        try
+            zn = proc_zn{1}(zn);
+        catch
+            warning('Incorrect definition of out.proc_zn, no processing performed.')
+        end
+    end
+    
     if any(write_tc(:,1) == true)
         % Write segmentations
         resn.c  = cell(1,sum(write_tc(:,1)));
@@ -332,8 +347,10 @@ if any(write_tc(:,2)) || any(write_tc(:,3)) || any(write_tc(:,4))
         mun = spm_mb_shape('softmax',mun,4);
         mun = cat(4,mun,max(1 - sum(mun,4),0));
     end
+
     % Possibly modify template space images' voxel size and FOV
     [Mmu,dmu,vx_mu,psi] = modify_fov(bb,vx,Mmu,dmu,vx_mu,psi,sett);
+
     % Write output
     for k=1:K1
         if write_tc(k,2) || write_tc(k,3) || write_tc(k,4)
@@ -382,37 +399,29 @@ end
 %==========================================================================
 function [Mmu,dmu,vx_mu,psi] = modify_fov(bb_out,vx_out,Mmu,dmu,vx_mu,psi,sett)
 if any(isfinite(bb_out(:))) || any(isfinite(vx_out))
-    % Get bounding-box   
-    bb1 = spm_get_bbox(sett.mu.exist.mu, 'old');
-    bb_out(~isfinite(bb_out)) = bb1(~isfinite(bb_out));
-    if ~isfinite(vx_out), vx_out = abs(prod(vx_mu))^(1/3); end
-    bb_out(1,:) = vx_out*round(bb_out(1,:)/vx_out);
-    bb_out(2,:) = vx_out*round(bb_out(2,:)/vx_out);
-    % New output dimensions
-    dmu = abs(round((bb_out(2,1:3)-bb_out(1,1:3))/vx_out))+1;
-    % New orientation matrix
-    mm  = [[bb_out(1,1) bb_out(1,2) bb_out(1,3)
-            bb_out(2,1) bb_out(1,2) bb_out(1,3)
-            bb_out(1,1) bb_out(2,2) bb_out(1,3)
-            bb_out(2,1) bb_out(2,2) bb_out(1,3)
-            bb_out(1,1) bb_out(1,2) bb_out(2,3)
-            bb_out(2,1) bb_out(1,2) bb_out(2,3)
-            bb_out(1,1) bb_out(2,2) bb_out(2,3)
-            bb_out(2,1) bb_out(2,2) bb_out(2,3)]'; ones(1,8)];
-    vx3 = [[1       1       1
-            dmu(1) 1       1
-            1       dmu(2) 1
-            dmu(1) dmu(2) 1
-            1       1       dmu(3)
-            dmu(1) 1       dmu(3)
-            1       dmu(2) dmu(3)
-            dmu(1) dmu(2) dmu(3)]'; ones(1,8)];
-    M1    = mm/vx3;
-    M0    = M1\Mmu;
+    % Get bounding-box           
+    [bb0,vox0] = spm_get_bbox(sett.mu.exist.mu, 'old');
+    vx_out     = vx_out(1)*ones(1,3);
+    msk    = ~isfinite(vx_out); vx_out(msk) = vox0(msk);
+    msk    = ~isfinite(bb_out); bb_out(msk) =  bb0(msk);
+    bb_out = sort(bb_out);
+    vx_out = abs(vx_out);
+    % Adjust bounding box slightly - so it rounds to closest voxel.
+    bb_out(:,1) = round(bb_out(:,1)/vx_out(1))*vx_out(1);
+    bb_out(:,2) = round(bb_out(:,2)/vx_out(2))*vx_out(2);
+    bb_out(:,3) = round(bb_out(:,3)/vx_out(3))*vx_out(3);
+    dim = round(diff(bb_out)./vx_out+1);
+    of  = -vx_out.*(round(-bb_out(1,:)./vx_out)+1);
+    mat = [vx_out(1) 0 0 of(1) ; 0 vx_out(2) 0 of(2) ; 0 0 vx_out(3) of(3) ; 0 0 0 1];
+    if det(Mmu(1:3,1:3)) < 0
+        mat = mat*[-1 0 0 dim(1)+1; 0 1 0 0; 0 0 1 0; 0 0 0 1];
+    end    
+    M0    = mat\Mmu;    
+    Mmu   = mat;
     vx_mu = sqrt(sum(Mmu(1:3,1:3).^2));
-    Mmu   = M1;
+    dmu   = dim;    
     % Modify deformation
-    psi = MatDefMul(psi,M0);
+    psi = MatDefMul(psi,M0);   
 end
 %==========================================================================
 

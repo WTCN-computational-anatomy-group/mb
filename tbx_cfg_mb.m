@@ -301,7 +301,7 @@ mu_sett.hidden = true;
 mu_create       = cfg_branch;
 mu_create.tag   = 'create';
 mu_create.name  = 'Create template';
-mu_create.val   = {nclass, vox, const('mu_settings',[1e-5 0.5 0])};
+mu_create.val   = {nclass, vox, const('mu_settings',[1e-5 0.5 0]),const('issym',0)};
 mu_create.help  = {['A tissue probability template will be constructed from all the aligned images. ' ...
                     'The algorithm alternates between re-computing the template and re-aligning all the ' ...
                     'images with this template. ' ...
@@ -342,7 +342,7 @@ dff.tag         = 'v_settings';
 dff.name        = 'Shape regularisation';
 dff.strtype     = 'e';
 dff.num         = [1 5];
-dff.val         = {[0.0001 0 0.4 0.1 0.4]};
+dff.val         = {[0.00001 0 0.4 0.1 0.4]};
 dff.help        = {[...
 'Specify the regularisation settings for the diffeomorphic registration. ' ...
 'These consist of a vector of five values, which penalise different ' ...
@@ -622,10 +622,24 @@ vox.hidden  = true;
 % ---------------------------------------------------------------------
 
 % ---------------------------------------------------------------------
+proc_zn        = cfg_entry;
+proc_zn.tag    = 'proc_zn';
+proc_zn.name   = 'Process responsibilities';
+proc_zn.help   = {'Function for processing native space responsibilities, ' ...
+                  'given as a function handle @(x) foo(x). The argument (x) is of ' ...
+                  'size(x) = [1, 4], where the first three dimensions are the size ' ...
+                  'of the image and the last dimension is the number of segmentation ' ...
+                  'classes (K + 1).'};
+proc_zn.num    = [1 1];
+proc_zn.val    = {{}};
+proc_zn.hidden = true;
+% ---------------------------------------------------------------------
+
+% ---------------------------------------------------------------------
 out      = cfg_exbranch;
 out.tag  = 'out';
 out.name = 'Output';
-out.val  = {res_file, i, mi, wi, wmi, inu, c, wc, mwc, sm, mrf, fwhm, bb, vox};
+out.val  = {res_file, i, mi, wi, wmi, inu, c, wc, mwc, sm, mrf, fwhm, bb, vox, proc_zn};
 out.prog = @spm_mb_output;
 out.help = {[...
 'When ``Fit Multi-Brain model'' is run, the resulting model fit contains ' ...
