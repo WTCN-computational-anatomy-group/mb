@@ -3,7 +3,14 @@ function cfg = tbx_cfg_mb
 %__________________________________________________________________________
 % Copyright (C) 2019-2020 Wellcome Centre for Human Neuroimaging
 
-if ~isdeployed && isempty(fileparts(which('spm_mb_fit'))), addpath(fullfile(spm('dir'),'toolbox','mb')); end
+if ~isdeployed
+    pth_mb = fileparts(which('spm_mb_fit'));
+    if isempty(pth_mb)
+        addpath(fullfile(spm('dir'),'toolbox','mb')); 
+    else
+        addpath(pth_mb);
+    end
+end
 
 % ---------------------------------------------------------------------
 images        = cfg_files;
