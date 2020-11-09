@@ -133,8 +133,9 @@ mg_ix   = sett.gmm.mg_ix;
 save('prior_mb.mat','pr','mg_ix');
 
 % Add the following fields to the RUN module of Example 1:
-run.mu.exist    = {pth_mu};
-run.gmm.pr.file = {pth_int_prior};
+run.mu.exist           = {pth_mu};
+run.gmm.pr.file        = {pth_int_prior};
+run.gmm.pr.hyperpriors = [];  % Avoids re-learning the intensity prior
 % and remove run.mu.create.K and run.mu.create.vx
 ```
 
