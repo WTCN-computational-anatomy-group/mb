@@ -3,6 +3,7 @@ function varargout = spm_mb_appearance(varargin) % Appearance model
 % FORMAT chan       = spm_mb_appearance('inu_basis',T,df,Mat,reg,samp)
 % FORMAT [inu,ll]   = spm_mb_appearance('inu_field',T,chan,d,varargin)
 % FORMAT z          = spm_mb_appearance('responsibility',m,b,V,n,f,mu,msk_chn)
+% FORMAT dat        = spm_mb_appearance('restart',dat,sett)
 % FORMAT [z,dat]    = spm_mb_appearance('update',dat,mu0,sett)
 % FORMAT dat        = spm_mb_appearance('update_prior',dat,sett)
 %__________________________________________________________________________
@@ -127,7 +128,7 @@ end
 %==========================================================================
 
 %==========================================================================
-function [z,lb] = responsibility(m,b,V,n,mf,vf,mu,msk_chn)
+function [z,lb] = responsibility(m,b,V,n,mf,vf,mu,msk_chn,code_image)
 % Compute responsibilities.
 %
 % FORMAT z = responsibility(m,b,V,n,f,vf,mu,L,code)
@@ -141,11 +142,16 @@ function [z,lb] = responsibility(m,b,V,n,mf,vf,mu,msk_chn)
 % msk_chn - Mask of observed channels per code
 % z       - Image of responsibilities [nbvox K]
 
-const  = spm_gmm_lib('Normalisation', {m,b}, {V,n}, msk_chn);
+const = spm_gmm_lib('Normalisation', {m,b}, {V,n}, msk_chn);
 if ~isempty(vf)
-    z  = spm_gmm_lib('Marginal', mf, {m,V,n}, const, msk_chn, vf);
+    z = spm_gmm_lib('Marginal', mf, {m,V,n}, const, msk_chn, vf);
 else
-    z  = spm_gmm_lib('Marginal', mf, {m,V,n}, const, msk_chn);
+    z = spm_gmm_lib('Marginal', mf, {m,V,n}, const, msk_chn);
+end
+if nargin >= 9
+    % Allows for filling in unobserved image voxels with template
+    z               = spm_gmm_lib('cell2obs', z, code_image, msk_chn);
+    z(~isfinite(z)) = min(z(isfinite(z)));
 end
 [z,lb] = spm_gmm_lib('Responsibility', z, mu);
 %==========================================================================

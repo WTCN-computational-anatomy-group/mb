@@ -366,6 +366,11 @@ for p=1:numel(sett.gmm) % Loop over populations
         mu_all(c,~msk) = sum(mu_all(c,msk),2)/sum(msk,2);
     end
 
+    % Fix for when just a single subject, with one (or more) fully unobserved 
+    % modalities
+    mu_all(~isfinite(mu_all)) = 1000;
+    vr_all(~isfinite(vr_all)) = mean(vr_all(isfinite(vr_all)));
+    
     K1 = numel(sett.gmm(p).mg_ix); % Total number of Gaussians (some tissues may have more than one)
     if isempty(sett.gmm(p).pr)
 

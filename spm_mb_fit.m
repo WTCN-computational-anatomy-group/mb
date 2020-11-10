@@ -122,8 +122,10 @@ spm_plot_convergence('Init','Diffeomorphic Alignment','Objective','Iteration');
 for zm=numel(sz):-1:1 % loop over zoom levels
     fprintf('\nzoom=%d: %d x %d x %d\n', 2^(zm-1), sett.ms.d);
 
-    dat = spm_mb_appearance('restart',dat,sett);
-
+    if updt_mu
+        dat = spm_mb_appearance('restart',dat,sett);
+    end
+    
     for n=1:numel(dat)
         dat(n).samp  = [1 1 1];
         if isfield(dat(n).model,'gmm')
