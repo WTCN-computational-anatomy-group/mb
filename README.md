@@ -7,10 +7,10 @@ This repository contains the Multi-Brain (MB) model, which has the general aim o
 Please ensure that: (1) the folder containing this repository (`diffeo-segment`) is placed in the `toolbox` folder of your SPM version; and (2), the folder is renamed to `mb`. 
 
 ## Dependencies
-The algorithm is developed using MATLAB and relies on external functionality from the SPM12 software:
+The algorithm is developed using MATLAB and relies on external functionality from the SPM12 software. The following folders are therefore required downloads and need to be placed on the MATLAB search path (using `addpath`):
 * **SPM12:** Download from https://www.fil.ion.ucl.ac.uk/spm/software/download/.
-* **Shoot toolbox:** Add Shoot folder from the toolbox directory of the SPM source code.
-* **Longitudinal toolbox:** Add Longitudinal folder from the toolbox directory of the SPM source code.
+* **Shoot toolbox:** The Shoot folder from the toolbox directory of SPM12.
+* **Longitudinal toolbox:** The Longitudinal folder from the toolbox directory of SPM12.
 
 ## Example use cases
 This section contains example code demonstrating how the MB toolbox can be used for nonlinear image registration, spatial normalisation, tissue segmentation and bias-field correction. **Example 1** learns (or fits) the MB model from a population of MRI scans. Learning the MB model results in a bunch of tissue segmentations, bias-field corrected scans and forward deformations, aligning a template to each subject's scan (a combined nonlinear and rigid registration). The deformations can be used to warp a subject image to template space, or aligning two subjects' images together by composing their deformations. These two operations are demonstrated in **Example 2**. Finally, **Example 3** fits an already learned MB model to two subject MRIs. This is equivalent to registering to a pre-existing common space. Warping can then be done as shown in Example 2. For a full description of the model settings, see `demo_mb.m`.
