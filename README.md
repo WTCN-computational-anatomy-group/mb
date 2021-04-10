@@ -8,7 +8,7 @@ Please ensure that: (1) the folder containing this repository (`diffeo-segment`)
 
 ## Dependencies
 The algorithm is developed using MATLAB and relies on external functionality from the SPM12 software:
-* **SPM12:** Download from https://www.fil.ion.ucl.ac.uk/spm/software/spm12/.
+* **SPM12:** Download from https://www.fil.ion.ucl.ac.uk/spm/software/download/.
 * **Shoot toolbox:** Add Shoot folder from the toolbox directory of the SPM source code.
 * **Longitudinal toolbox:** Add Longitudinal folder from the toolbox directory of the SPM source code.
 
