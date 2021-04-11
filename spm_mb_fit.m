@@ -1,7 +1,6 @@
 function [dat,sett,mu] = spm_mb_fit(dat,sett)
 % Multi-Brain - Groupwise normalisation and segmentation of images
-%
-% FORMAT [dat,mu,sett] = spm_mb_fit(dat,sett)
+% FORMAT [dat,sett,mu] = spm_mb_fit(dat,sett)
 %
 % OUTPUT
 % dat                 - struct of length N storing each subject's information
@@ -10,6 +9,9 @@ function [dat,sett,mu] = spm_mb_fit(dat,sett)
 % model (inputParser) - struct storing shape and appearance model
 %__________________________________________________________________________
 % Copyright (C) 2020 Wellcome Centre for Human Neuroimaging
+
+% $Id: spm_mb_fit.m 8086 2021-04-01 09:13:20Z john $
+
 
 % Repeatable random numbers
 %--------------------------------------------------------------------------
@@ -59,11 +61,10 @@ end
 
 % Init template
 %--------------------------------------------------------------------------
-if updt_mu,
+if updt_mu
     % Random template
     nit_mu = 1;
     mu = randn([sett.ms.d sett.K],'single')*1.0;
-    mu = init_mu(dat,mu,sett);
     te = spm_mb_shape('template_energy',mu,sett.ms.mu_settings);
 else
     % Shrink given template
@@ -88,16 +89,16 @@ for it0=1:nit_aff
 
         [mu,sett,dat,te,E] = iterate_mean(mu,sett,dat,te,nit_mu);
     end
-    
+
     % For visual debugging (disable/enable in debug_show_mu())
     debug_show_mu(mu, ['Affine (it=' num2str(it0) ' | N=' num2str(numel(dat)) ')']);
-    
+
     if true
         % UPDATE: rigid
         dat   = spm_mb_shape('update_simple_affines',dat,mu,sett);
         E     = sum(sum(cat(2,dat.E),2),1) + te;  % Cost function after previous update
         sett  = spm_mb_appearance('update_prior',dat, sett);
-        fprintf('%12.4e', E/nvox(dat));
+        fprintf('%8.4f', E/nvox(dat));
     end
     fprintf('\n');
     do_save(mu,sett,dat);
@@ -127,7 +128,7 @@ for zm=numel(sz):-1:1 % loop over zoom levels
     if updt_mu
         dat = spm_mb_appearance('restart',dat,sett);
     end
-    
+
     for n=1:numel(dat)
         dat(n).samp  = [1 1 1];
         if isfield(dat(n).model,'gmm')
@@ -138,15 +139,15 @@ for zm=numel(sz):-1:1 % loop over zoom levels
     if ~updt_mu
         mu = spm_mb_shape('shrink_template',mu0,Mmu,sett);
     else
-        [mu,sett,dat,te,E] = iterate_mean(mu,sett,dat,te,nit_mu);        
+        [mu,sett,dat,te,E] = iterate_mean(mu,sett,dat,te,nit_mu);
     end
-    
+
     if updt_aff
         % UPDATE: rigid
         dat   = spm_mb_shape('update_affines',dat,mu,sett);
         E     = sum(sum(cat(2,dat.E),2),1) + te; % Cost function after previous update
         sett  = spm_mb_appearance('update_prior',dat, sett);
-        fprintf('%12.4e', E/nvox(dat));
+        fprintf('%8.4f', E/nvox(dat));
         spm_plot_convergence('Set',E/nvox(dat));
     end
     fprintf('\n');
@@ -156,23 +157,23 @@ for zm=numel(sz):-1:1 % loop over zoom levels
 
         oE  = E/nvox(dat);
         if updt_mu
-            [mu,sett,dat,te,E] = iterate_mean(mu,sett,dat,te,nit_mu);            
+            [mu,sett,dat,te,E] = iterate_mean(mu,sett,dat,te,nit_mu);
         end
 
         % For visual debugging (disable/enable in debug_show_mu())
-        debug_show_mu(mu, ['Diffeo (it=' num2str(zm) ' ' num2str(it0) ' | N=' num2str(numel(dat)) ')']);
-        
+        debug_show_mu(mu, ['Diffeo (it=' num2str(zm) ', ' num2str(it0) ' | N=' num2str(numel(dat)) ')']);
+
         if updt_diff
             % UPDATE: diffeo
             dat   = spm_mb_shape('update_velocities',dat,mu,sett);
             E     = sum(sum(cat(2,dat.E),2),1) + te; % Cost function after previous update
             sett  = spm_mb_appearance('update_prior',dat, sett);
-            fprintf('%12.4e', E/nvox(dat));
+            fprintf('%8.4f', E/nvox(dat));
             spm_plot_convergence('Set',E/nvox(dat));
         end
         fprintf('\n');
 
-        if it0==nit_max || (oE-E/nvox(dat) < sett.tol*2 && it0>=nit_zm0)
+        if it0==nit_max || (oE-E/nvox(dat) < sett.tol && it0>=nit_zm0)
             break;
         else
             % Compute deformations from velocities (unless this is to be done
@@ -206,23 +207,20 @@ end
 
 %==========================================================================
 function nv = nvox(dat)
-nv = 0;
-for n=1:numel(dat)
-    nv = nv+dat(n).nvox;
-end
+nv = sum([dat.nvox]);
 %==========================================================================
 
 %==========================================================================
 function samp = get_samp(Mmu,Mf,sampdens)
 if nargin<3
-    n=16;
+    n = 16;
 else
     n = sampdens^3;
 end
-vmu  = sqrt(sum(Mmu(1:3,1:3).^2));
-vf   = sqrt(sum( Mf(1:3,1:3).^2));
-samp = max(round(((prod(vmu)/prod(vf)/n).^(1/3))./vf),1);
-samp = min(samp,5);
+vmu   = sqrt(sum(Mmu(1:3,1:3).^2));
+vf    = sqrt(sum( Mf(1:3,1:3).^2));
+samp  = max(round(((prod(vmu)/prod(vf)/n).^(1/3))./vf),1);
+samp  = min(samp,5);
 %==========================================================================
 
 %==========================================================================
@@ -236,25 +234,10 @@ for it=1:nit_mu
     E        = sum(sum(cat(2,dat.E),2),1) + te; % Cost function after previous update
     sett     = spm_mb_appearance('update_prior',dat, sett);
     te       = spm_mb_shape('template_energy',mu,sett.ms.mu_settings);
-    fprintf('%12.4e', E/nvox(dat));
+    fprintf('%8.4f', E/nvox(dat));
     spm_plot_convergence('Set',E/nvox(dat));
     do_save(mu,sett,dat);
     if it>1 && oE-E < sett.tol*nvox(dat); break; end
-end
-%==========================================================================
-
-%==========================================================================
-function mu = init_mu(dat,mu,sett)
-% Initialise from labelled scans only
-ind = false(numel(dat),1);
-for n=1:numel(dat)
-    if isfield(dat(n).model,'cat') || (isfield(dat(n).model,'gmm') && ~isempty(dat(n).lab))
-        ind(n) = true;
-    end
-end
-if sum(ind)>0
-    dat1 = dat(ind);
-    mu   = spm_mb_shape('update_mean',dat1, mu, sett);
 end
 %==========================================================================
 
@@ -271,13 +254,13 @@ function do_save(mu,sett,dat)
 if isfield(sett,'save') && sett.save
     % Save results so far
     spm_mb_io('save_template',mu,sett);
-   %sett = rmfield(sett,{'ms'});
+    %sett = rmfield(sett,{'ms'});
     save(fullfile(sett.odir,['mb_fit_' sett.onam '.mat']),'sett','dat');
 end
 %==========================================================================
 
 %==========================================================================
 function debug_show_mu(mu, fig_title)
-do = false;
-spm_mb_appearance('debug_show',mu,'template',1,fig_title,do);
+do_show = false;
+spm_mb_appearance('debug_show',mu,'template',1,fig_title,do_show);
 %==========================================================================

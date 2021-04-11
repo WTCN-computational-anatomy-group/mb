@@ -15,6 +15,8 @@ function varargout = spm_mb_classes(varargin)
 %__________________________________________________________________________
 % Copyright (C) 2019-2020 Wellcome Centre for Human Neuroimaging
 
+% $Id: spm_mb_classes.m 8057 2021-02-09 18:41:58Z john $
+
 if isa(varargin{1},'char')
     [varargout{1:nargout}] = spm_subfun(localfunctions,varargin{:});
 else
@@ -37,13 +39,13 @@ elseif isfield(dat.model,'gmm')
     lab = get_labels(dat,size(mu,4));
     if numel(lab)>1
         % Add labels to template
-        mu = mu + lab;
+   %    mu = mu + lab;
     end
     clear lab
     if sett.gmm(dat.model.gmm.pop).nit_appear >0
         [dat,P] = spm_mb_appearance('update',dat,mu,sett);
     else
-        P = exp(bsxfun(@minus,mu(:,:,:,1:(size(mu,4)-1)),LSE1(mu,4)));
+        P       = exp(bsxfun(@minus,mu(:,:,:,1:(size(mu,4)-1)),LSE1(mu,4)));
     end
 else
     error('This should not happen');
@@ -55,7 +57,7 @@ function [dat,P] = update_cat(dat,mu)
 % Categorical model
 P  = spm_mb_io('get_data',dat.model.cat.f);
 sk = dat.samp;
-P  = P(1:sk:end,1:sk:end,1:sk:end,:);
+P  = P(1:sk(1):end,1:sk(2):end,1:sk(3):end,:);
 
 % Compute subject-specific categorical cross-entropy loss between
 % segmentation and template
@@ -67,6 +69,7 @@ dat.nvox =  sum(msk(:));
 
 %==========================================================================
 function lab = get_labels(dat, K1)
+lab=0; return;
 if isempty(dat.lab), lab = 0; return; end
 
 % Load labels

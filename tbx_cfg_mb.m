@@ -3,14 +3,10 @@ function cfg = tbx_cfg_mb
 %__________________________________________________________________________
 % Copyright (C) 2019-2020 Wellcome Centre for Human Neuroimaging
 
-if ~isdeployed
-    pth_mb = fileparts(which('spm_mb_fit'));
-    if isempty(pth_mb)
-        addpath(fullfile(spm('dir'),'toolbox','mb')); 
-    else
-        addpath(pth_mb);
-    end
-end
+% $Id: tbx_cfg_mb.m 8087 2021-04-01 09:35:27Z mikael $
+
+
+if ~isdeployed, addpath(fileparts(mfilename('fullpath'))); end
 
 % ---------------------------------------------------------------------
 images        = cfg_files;
@@ -100,7 +96,8 @@ cm.help   = {'Specify rows of a confusion matrix, where each row corresponds to 
 labels         = cfg_branch;
 labels.tag     = 'true';
 labels.name    = 'Has labels';
-labels.val     = {label_files,cm,const('w',0.99)};
+%labels.val    = {label_files,cm,const('w',0.99)};
+labels.val     = {label_files};
 labels.help    = {['If subjects have corresponding label maps to guide the ' ...
                    'segmentation, these need to be specified along with a ' ...
                    'confusion matrix that relates values in the label maps ' ...
@@ -255,7 +252,7 @@ spop.tag      = 'cat';
 spop.name     = 'Tissue class maps';
 spop.val      = {images};
 spop.check    = @check_segs;
-spop.help     = {['UNUSED'],''};
+spop.help     = {'UNUSED',''};
 % ---------------------------------------------------------------------
 
 % ---------------------------------------------------------------------
@@ -374,7 +371,7 @@ dff.help        = {[...
  'denotes how much to penalise changes to the divergence of the velocities (/*$\*/lambda/*$*/). ' ...
  'This divergence is a measure of the rate of volumetric expansion or contraction.'],...
 '/*\end{itemize}*/',...
-['The default settings work reasonably well for most cases.'],''};
+'The default settings work reasonably well for most cases.',''};
 % ---------------------------------------------------------------------
 
 % ---------------------------------------------------------------------
@@ -401,7 +398,7 @@ mb             = cfg_exbranch;
 mb.tag         = 'run';
 mb.name        = 'Fit Multi-Brain model';
 mb.val         = {mu_prov, aff, dff, onam, odir, segs, pops,...
-                   const('accel',0.8), const('min_dim', 16), const('tol',0.001),...
+                   const('accel',0.8), const('min_dim', 8), const('tol',0.001),...
                    const('sampdens',2),const('save',true),const('nworker',0)};
 mb.prog        = @run_mb;
 mb.vout        = @vout_mb_run;
@@ -715,8 +712,8 @@ cfg.hidden   = true;
 function  out = run_mb(cfg)
 [dat,sett]    = spm_mb_init(cfg);
 if ~isempty(dat)
-    [dat,sett,mu] = spm_mb_fit(dat,sett);
-    out           = out_mb_run(sett,dat);
+    [dat,sett] = spm_mb_fit(dat,sett);
+    out        = out_mb_run(sett,dat);
     save(out.fit{1},'sett','dat');
 else
     out           = struct('fit',{{''}},'mu',{{''}},'v',{{''}},'psi',{{''}});
@@ -862,6 +859,5 @@ dep = [mudep, matdep];
 %_______________________________________________________________________
 %
 %_______________________________________________________________________
-
 
 

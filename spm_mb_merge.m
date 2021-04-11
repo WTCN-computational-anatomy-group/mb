@@ -3,6 +3,8 @@ function out = spm_mb_merge(cfg)
 %__________________________________________________________________________
 % Copyright (C) 2020 Wellcome Centre for Human Neuroimaging
 
+% $Id: spm_mb_merge.m 7892 2020-07-10 16:39:18Z john $
+
 out      = struct('mu','priors');
 odir     = cfg.odir{1};
 onam     = cfg.onam;
