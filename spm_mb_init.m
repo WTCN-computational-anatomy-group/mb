@@ -431,20 +431,25 @@ for p=1:numel(sett.gmm) % Loop over populations
     else
         for n=1:N
             n1   = index(n);
-
-            % Initial distribution for mean
-            m    = sett.gmm(p).pr{1};      % Use prior mean
-            b    = ones(1,K1)*1e-3;        % Uninformative
-
-            % Initial distribution for precision
-            nu0  = size(m,1)-1+1e-3;
-            nu   = ones(1,K1)*nu0;
-
-            vr   = double(mean(vr_all,2));
-            scal = max(K1-1,1).^(2/C);     % Crude heuristic
-            W    = diag(1./vr)*(scal/nu0); % Low precision
-            W    = repmat(W,[1 1 K1]);
-
+%             % Initial distribution for mean
+%             m    = sett.gmm(p).pr{1};      % Use prior mean
+%             b    = ones(1,K1)*1e-3;        % Uninformative
+% 
+%             % Initial distribution for precision
+%             nu0  = size(m,1)-1+1e-3;
+%             nu   = ones(1,K1)*nu0;
+% 
+%             vr   = double(mean(vr_all,2));
+%             scal = max(K1-1,1).^(2/C);     % Crude heuristic
+%             W    = diag(1./vr)*(scal/nu0); % Low precision
+%             W    = repmat(W,[1 1 K1]);
+            % directly using the learned prios seems to work better (for CT
+            % at least)
+            m = sett.gmm(p).pr{1};
+            b = sett.gmm(p).pr{2};
+            W = sett.gmm(p).pr{3};
+            nu = sett.gmm(p).pr{4};
+            
             dat(n1).model.gmm.m   = m;
             dat(n1).model.gmm.b   = b;
             dat(n1).model.gmm.W   = W;
