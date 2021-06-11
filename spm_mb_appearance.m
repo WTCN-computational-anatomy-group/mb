@@ -102,9 +102,6 @@ else
     label = [];
 end
 
-% For visual debugging (disable/enable in debug_show())
-debug_show(f0, 'observed', gmm.modality);
-
 % Intensity priors
 pr      = sett.gmm(gmm.pop).pr;
 
@@ -132,6 +129,9 @@ else
     lxb           = 0;
 end
 lbs  = -Inf;
+
+% For visual debugging (disable/enable in debug_show())
+debug_show(mf, 'observed', gmm.modality);
 
 for it_appear=1:nit_appear
     [cluster,lb] = spm_mb_gmm(mf,vf, cluster, pr, uint64(mg_ix), mu, label, ...
