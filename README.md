@@ -13,6 +13,12 @@ The algorithm is developed using MATLAB and relies on external functionality fro
 1. Download/clone this repository to the `toolbox` folder of SPM12.
 2. Next, in a terminal, `cd` to this folder and execute the `make` command (this compiles required MEX-files). Note, if you are on MS Windows you should follow the instructions found here https://en.wikibooks.org/wiki/SPM/SPM12_MEX_Compilation_on_Windows (up to the compilation process), to enable the `make` command. On Windows, a compilation error has been reported where the `make` command can fail, then instead try the explicit command `mex -O -largeArrayDims -DSPM_WIN32 spm_gmmlib.c gmmlib.c`.
 
+### Troubleshooting
+* If you get an error related to the MATLAB mex path, try giving it explicitly as:
+```bash
+make MEXBIN=/my/matlab/path/bin/mex
+```
+
 ## Example use cases
 This section contains example code demonstrating how the MB toolbox can be used for nonlinear image registration, spatial normalisation, tissue segmentation and bias-field correction. **Example 1** fits the MB model to a population of images. Fitting the MB model results in: learned spatial (the template) and intensity priors, and a bunch of segmentations and forward deformations. The deformations can be used to warp subject images to template space, or aligning two subjects' images together by composing their deformations. These two operations are demonstrated in **Example 2**. Finally, **Example 3** fits an already learned MB model to two subject images. This is equivalent to registering to a pre-existing template space. Warping can then be done as shown in Example 2. For a full description of the model settings, see `demo_mb.m`.
 
