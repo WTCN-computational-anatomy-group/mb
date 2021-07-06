@@ -70,11 +70,14 @@ end
 %==========================================================================
 
 %==========================================================================
-function fn = get_image(gmm)
+function fn = get_image(gmm,do_mask)
+if nargin<2, do_mask=true; end
 % This is the place to do various image cleaning steps
 fn = get_data(gmm.f);
 C  = size(fn,4);
-fn = mask(fn,gmm.modality);
+if do_mask
+    fn = mask(fn,gmm.modality);
+end
 jitter = get_scale(gmm.f);
 jitter = reshape(jitter,[1 1 1 C]);
 if any(jitter~=0)

@@ -190,7 +190,7 @@ end
 if isfield(datn.model,'gmm') && (any(write_im(:)) || any(write_tc(:)))
 
     % Get image(s)
-    fn     = spm_mb_io('get_image',gmm);
+    fn     = spm_mb_io('get_image',gmm,false);
 
     % Get warped tissue priors
     mun    = spm_mb_shape('pull1',mu,psi);
