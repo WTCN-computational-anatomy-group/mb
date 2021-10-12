@@ -1140,7 +1140,7 @@ try
     % versions of SPM.
     MemMax = spm_platform('memory','available') / 1024 / 1024;
 catch
-    MemMax = 1024;
+    MemMax = 1024*4;
 end
 
 nw = max(floor(MemMax/MemReq) - 1,0); % Number of parfor workers to use (minus one..for main thread)
