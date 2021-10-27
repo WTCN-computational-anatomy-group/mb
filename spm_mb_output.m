@@ -190,7 +190,7 @@ end
 if isfield(datn.model,'gmm') && (any(write_im(:)) || any(write_tc(:)))
 
     % Get image(s)
-    fn     = spm_mb_io('get_image',gmm,false);
+    [fn,msk] = spm_mb_io('get_image',gmm,false,do_infer,false);
 
     % Get warped tissue priors
     mun    = spm_mb_shape('pull1',mu,psi);
@@ -249,10 +249,12 @@ if isfield(datn.model,'gmm') && (any(write_im(:)) || any(write_tc(:)))
 
     if do_infer
         % Infer missing values
-        mf = spm_gmmlib('infer', gmm.m,gmm.b,gmm.W,gmm.nu,gmm.gam, uint64(mg_ix), ...
-                                 mun,mf,vf, uint64([1 1 1]), label,lnP);
-    end
-
+        mf(msk) = NaN;
+        mf      = spm_gmmlib('infer', gmm.m,gmm.b,gmm.W,gmm.nu,gmm.gam, uint64(mg_ix), ...
+                             mun,mf,vf, uint64([1 1 1]), label,lnP);
+        clear msk
+    end    
+    
     if any(write_im(:,1))
         % Write image
         resn.i = cell(1,sum(write_im(:,1)));

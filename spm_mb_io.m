@@ -70,17 +70,22 @@ end
 %==========================================================================
 
 %==========================================================================
-function fn = get_image(gmm,do_mask)
+function [fn,msk] = get_image(gmm,do_mask,return_mask,do_jitter)
 if nargin<2, do_mask=true; end
+if nargin<3, return_mask=false; end
+if nargin<4, do_jitter=true; end
 % This is the place to do various image cleaning steps
 fn = get_data(gmm.f);
 C  = size(fn,4);
+msk = [];
 if do_mask
-    fn = mask(fn,gmm.modality);
+    [fn, msk] = mask(fn,gmm.modality,return_mask);
+elseif ~do_mask && return_mask
+    [~, msk] = mask(fn,gmm.modality,return_mask);
 end
 jitter = get_scale(gmm.f);
 jitter = reshape(jitter,[1 1 1 C]);
-if any(jitter~=0)
+if do_jitter && any(jitter~=0)
     % Data is an integer type, so to prevent aliasing in the histogram, small
     % random values are added.
     rng('default'); rng(1);
@@ -94,10 +99,19 @@ end
 %==========================================================================
 
 %==========================================================================
-function fn = mask(fn,modality)
-C = size(fn,4);
+function [fn,msk] = mask(fn,modality,return_mask)
+if nargin<3, return_mask=false; end
+C   = size(fn,4);
+if return_mask
+    msk = true(size(fn));
+else
+    msk = [];
+end
 for c=1:C
-    fn(:,:,:,c) = apply_mask(fn(:,:,:,c),modality(c));
+    fn(:,:,:,c)  = apply_mask(fn(:,:,:,c),modality(c));
+    if return_mask
+        msk(:,:,:,c) = isnan(fn(:,:,:,c));
+    end
 end
 %==========================================================================
 
