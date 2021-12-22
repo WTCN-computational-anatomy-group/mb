@@ -276,7 +276,7 @@ for p=1:numel(sett.gmm) % Loop over populations
         W  = sett.gmm(p).pr{3};
         for k=1:size(W,3)
             S        = inv(W(:,:,k));
-            W(:,:,k) = inv(S*(1-1e-9) + 1e-9*mean(diag(S))*eye(size(S)));
+            W(:,:,k) = inv(0.999*S + 0.001*mean(diag(S))*eye(size(S)));
         end
         sett.gmm(p).pr{3} = W;
 
