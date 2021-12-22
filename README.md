@@ -20,7 +20,7 @@ make MEXBIN=/my/matlab/path/bin/mex
 ```
 
 ## Example use cases
-This section contains example code demonstrating how the MB toolbox can be used for nonlinear image registration, spatial normalisation, tissue segmentation and bias-field correction. **Example 1** fits the MB model to a population of images. Fitting the MB model results in: learned spatial (the template) and intensity priors, and a bunch of segmentations and forward deformations. The deformations can be used to warp subject images to template space, or aligning two subjects' images together by composing their deformations. These two operations are demonstrated in **Example 2**. Finally, **Example 3** fits an already learned MB model to two subject images. This is equivalent to registering to a pre-existing template space. Warping can then be done as shown in Example 2. For a full description of the model settings, see `demo_mb.m`.
+This section contains example code demonstrating how the MB toolbox can be used for nonlinear image registration, spatial normalisation, tissue segmentation and bias-field correction. **Example 1** fits the MB model to a population of images. Fitting the MB model results in: learned spatial (the template) and intensity priors, and a bunch of segmentations and forward deformations. The deformations can be used to warp subject images to template space, or aligning two subjects' images together by composing their deformations. These two operations are demonstrated in **Example 2**. Finally, **Example 3** fits an already learned MB model to two subject images. This is equivalent to registering to a pre-existing template space. Warping can then be done as shown in Example 2. For a full description of the model settings, see `demo_mb.m`. **Example 4** shows how to register and warp the AAL atlas to the space of the MB atlas.
 
 ### 1. Learning the MB model
 ``` matlab
@@ -114,7 +114,7 @@ matlabbatch{1}.spm.util.defs.out{1}.push.fwhm            = [10 10 10];
 matlabbatch{1}.spm.util.defs.out{1}.push.prefix          = 'wpush';
 spm_jobman('run',matlabbatch);
 
-% 3. Use forward deformation (pth_y1) to template (pth_mu) to  image 
+% 3. Use forward deformation (pth_y1) to pull template (pth_mu) to image 
 %    space (pth_img1) 
 % -----------------
 matlabbatch = {};
@@ -166,7 +166,47 @@ run.gmm.pr.hyperpriors = [];  % Avoids re-learning the intensity prior
 % and remove run.mu.create.K and run.mu.create.vx
 ```
 
+### 4. Register and warp atlas to MB space
+
+``` matlab
+% This script demonstrates how to register, and warping, the AAL atlas to
+% the space of the MB atlas. This script can be adapted to other atlases.
+% The requiremnt is that an MRI atlas is available, defined in the same space
+% as the atlas of interest (if that atlas is categorical for example)
+
+% parameters
+p_mb_mu = 'mu_mb.nii';  % your learned MB atlas
+p_atlas = 'AAL3v1_1mm.nii';  % the 1 mm AAL atlas
+% From: https://www.oxcns.org/AAL3v1_for_SPM12.zip
+p_atlas_mri = 'colin27_t1_tal_lin.nii';  % the Colin T1w atlas (defined in the same space as the AAL atlas)
+% From: http://packages.bic.mni.mcgill.ca/mni-models/colin27/mni_colin27_1998_nifti.zip
+onam = 'aal';  % job name
+odir = './result';  % output results folder
+
+% fit MB to the Colin T1w atlas defined in the space as the AAL atlas
+matlabbatch = {};
+matlabbatch{1}.spm.tools.mb.run.mu.exist = {p_mb_mu};
+matlabbatch{1}.spm.tools.mb.run.aff = 'Aff(3)';
+matlabbatch{1}.spm.tools.mb.run.v_settings = [0.001 0 2 0.5 1];
+matlabbatch{1}.spm.tools.mb.run.onam = onam;
+matlabbatch{1}.spm.tools.mb.run.odir = {odir};
+matlabbatch{1}.spm.tools.mb.run.gmm.chan.images = {p_atlas_mri};
+matlabbatch{1}.spm.tools.mb.run.gmm.chan.modality = 1;
+% warp the AAL atlas to MB space using the deformation computed above
+matlabbatch{2}.spm.util.defs.comp{1}.inv.comp{1}.def = {fullfile(odir, 'y_1_00001_colin27_t1_tal_lin_aal.nii')};
+matlabbatch{2}.spm.util.defs.comp{1}.inv.space = {p_mb_mu};
+matlabbatch{2}.spm.util.defs.out{1}.pull.fnames = {p_atlas};
+matlabbatch{2}.spm.util.defs.out{1}.pull.savedir.saveusr = {odir};
+matlabbatch{2}.spm.util.defs.out{1}.pull.interp = -1;  % for interpolating labels
+matlabbatch{2}.spm.util.defs.out{1}.pull.mask = 1;
+matlabbatch{2}.spm.util.defs.out{1}.pull.fwhm = [0 0 0];
+matlabbatch{2}.spm.util.defs.out{1}.pull.prefix = [onam, '_'];
+% run batch jobs
+spm_jobman('run', matlabbatch);
+```
+
 ## References
+
 * Brudfors M, Balbastre Y, Flandin G, Nachev P, Ashburner J. Flexible Bayesian Modelling for Nonlinear Image Registration. In: International Conference on Medical Image Computing and Computer-Assisted Intervention 2020
 * Brudfors M, Ashburner J, Nachev P, Balbastre Y. Empirical Bayesian Mixture Models for Medical Image Translation. In: International Workshop on Simulation and Synthesis in Medical Imaging 2019 Oct 13 (pp. 1-12). Springer, Cham.
 * Balbastre Y, Brudfors M, Bronik K, Ashburner J. Diffeomorphic brain shape modelling using Gauss-Newton optimisation. In: International Conference on Medical Image Computing and Computer-Assisted Intervention 2018 Sep 16 (pp. 862-870). Springer, Cham.
