@@ -585,7 +585,7 @@ function dat = update_simple_affines(dat,mu,sett)
 accel = sett.accel;
 B     = sett.B;
 if ~isempty(B)
-    groupwise = isa(sett.mu,'struct') && isfield(sett.mu,'create');
+    groupwise = isa(sett.mu,'struct') && isfield(sett.mu,'create') && numel(dat)>1;
 
     % Update the affine parameters
     spm_diffeo('boundary',1);
