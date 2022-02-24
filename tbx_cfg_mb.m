@@ -200,7 +200,7 @@ pop       = cfg_branch;
 pop.tag   = 'gmm';
 pop.name  = 'Pop. of scans';
 pop.val   = {chans, has_labels, pr,...
-             const('tol_gmm', 0.0005), const('nit_gmm_miss',32), const('nit_gmm',8), const('nit_appear', 4)};
+             const('tol_gmm', 0.0005), const('nit_gmm_miss',32), const('nit_gmm',8), const('nit_appear', 4), const('mg_ix', [])};
 pop.check = @check_pop;
 pop.help  = {'Information about a population of subjects that all have the same set of scans.',''};
 % ---------------------------------------------------------------------
