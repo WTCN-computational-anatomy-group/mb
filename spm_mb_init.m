@@ -164,8 +164,8 @@ for p=1:numel(cfg.gmm)
     sett.gmm(ix_gmm).nit_appear   = cfg.gmm(p).nit_appear;
 
     % Multiple Gaussians per template class
-    if isfield(cfg.gmm(p),'mg_ix') && ~isempty(cfg.gmm.mg_ix)
-        sett.gmm(ix_gmm).mg_ix = cfg.gmm.mg_ix;
+    if isfield(cfg.gmm(p),'mg_ix') && ~isempty(cfg.gmm(p).mg_ix)
+        sett.gmm(ix_gmm).mg_ix = cfg.gmm(p).mg_ix;
     else
         sett.gmm(ix_gmm).mg_ix = 1:(sett.K+1);
     end
