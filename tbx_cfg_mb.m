@@ -3,7 +3,7 @@ function cfg = tbx_cfg_mb
 %__________________________________________________________________________
 % Copyright (C) 2019-2020 Wellcome Centre for Human Neuroimaging
 
-% $Id: tbx_cfg_mb.m 8087 2021-04-01 09:35:27Z mikael $
+% $Id: tbx_cfg_mb.m 8219 2022-02-09 09:42:10Z john $
 
 
 if ~isdeployed, addpath(fileparts(mfilename('fullpath'))); end
@@ -179,7 +179,7 @@ pr_upd.name    = 'Optimise';
 pr_upd.labels  = {'Yes','No'};
 pr_upd.values = {{'b0_priors',{0.01,0.01}}, []};
 %pr_upd.values  = {{}, []};
-pr_upd.val     = {pr_upd.values{1}};
+pr_upd.val     = {pr_upd.values{2}};
 pr_upd.help    = {['Specify whether the Gaussian-Wishart priors should be updated at each iteration. ' ...
                    'Enabling this can slow down convergence if there are small numbers of subjects. ' ...
                    'If only one subject is to be modelled (using a pre-computed template), then ' ...
@@ -200,7 +200,7 @@ pop       = cfg_branch;
 pop.tag   = 'gmm';
 pop.name  = 'Pop. of scans';
 pop.val   = {chans, has_labels, pr,...
-             const('tol_gmm', 0.0005), const('nit_gmm_miss',32), const('nit_gmm',8), const('nit_appear', 4), const('mg_ix', [])};
+             const('tol_gmm', 0.0005), const('nit_gmm_miss',32), const('nit_gmm',8), const('nit_appear', 8), const('mg_ix', [])};
 pop.check = @check_pop;
 pop.help  = {'Information about a population of subjects that all have the same set of scans.',''};
 % ---------------------------------------------------------------------
@@ -330,14 +330,17 @@ mu_prov.help    = {[...
 aff             = cfg_menu;
 aff.tag         = 'aff';
 aff.name        = 'Affine';
-aff.labels      = {'None', 'Translations', 'Rigid'};
-aff.values      = {'', 'T(3)', 'SE(3)'};
+aff.labels      = {'None', 'Translations', 'Rigid', 'Affine'};
+aff.values      = {'', 'T(3)', 'SE(3)', 'Aff(3)'};
 aff.val         = {'SE(3)'};
 aff.help        = {[...
 'Type of affine transform to use in the model, which may be either ' ...
 'none, translations only (T(3)) or rigid body (SE(3)). The fitting ' ...
 'begins with affine registration, before continuing by interleaving ' ...
-'affine and diffeomorphic registrations over multiple spatial scales.'],''};
+'affine and diffeomorphic registrations over multiple spatial scales.' ...
+'Note that the ``Affine'''' option is likely to throw up lots of ' ...
+'warnings about ``QFORM0 representation has been rounded'''', which ' ...
+'can mostly be ignored.'],''};
 % ---------------------------------------------------------------------
 
 % ---------------------------------------------------------------------
@@ -346,7 +349,7 @@ dff.tag         = 'v_settings';
 dff.name        = 'Shape regularisation';
 dff.strtype     = 'e';
 dff.num         = [1 5];
-dff.val         = {[0.00001 0 0.4 0.1 0.4]};
+dff.val         = {[0.0001 0 0.4 0.1 0.4]};
 dff.help        = {[...
 'Specify the regularisation settings for the diffeomorphic registration. ' ...
 'These consist of a vector of five values, which penalise different ' ...
@@ -397,7 +400,7 @@ onam.help       = {'Specify a key string for inclusion within all the output fil
 mb             = cfg_exbranch;
 mb.tag         = 'run';
 mb.name        = 'Fit Multi-Brain model';
-mb.val         = {mu_prov, aff, dff, onam, odir, segs, pops,...
+mb.val         = {mu_prov, aff, dff, const('del_settings',Inf), onam, odir, segs, pops,...
                    const('accel',0.8), const('min_dim', 8), const('tol',0.001),...
                    const('sampdens',2),const('save',true),const('nworker',0)};
 mb.prog        = @run_mb;

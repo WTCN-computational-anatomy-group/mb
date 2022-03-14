@@ -10,7 +10,7 @@ function [dat,sett,mu] = spm_mb_fit(dat,sett)
 %__________________________________________________________________________
 % Copyright (C) 2020 Wellcome Centre for Human Neuroimaging
 
-% $Id: spm_mb_fit.m 8196 2021-12-16 15:18:25Z john $
+% $Id: spm_mb_fit.m 8226 2022-02-24 10:44:46Z john $
 
 
 % Repeatable random numbers
@@ -74,7 +74,7 @@ end
 
 % Update affine only
 %--------------------------------------------------------------------------
-fprintf('Rigid (zoom=%d): %d x %d x %d\n',2^(numel(sz)-1),sett.ms.d);
+fprintf('Rigid (zoom=1/%d): %d x %d x %d\n',2^(numel(sz)-1),sett.ms.d);
 spm_plot_convergence('Init','Rigid Alignment','Objective','Iteration');
 E      = Inf;
 for it0=1:nit_aff
@@ -116,38 +116,14 @@ for it0=1:nit_aff
         countdown = 6;
     end
 end
-
-% Finish affine registration of any subjects that need a few more iterations
-for it0=1:3
-
-    if updt_mu
-        [mu,sett,dat,te,E] = iterate_mean(mu,sett,dat,te,nit_mu);
-    end
-
-    for n=1:numel(dat)
-        En = Inf;
-        for it1=1:nit_aff
-            oEn    = En;
-            dat(n) = spm_mb_shape('update_simple_affines',dat(n),mu,sett);
-            En     = sum(dat(n).E)/nvox(dat(n));
-            if abs(oEn-En) < sett.tol*0.2, break; end
-        end
-    end
-
-    E   = sum(sum(cat(2,dat.E),2),1) + te;  % Cost function after previous update
-    fprintf('%8.4f\n', E/nvox(dat));
-    spm_plot_convergence('Set',E/nvox(dat));
-    do_save(mu,sett,dat);
-end
-
 spm_plot_convergence('Clear');
-nit_mu = 2;
+nit_mu = 4;
 
 % Update affine and diffeo (iteratively decreases the template resolution)
 %--------------------------------------------------------------------------
 spm_plot_convergence('Init','Diffeomorphic Alignment','Objective','Iteration');
 for zm=numel(sz):-1:1 % loop over zoom levels
-    fprintf('\nzoom=%d: %d x %d x %d\n', 2^(zm-1), sett.ms.d);
+    fprintf('\nzoom=1/%d: %d x %d x %d\n', 2^(zm-1), sett.ms.d);
 
     if updt_mu
         dat = spm_mb_appearance('restart',dat,sett);
@@ -163,7 +139,7 @@ for zm=numel(sz):-1:1 % loop over zoom levels
     if ~updt_mu
         mu = spm_mb_shape('shrink_template',mu0,Mmu,sett);
     else
-        [mu,sett,dat,te,E] = iterate_mean(mu,sett,dat,te,nit_mu);
+        [mu,sett,dat,te] = iterate_mean(mu,sett,dat,te,nit_mu);
     end
 
     if updt_aff
@@ -176,7 +152,7 @@ for zm=numel(sz):-1:1 % loop over zoom levels
     end
     fprintf('\n');
 
-    nit_max = nit_zm0 + (zm - 1)*3;
+    nit_max = nit_zm0 + (zm - 1)*2;
     for it0=1:nit_max
 
         oE  = E/nvox(dat);

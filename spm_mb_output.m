@@ -194,7 +194,7 @@ if isfield(datn.model,'gmm') && (any(write_im(:)) || any(write_tc(:)))
 
     % Get warped tissue priors
     mun    = spm_mb_shape('pull1',mu,psi);
-    mun    = spm_mb_classes('template_k1',mun,4);
+    mun    = spm_mb_classes('template_k1',mun,datn.delta,4);
 
     % Integrate use of multiple Gaussians per tissue
     gam  = gmm.gam;
@@ -343,7 +343,7 @@ if any(write_tc(:,2)) || any(write_tc(:,3)) || any(write_tc(:,4))
         % native space.
         mun = spm_mb_shape('pull1',mu,psi);
         clear mu
-        mun = spm_mb_shape('softmax',mun,4);
+        mun = spm_mb_shape('softmax0',mun,4);
         mun = cat(4,mun,max(1 - sum(mun,4),0));
     end
 
