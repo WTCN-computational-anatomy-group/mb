@@ -104,7 +104,7 @@ elseif g.dim==3
         B(3,2,6) = -1;
     case 'Aff'
         % Aff(3) - Affine
-        B        = zeros(4,4,6);
+        B        = zeros(4,4,12);
         B(1,1,1) =  1;
         B(2,1,2) =  1;
         B(3,1,3) =  1;
