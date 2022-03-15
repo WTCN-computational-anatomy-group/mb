@@ -45,19 +45,19 @@ else
     error('This should not happen');
 end
 if ~isempty(dat.delta)
-    [dat.delta,tmp] = update_delta(dat.delta,mu,P,sett.del_settings);
+    [dat.delta,tmp] = update_delta(dat.delta,mu,P,sett.del_settings,sett.accel);
     dat.E(1) = dat.E(1)+tmp;
 end
 %==========================================================================
 
 %==========================================================================
-function [delta,dE] = update_delta(delta,mu,P,del_settings)
+function [delta,dE] = update_delta(delta,mu,P,del_settings,accel)
 K = size(mu,4);
 L = (eye(K)-1/(K+1))*del_settings;
 H = L;
 g = L*delta(:);
 for k=1:size(mu,3)
-    [g1,H1] = gradhess1(mu(:,:,k,:),P(:,:,k,:));
+    [g1,H1] = gradhess1(mu(:,:,k,:),P(:,:,k,:),accel);
     g = g + double(reshape(sum(sum(g1,1),2),[K 1]));
     H = H + double(reshape(sum(sum(H1,1),2),[K K]));
 end
@@ -66,9 +66,10 @@ delta(:) = delta(:) - H\g;
 %==========================================================================
 
 %==========================================================================
-function [g,H] = gradhess1(mu,P,delta)
+function [g,H] = gradhess1(mu,P,delta,accel)
 dm    = size(mu);
 K     = size(mu,4);
+Ab    = 0.5*(eye(K)-1/(K+1)); % Bohnings bound on the Hessian
 if nargin>=3 && ~isempty(delta)
     delta = reshape(delta,[1 1 1 K]);
     mu    = bsxfun(@plus,mu,delta);
@@ -82,12 +83,11 @@ for k=1:K
     tmp          = sig_k - P(:,:,:,k);
     tmp(msk)     = 0;
     g(:,:,:,k)   = tmp;
-
-    tmp          = sig_k - sig_k.^2;
+    tmp          = (sig_k - sig_k.^2)*accel + (1-accel)*Ab(k,k);
     tmp(msk)     = 0;
     H(:,:,:,k,k) = tmp;
     for k1=(k+1):K
-        tmp           = -sig_k.*sig(:,:,:,k1);
+        tmp           = (-sig_k.*sig(:,:,:,k1))*accel + (1-accel)*Ab(k,k1);
         tmp(msk)      = 0;
         H(:,:,:,k,k1) = tmp;
         H(:,:,:,k1,k) = tmp;
