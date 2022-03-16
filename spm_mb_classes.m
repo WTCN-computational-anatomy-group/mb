@@ -52,12 +52,13 @@ end
 
 %==========================================================================
 function [delta,dE] = update_delta(delta,mu,P,del_settings,accel)
+% disp(exp(delta)/sum(exp(delta)))
 K = size(mu,4);
 L = (eye(K)-1/(K+1))*del_settings;
 H = L;
 g = L*delta(:);
 for k=1:size(mu,3)
-    [g1,H1] = gradhess1(mu(:,:,k,:),P(:,:,k,:),accel);
+    [g1,H1] = gradhess1(mu(:,:,k,:),P(:,:,k,:),delta,accel);
     g = g + double(reshape(sum(sum(g1,1),2),[K 1]));
     H = H + double(reshape(sum(sum(H1,1),2),[K K]));
 end
