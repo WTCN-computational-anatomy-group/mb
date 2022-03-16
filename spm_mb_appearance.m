@@ -21,7 +21,7 @@ function [dat,sett] = restart(dat,sett)
 for n=1:numel(dat)
     if isfield(dat(n).model,'gmm')
         p    = dat(n).model.gmm.pop;
-        same = all(sum(diff(sett.gmm(p).pr{1},1,2).^2,1))==0;
+        same = ~all(sum(diff(sett.gmm(p).pr{1},1,2).^2,1));
         if same
             % Intensity priors are identical for all clusters
             % so need to break the symmetry.
@@ -276,7 +276,7 @@ for p=1:numel(sett.gmm) % Loop over populations
         W  = sett.gmm(p).pr{3};
         for k=1:size(W,3)
             S        = inv(W(:,:,k));
-            W(:,:,k) = inv(0.999*S + 0.001*mean(diag(S))*eye(size(S)));
+            W(:,:,k) = inv(S*(1-1e-9) + 1e-9*mean(diag(S))*eye(size(S)));
         end
         sett.gmm(p).pr{3} = W;
 
@@ -624,7 +624,7 @@ elseif strcmp(img_is,'observed')
     c   = 1;  % Channel to show
     img = img(:,:,:,c);
 elseif strcmp(img_is,'template')
-    img = spm_mb_classes('template_k1',img,4);
+    img = spm_mb_classes('template_k1',img,[],4);
 end
 clim = [-Inf Inf];
 if modality == 2

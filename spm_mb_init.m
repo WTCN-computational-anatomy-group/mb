@@ -5,7 +5,7 @@ function [dat,sett] = spm_mb_init(cfg)
 % Copyright (C) 2018-2020 Wellcome Centre for Human Neuroimaging
 
 
-% $Id: spm_mb_init.m 8086 2021-04-01 09:13:20Z john $
+% $Id: spm_mb_init.m 8220 2022-02-09 12:21:22Z john $
 
 [dat,sett] = mb_init1(cfg);
 
@@ -43,7 +43,7 @@ sett.K      = K;
 if ~isempty(sett.aff)
     B   = spm_mb_shape('affine_bases',sett.aff);
 else
-    B   = zeros([3 3 0]);
+    B   = zeros([4 4 0]);
 end
 sett.B = B;
 sett   = rmfield(sett,'aff');
@@ -77,7 +77,7 @@ end
 
 cl  = cell(N,1);
 dat = struct('dm',cl, 'Mat',cl, 'samp',[1 1 1], 'onam','', 'odir','',...
-             'q',cl, 'v',cl, 'psi',cl, 'model',cl, 'lab',cl, 'E',cl,'nvox',cl);
+             'q',cl, 'v',cl, 'delta', zeros(1,K), 'psi',cl, 'model',cl, 'lab',cl, 'E',cl,'nvox',cl);
 n   = 0;
 
 % Process categorical data
@@ -113,6 +113,12 @@ if numel(cfg.cat)>=1
         dat(n).odir = sett.odir;
         dat(n).v    = fullfile(dat(n).odir,['v_' dat(n).onam '.nii']);
         dat(n).psi  = fullfile(dat(n).odir,['y_' dat(n).onam '.nii']);
+        if isfinite(sett.del_settings)
+            dat(n).delta = zeros(1,K);
+        else
+            dat(n).delta = [];
+        end
+
 
         Kn = 0;
         for c=1:Nc
@@ -212,6 +218,11 @@ for p=1:numel(cfg.gmm)
             dat(n).v    = fullfile(dat(n).odir,['v_' dat(n).onam '.nii']);
             dat(n).psi  = fullfile(dat(n).odir,['y_' dat(n).onam '.nii']);
 
+            if isfinite(sett.del_settings)
+                dat(n).delta = zeros(1,K);
+            else
+                dat(n).delta = [];
+            end
             cf = zeros(Nc,1);
             for c=1:Nc
                 cf(c) = size(f(1).dat,4);

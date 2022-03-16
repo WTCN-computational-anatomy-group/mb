@@ -51,7 +51,7 @@ opt = struct('write_inu',cfg.inu,...
              'bb',cfg.bb,...
              'odir',cfg.odir,...
              'fwhm',cfg.fwhm);
-opt.proc_zn = cfg.proc_zn;
+opt.clean_gwc = cfg.clean_gwc;
 
 if nw > 1 && numel(dat) > 1 % PARFOR
     fprintf('Write output: ');
@@ -77,8 +77,8 @@ end
 %==========================================================================
 
 %==========================================================================
-% PostProcMRF()
-function zn = PostProcMRF(zn,Mn,strength,nit)
+% mrf_apply()
+function zn = mrf_apply(zn,Mn,strength,nit)
 if nargin < 4, nit = 10; end
 P   = zeros(size(zn),'uint8');
 G   = ones([size(zn,4),1],'single')*strength;
@@ -113,7 +113,7 @@ write_tc    = opt.write_tc;  % native, warped, warped-mod, scalar momentum
 fwhm        = opt.fwhm;      % FWHM for smoothing of warped tissues
 vx          = opt.vx;        % Template space voxel size
 bb          = opt.bb;        % Template space bounding box
-proc_zn     = opt.proc_zn;   % Function for processing native space responsibilities
+clean_gwc   = opt.clean_gwc; % Settings for cleaning up tissue classes
 
 cl   = cell(1,1);
 resn = struct('inu',cl,'i',cl,'mi',cl,'c',cl,'wi',cl, ...
@@ -194,7 +194,7 @@ if isfield(datn.model,'gmm') && (any(write_im(:)) || any(write_tc(:)))
 
     % Get warped tissue priors
     mun    = spm_mb_shape('pull1',mu,psi);
-    mun    = spm_mb_classes('template_k1',mun,4);
+    mun    = spm_mb_classes('template_k1',mun,datn.delta,4);
 
     % Integrate use of multiple Gaussians per tissue
     gam  = gmm.gam;
@@ -220,16 +220,12 @@ if isfield(datn.model,'gmm') && (any(write_im(:)) || any(write_tc(:)))
 
     if mrf > 0
         % Ad-hoc MRF clean-up of segmentation
-        zn = PostProcMRF(zn,Mn,mrf);
+        zn = mrf_apply(zn,Mn,mrf);
     end
 
-    if iscell(proc_zn) && ~isempty(proc_zn) && isa(proc_zn{1},'function_handle')
-        % Applies a function that processes the native space responsibilities
-        try
-            zn = proc_zn{1}(zn);
-        catch
-            warning('Incorrect definition of out.proc_zn, no processing performed.')
-        end
+    if clean_gwc.do == true
+        % Ad-hoc clean-up of GM, WM and CSF
+        zn = do_clean_gwc(zn, clean_gwc.gm, clean_gwc.wm, clean_gwc.csf, clean_gwc.level);
     end
 
     if any(write_tc(:,1) == true)
@@ -343,7 +339,7 @@ if any(write_tc(:,2)) || any(write_tc(:,3)) || any(write_tc(:,4))
         % native space.
         mun = spm_mb_shape('pull1',mu,psi);
         clear mu
-        mun = spm_mb_shape('softmax',mun,4);
+        mun = spm_mb_shape('softmax0',mun,4);
         mun = cat(4,mun,max(1 - sum(mun,4),0));
     end
 
@@ -466,4 +462,91 @@ Nii.mat0    = M;
 Nii.descrip = descrip;
 create(Nii);
 Nii.dat(:,:,:,:,:,:) = img;
+%==========================================================================
+
+%==========================================================================
+function zn = do_clean_gwc(zn,gm,wm,csf,level)
+if nargin < 2, gm = 1; end
+if nargin < 3, wm = 2; end
+if nargin < 4, csf = 3; end
+if nargin < 5, level = 1; end
+
+ixt = struct('gm',gm,'wm',wm,'csf',csf);
+b = sum(zn(:,:,:,ixt.wm),4);
+
+% Build a 3x3x3 seperable smoothing kernel
+kx=[0.75 1 0.75];
+ky=[0.75 1 0.75];
+kz=[0.75 1 0.75];
+sm=sum(kron(kron(kz,ky),kx))^(1/3);
+kx=kx/sm; ky=ky/sm; kz=kz/sm;
+
+% Erosions and conditional dilations
+th1 = 0.15;
+if level==2, th1 = 0.2; end
+niter  = 32;
+niter2 = 32;
+for j=1:niter
+    if j>2
+        th       = th1;
+    else
+        th       = 0.6;
+    end  % Dilate after two its of erosion
+    for i=1:size(b,3)
+        gp       = double(sum(zn(:,:,i,ixt.gm),4));
+        wp       = double(sum(zn(:,:,i,ixt.wm),4));
+        bp       = double(b(:,:,i));
+        bp       = (bp>th).*(wp+gp);
+        b(:,:,i) = bp;
+    end
+    spm_conv_vol(b,b,kx,ky,kz,-[1 1 1]);
+end
+
+% Also clean up the CSF.
+if niter2 > 0
+    c = b;
+    for j=1:niter2
+        for i=1:size(b,3)
+            gp       = double(sum(zn(:,:,i,ixt.gm),4));
+            wp       = double(sum(zn(:,:,i,ixt.wm),4));
+            cp       = double(sum(zn(:,:,i,ixt.csf),4));
+            bp       = double(c(:,:,i));
+            bp       = (bp>th).*(wp+gp+cp);
+            c(:,:,i) = bp;
+        end
+        spm_conv_vol(c,c,kx,ky,kz,-[1 1 1]);
+    end
+end
+
+th = 0.05;
+for i=1:size(b,3)
+    slices = cell(1,size(zn,4));
+    for k1=1:size(zn,4)
+        slices{k1} = double(zn(:,:,i,k1));
+    end
+    bp           = double(b(:,:,i));
+    bp           = ((bp>th).*(sum(cat(3,slices{ixt.gm}),3)+sum(cat(3,slices{ixt.wm}),3)))>th;
+    for i1=1:numel(ixt.gm)
+        slices{ixt.gm(i1)} = slices{ixt.gm(i1)}.*bp;
+    end
+    for i1=1:numel(ixt.wm)
+        slices{ixt.wm(i1)} = slices{ixt.wm(i1)}.*bp;
+    end
+
+    if niter2>0
+        cp           = double(c(:,:,i));
+        cp           = ((cp>th).*(sum(cat(3,slices{ixt.gm}),3)+sum(cat(3,slices{ixt.wm}),3)+sum(cat(3,slices{ixt.csf}),3)))>th;
+
+        for i1=1:numel(ixt.csf)
+            slices{ixt.csf(i1)} = slices{ixt.csf(i1)}.*cp;
+        end
+    end
+    tot       = zeros(size(bp))+eps;
+    for k1=1:size(zn,4)
+        tot   = tot + slices{k1};
+    end
+    for k1=1:size(zn,4)
+        zn(:,:,i,k1) = slices{k1}./tot;
+    end
+end
 %==========================================================================

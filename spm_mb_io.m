@@ -183,7 +183,7 @@ Nmu.dat(:,:,:,:) = mu;
 
 if true
     % Softmax
-    mu  = spm_mb_shape('softmax',mu,4);
+    mu  = spm_mb_shape('softmax0',mu,4);
     d   = [size(mu) 1 1];
     [pth,nam,ext] = fileparts(sett.mu.create.mu);
     nam      = ['softmax' nam(3:end)];
