@@ -107,7 +107,7 @@ for it0=1:nit_aff
     % Finished rigid alignment?
     % Note that for limited field of view templates, the objective
     % function can increase as well as decrease.
-    if it0>12 && abs(oE-E/nvox(dat)) < sett.tol*2
+    if it0>12 && abs(oE-E/nvox(dat)) < sett.tol*1e-1*0.5
         countdown = countdown - 1;
         if countdown==0
             break;
