@@ -24,6 +24,8 @@ mu = single(mu.dat(:,:,:,:,:));
 % If SPM has been compiled with OpenMP support then the number of threads
 % are here set to speed up the algorithm
 %--------------------------------------------------------------------------
+if isscalar(sett.nworker), sett.nworker = [sett.nworker]; end
+sett.nworker = sett.nworker(end);
 nw   = spm_mb_shape('get_num_workers',sett,max(27,sett.K*5+17));
 if sett.nworker > 1
     setenv('SPM_NUM_THREADS',sprintf('%d',0));

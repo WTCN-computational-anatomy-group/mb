@@ -17,15 +17,6 @@ function [dat,sett,mu] = spm_mb_fit(dat,sett)
 %--------------------------------------------------------------------------
 rng('default'); rng(1);
 
-% If SPM has been compiled with OpenMP support then the number of threads
-% are here set to speed up the algorithm
-%--------------------------------------------------------------------------
-if sett.nworker > 1
-    setenv('SPM_NUM_THREADS',sprintf('%d',0));
-else
-    setenv('SPM_NUM_THREADS',sprintf('%d',-1));
-end
-
 % Get template size and orientation
 %--------------------------------------------------------------------------
 if isfield(sett.mu,'exist')
@@ -39,6 +30,24 @@ dmu     = sett.mu.d;
 nz      = max(ceil(log2(min(dmu(dmu~=1))) - log2(sett.min_dim)),1);
 sz      = spm_mb_shape('zoom_settings',sett.v_settings,sett.mu,nz);
 sett.ms = sz(end);
+
+% Configure number of parfor workers
+%--------------------------------------------------------------------------
+nworker_zm = sett.nworker;
+if isscalar(nworker_zm), nworker_zm = [nworker_zm]; end
+if numel(nworker_zm) > numel(sz), nworker_zm = nworker_zm(1:numel(sz)); end
+nworker_zm = padarray(nworker_zm,[0, numel(sz) - numel(nworker_zm)],nworker_zm(1),'pre');
+nworker_zm = fliplr(nworker_zm);   
+sett.nworker = nworker_zm(end);    
+    
+% If SPM has been compiled with OpenMP support then the number of threads
+% are here set to speed up the algorithm
+%--------------------------------------------------------------------------
+if sett.nworker > 1
+    setenv('SPM_NUM_THREADS',sprintf('%d',0));
+else
+    setenv('SPM_NUM_THREADS',sprintf('%d',-1));
+end
 
 % Init shape model parameters
 %--------------------------------------------------------------------------
@@ -78,6 +87,7 @@ fprintf('Rigid (zoom=1/%d): %d x %d x %d\n',2^(numel(sz)-1),sett.ms.d);
 spm_plot_convergence('Init','Rigid Alignment','Objective','Iteration');
 E      = Inf;
 for it0=1:nit_aff
+   
     if it0>1
         oE  = E/nvox(dat);
     else
@@ -125,6 +135,9 @@ spm_plot_convergence('Init','Diffeomorphic Alignment','Objective','Iteration');
 for zm=numel(sz):-1:1 % loop over zoom levels
     fprintf('\nzoom=1/%d: %d x %d x %d\n', 2^(zm-1), sett.ms.d);
 
+    sett.nworker = nworker_zm(zm);
+    disp(['sett.nworker = ' num2str(sett.nworker)])
+    
     if updt_mu
         dat = spm_mb_appearance('restart',dat,sett);
     end
@@ -202,6 +215,8 @@ for zm=numel(sz):-1:1 % loop over zoom levels
     end
     do_save(mu,sett,dat);
 end
+% reset number of workers
+sett.nworker = nworker_zm(end);
 %spm_plot_convergence('Clear');
 %==========================================================================
 
