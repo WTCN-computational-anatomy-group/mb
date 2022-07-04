@@ -269,7 +269,7 @@ for p=1:numel(cfg.gmm)
                 if ~all(dmc==dm)
                     error('Incompatible image dimensions for images of subject %d in population %d (%dx%dx%d ~= %dx%dx%d)', np, p, dmc, dm);
                 end
-                if ~all(lab.f.mat(:)==f(1).mat(:))
+                if ~all(ismembertol(lab.f.mat(:),f(1).mat(:),1e-6))
                     warning('Incompatible s-form matrices for subject %d in population %d', np, p);
                 end
                %if max(cellfun(@max,lab.cm_map)) > K+1 || min(cellfun(@min,lab.cm_map)) < 1
