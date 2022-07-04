@@ -96,7 +96,7 @@ samp2 = gmm.samp;
 f0    = subsample(spm_mb_io('get_image',gmm),samp1);
 
 if isa(dat.lab,'struct')
-    label = spm_mb_io('get_data', dat.lab.f);
+    label = spm_mb_io('get_data', dat.lab.f) + 1;
     label = uint8(subsample(label,samp1));
 else
     label = [];
