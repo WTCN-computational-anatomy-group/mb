@@ -102,6 +102,22 @@ elseif g.dim==3
         B(3,1,5) = -1;
         B(2,3,6) =  1;
         B(3,2,6) = -1;
+    case 'SEZ'
+        % I don't know what this one should be called
+        % but it is SE(3) with an isotropic zoom.
+        B        = zeros(4,4,7);
+        B(1,4,1) =  1;
+        B(2,4,2) =  1;
+        B(3,4,3) =  1;
+        B(1,2,4) =  1;
+        B(2,1,4) = -1;
+        B(1,3,5) =  1;
+        B(3,1,5) = -1;
+        B(2,3,6) =  1;
+        B(3,2,6) = -1;
+        B(1,1,7) =  1;
+        B(2,2,7) =  1;
+        B(3,3,7) =  1;        
     case 'Aff'
         % Aff(3) - Affine
         B        = zeros(4,4,12);
