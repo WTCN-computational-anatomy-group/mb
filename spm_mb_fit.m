@@ -36,9 +36,15 @@ sett.ms = sz(end);
 nworker_zm = sett.nworker;
 if isscalar(nworker_zm), nworker_zm = [nworker_zm]; end
 if numel(nworker_zm) > numel(sz), nworker_zm = nworker_zm(1:numel(sz)); end
-nworker_zm = padarray(nworker_zm,[0, numel(sz) - numel(nworker_zm)],nworker_zm(1),'pre');
-nworker_zm = fliplr(nworker_zm);   
-sett.nworker = nworker_zm(end);    
+% Pad
+tmp = zeros(size(sz));
+tmp(end - numel(nworker_zm) + 1:end) = nworker_zm;
+tmp(1:end - numel(nworker_zm)) = nworker_zm(1);
+nworker_zm = tmp;
+% Flip
+nworker_zm = fliplr(nworker_zm);
+% Set
+sett.nworker = nworker_zm(end);
     
 % If SPM has been compiled with OpenMP support then the number of threads
 % are here set to speed up the algorithm
