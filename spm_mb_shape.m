@@ -391,9 +391,11 @@ if ~isempty(B)
         mq = sum(cat(2,dat(:).q),2)/numel(dat);
 
         if isfield(sett.mu.create,'issym') && sett.mu.create.issym>0
-            % Temporary fix so that affine transforms are not mean
+            % Parameters that change x-coordinates are not mean
             % corrected when dealing with a symmetric template.
-            mq = mq*0;
+            tmp = sum(B(1,:,:).^2,2);
+            tmp = squeeze(tmp~=0);
+            mq(tmp) = 0;
         end
 
         for n=1:numel(dat)
@@ -729,9 +731,11 @@ if ~isempty(B)
         mq = sum(cat(2,dat(:).q),2)/numel(dat);
 
         if isfield(sett.mu.create,'issym') && sett.mu.create.issym>0
-            % Temporary fix so that affine transforms are not mean
+            % Parameters that change x-coordinates are not mean
             % corrected when dealing with a symmetric template.
-            mq = mq*0;
+            tmp = sum(B(1,:,:).^2,2);
+            tmp = squeeze(tmp~=0);
+            mq(tmp) = 0;
         end
 
         for n=1:numel(dat)
