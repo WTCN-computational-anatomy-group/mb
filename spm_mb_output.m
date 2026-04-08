@@ -53,16 +53,7 @@ opt = struct('write_inu',cfg.inu,...
              'bb',cfg.bb,...
              'odir',cfg.odir,...
              'fwhm',cfg.fwhm);
-if isfield(cfg,'proc_zn')
-    opt.proc_zn = cfg.proc_zn;
-else
-    opt.proc_zn = {};
-end
-if isfield(cfg,'clean_gwc')
-    opt.clean_gwc = cfg.clean_gwc;
-else
-    opt.clean_gwc = struct('do',false);
-end
+opt.proc_zn = cfg.proc_zn;
 
 if nw > 1 && numel(dat) > 1 % PARFOR
     fprintf('Write output: ');
@@ -124,7 +115,6 @@ write_tc    = opt.write_tc;  % native, warped, warped-mod, scalar momentum
 fwhm        = opt.fwhm;      % FWHM for smoothing of warped tissues
 vx          = opt.vx;        % Template space voxel size
 bb          = opt.bb;        % Template space bounding box
-clean_gwc   = opt.clean_gwc; % Settings for cleaning up tissue classes
 proc_zn     = opt.proc_zn;  % Function for processing native space responsibilities
 
 cl   = cell(1,1);
@@ -242,9 +232,6 @@ if isfield(datn.model,'gmm') && (any(write_im(:)) || any(write_tc(:)))
         catch
             warning('Incorrect definition of out.proc_zn, no processing performed.')
         end
-    elseif isstruct(clean_gwc) && isfield(clean_gwc,'do') && clean_gwc.do == true
-        % Ad-hoc clean-up of GM, WM and CSF
-        zn = do_clean_gwc(zn, clean_gwc.gm, clean_gwc.wm, clean_gwc.csf, clean_gwc.level);
     end
 
     if any(write_tc(:,1) == true)

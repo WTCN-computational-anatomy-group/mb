@@ -629,19 +629,14 @@ vox.hidden  = true;
 % ---------------------------------------------------------------------
 
 % ---------------------------------------------------------------------
-clean_gwc        = cfg_entry;
-clean_gwc.tag    = 'clean_gwc';
-clean_gwc.name   = 'GWC clean';
-clean_gwc.help   = {'Ad-hoc clean-up of GM, WM and CSF.'};
-clean_gwc.val    = {struct('do',false,'gm',1,'wm',2,'csf',3,'level',1)};
-clean_gwc.hidden = true;
-% ---------------------------------------------------------------------
-
-% ---------------------------------------------------------------------
 proc_zn        = cfg_entry;
 proc_zn.tag    = 'proc_zn';
 proc_zn.name   = 'Process responsibilities';
-proc_zn.help   = {'Function for processing native space responsibilities, given as a function handle @(x) foo(x).'};
+proc_zn.help   = {['Function for processing native space responsibilities, ' ...
+                  'given as a function handle ``@(x) foo(x)``. The argument (``x``) is of ' ...
+                  '``size(x) = [1, 4]``, where the first three dimensions are the size ' ...
+                  'of the image and the last dimension is the number of segmentation ' ...
+                  'classes (K + 1).']};
 proc_zn.val    = {{}};
 proc_zn.hidden = true;
 % ---------------------------------------------------------------------
@@ -661,7 +656,7 @@ odir.hidden = true;
 out      = cfg_exbranch;
 out.tag  = 'out';
 out.name = 'Output';
-out.val  = {res_file, i, mi, wi, wmi, inu, c, wc, mwc, sm, mrf, fwhm, bb, vox, clean_gwc, proc_zn, odir};
+out.val  = {res_file, i, mi, wi, wmi, inu, c, wc, mwc, sm, mrf, fwhm, bb, vox, proc_zn, odir};
 out.prog = @spm_mb_output;
 out.help = {[...
 'When ``Fit Multi-Brain model'' is run, the resulting model fit contains ' ...
