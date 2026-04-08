@@ -638,6 +638,15 @@ clean_gwc.hidden = true;
 % ---------------------------------------------------------------------
 
 % ---------------------------------------------------------------------
+proc_zn        = cfg_entry;
+proc_zn.tag    = 'proc_zn';
+proc_zn.name   = 'Process responsibilities';
+proc_zn.help   = {'Function for processing native space responsibilities, given as a function handle @(x) foo(x).'};
+proc_zn.val    = {{}};
+proc_zn.hidden = true;
+% ---------------------------------------------------------------------
+
+% ---------------------------------------------------------------------
 odir        = cfg_files;
 odir.tag    = 'odir';
 odir.name   = 'Output directory';
@@ -652,7 +661,7 @@ odir.hidden = true;
 out      = cfg_exbranch;
 out.tag  = 'out';
 out.name = 'Output';
-out.val  = {res_file, i, mi, wi, wmi, inu, c, wc, mwc, sm, mrf, fwhm, bb, vox, clean_gwc, odir};
+out.val  = {res_file, i, mi, wi, wmi, inu, c, wc, mwc, sm, mrf, fwhm, bb, vox, clean_gwc, proc_zn, odir};
 out.prog = @spm_mb_output;
 out.help = {[...
 'When ``Fit Multi-Brain model'' is run, the resulting model fit contains ' ...
